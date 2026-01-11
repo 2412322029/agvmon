@@ -112,7 +112,7 @@ def xml2json(xml_content):
         tail = element.tail.strip() if element.tail and element.tail.strip() else None
 
         if text and not children:
-            result["#text"] = text
+            result = text
         elif text:
             result["#text"] = text
 
@@ -128,7 +128,7 @@ def xml2json(xml_content):
     xml_dict = {root.tag: element_to_dict(root)}
 
     # 转换为JSON并返回
-    return json.dumps(xml_dict, indent=2, ensure_ascii=False)
+    return xml_dict
 
 
 # 从ShareMapInfo数据生成地图图像的函数

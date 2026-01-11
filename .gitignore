@@ -8,11 +8,5 @@ wheels/
 
 # Virtual environments
 .venv
-data/1.json
-data/1.py
-data/1.txt
-data/1.xml
-data/172.18.2.72-20260110T032944-163.xml
-data/map_data.json
-data/map_image.png
-data/output_image.png
+
+util/data/*
