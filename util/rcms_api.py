@@ -4,7 +4,8 @@ import pathlib
 
 import httpx
 from config import cfg
-from dataparse import xml2json
+from dataparse import generate_map_image, parse_ShareMapInfo, xml2json
+from helper import sharemap2json
 
 fake_path = pathlib.Path(os.path.join(os.path.dirname(__file__), "data/fake"))
 if not fake_path.exists():
@@ -25,7 +26,8 @@ class RcmsApi:
         self.fake = fake
         self.rcsdata = {}
         self.rabbitmqdata = {}
-        self.mapdata = ""
+        self.mapdata = {}
+        self.sharemapdata = ""
         self.maplist = None
         self.alarmtype = {}
         self.devicelist = {}
@@ -36,7 +38,7 @@ class RcmsApi:
         if not self.current_cache_path.exists():
             self.current_cache_path.mkdir()
 
-    def persist_data(self):
+    def cache_data(self):
         """
         持久化数据到文件
         """
@@ -52,12 +54,13 @@ class RcmsApi:
             "rabbitmqdata",
             "rcsdata",
             "maplist",
+            "mapdata",
         ]:
             with open(p / f"{k}.json", "w", encoding="utf-8") as f:
                 json.dump(self.__dict__[k], f, indent=2, ensure_ascii=False)
-        with open(p / "mapdata.xml", "w", encoding="utf-8") as f:
-            f.write(self.mapdata)
-
+        with open(p / "sharemapdata.xml", "w", encoding="utf-8") as f:
+            f.write(self.sharemapdata)
+        print(f"数据已持久化到 {p}")
     def close(self):
         """关闭httpx客户端"""
         self.client.close()
@@ -180,14 +183,36 @@ class RcmsApi:
         method = "getMapDataInfo"
         c = ""
         if self.fake:
-            c = self.fake_data(method)
+            result = xml2json(self.fake_data(method))
         else:
             url = f"{self.base_url}/{method}"
             data = {"mapCode": map_code}
             response = self.client.post(url, json=data)
             response.raise_for_status()
             c = response.text
-        self.mapdata = c
+        
+        self.mapdata = result["rows"]["row"]
+        return method, c
+
+    def get_share_map_data_info(self, map_code: str, typen: int = 1):
+        """
+        获取共享地图数据信息
+        :param map_code: 地图代码
+        :param type: 共享类型，1为共享，2为非共享
+        :return: 地图数据信息
+        """
+        method = "getShareMapInfoByMapCode"
+        c = ""
+        if self.fake:
+            with open(f"{fake_path}/{method}.json", "r", encoding="utf-8") as f:
+                c = sharemap2json(json.load(f))
+        else:
+            url = f"{self.base_url}/{method}"
+            data = {"mapCode": map_code, "shareInfos": {"content": "", "type": typen}}
+            response = self.client.post(url, json=data)
+            response.raise_for_status()
+            c = sharemap2json(response.json())
+        self.sharemapdata = c
         return method, c
 
     def get_rabbit_mq_param(self):
@@ -258,14 +283,19 @@ class RcmsApi:
         print("7. 获取RabbitMQ参数...")
         self.get_rabbit_mq_param()
 
+        # 8. 获取共享地图数据信息
+        print("8. 获取共享地图数据信息...")
+        self.get_share_map_data_info(map_code)
+
         print("自动设置动态配置完成！")
 
-    def build_from_remote(self):
+    def build_from_raw(self):
         """
-        构建API对象
+        从原始数据构建API对象
+        cache_data()
         """
         self.auto_set_dynamic_cfg()
-        self.persist_data()
+        self.cache_data()
 
     def build_from_cache(self):
         """
@@ -278,6 +308,7 @@ class RcmsApi:
             "displaytype",
             "alarmtype",
             "rabbitmqdata",
+            "mapdata",
         ]:
             file_path = self.current_cache_path / f"{d}.json"
             if not file_path.exists():
@@ -286,10 +317,10 @@ class RcmsApi:
 
             with open(file_path, "r", encoding="utf-8") as f:
                 setattr(self, d, json.load(f))
-        map_data_path = self.current_cache_path / "mapdata.xml"
+        map_data_path = self.current_cache_path / "sharemapdata.xml"
         if map_data_path.exists():
             with open(map_data_path, "r", encoding="utf-8") as f:
-                self.mapdata = f.read()
+                self.sharemapdata = f.read()
         else:
             print(f"地图数据缓存文件不存在: {map_data_path}")
 
@@ -316,6 +347,7 @@ class RcmsApi:
             self.find_alarm_typ_list,
             self.get_map_data_info,
             self.get_rabbit_mq_param,
+            self.get_share_map_data_info,
         ]
         for method in methods:
             n, content = method()
@@ -323,9 +355,48 @@ class RcmsApi:
                 f.write(content)
                 print(f"已生成模拟数据: {n}")
 
+    def genmapimage(self):
+        """
+        生成地图图片
+        """
+        try:
+            # Parse the XML content
+            json_result = parse_ShareMapInfo(self.sharemapdata)
+            print("Parse successful!")
+
+            # Generate and save both PNG and SVG images
+            print("\nGenerating map images...")
+
+            # Generate PNG image
+            map_image = generate_map_image(
+                json_result, desired_width=1600, show_labels=True
+            )
+            png_path = self.current_cache_path / "map_image.png"
+            map_image.save(png_path)
+            print(f"PNG image saved to {png_path}")
+            print(f"PNG dimensions: {map_image.size[0]} x {map_image.size[1]} pixels")
+
+            # Generate SVG image
+            svg_path = self.current_cache_path / "map_image.svg"
+            map_image = generate_map_image(
+                json_result,
+                desired_width=1600,
+                show_labels=True,
+                export_svg=True,
+                svg_filename=svg_path,
+            )
+
+        except Exception as e:
+            print(f"Error: {e}")
+            import traceback
+
+            traceback.print_exc()
+
 
 # 测试代码
 if __name__ == "__main__":
     api = RcmsApi(fake=True)
+    api.build_from_raw()
+    
     api.build_from_cache()
-    print(api.rcsdata)
+    api.genmapimage()
