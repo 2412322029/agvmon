@@ -1,0 +1,241 @@
+type: collection.insomnia.rest/5.0
+schema_version: "5.1"
+name: mod2
+meta:
+  id: wrk_4d02150b28e24e6eaf439bdefb834d0e
+  created: 1767980904696
+  modified: 1767980904696
+  description: ""
+collection:
+  - url: "{{ _.host }}/rcms/services/rest/clientService/findDeviceListByElcMapCode"
+    name: findDeviceListByElcMapCode
+    meta:
+      id: req_a289e683becd40de96524106e9229e90
+      created: 1767980908529
+      modified: 1768022889319
+      isPrivate: false
+      description: ""
+      sortKey: -1767980908529
+    method: POST
+    body:
+      mimeType: application/json
+      text: |-
+        {
+            "elcMapCode": "AA"
+        }
+    headers:
+      - name: Content-Type
+        value: application/json
+      - name: User-Agent
+        value: insomnia/12.1.0
+        description: ""
+        disabled: true
+    settings:
+      renderRequestBody: true
+      encodeUrl: true
+      followRedirects: global
+      cookies:
+        send: true
+        store: true
+      rebuildPath: true
+  - url: "{{ _.host }}/rcms/services/rest/clientService/findMapListByRcsCode"
+    name: findMapListByRcsCode
+    meta:
+      id: req_b1649b19817d40a79697858f724b6e0a
+      created: 1767981545459
+      modified: 1768022878033
+      isPrivate: false
+      description: ""
+      sortKey: -1767981545459
+    method: POST
+    body:
+      mimeType: application/json
+      text: |-
+        {
+            "rcsCode": "123ABCD01AB01AB"
+        }
+    headers:
+      - name: Content-Type
+        value: application/json
+      - name: User-Agent
+        value: insomnia/12.1.0
+        description: ""
+        disabled: false
+    settings:
+      renderRequestBody: true
+      encodeUrl: true
+      followRedirects: global
+      cookies:
+        send: true
+        store: true
+      rebuildPath: true
+  - url: "{{ _.host }}/rcms/services/rest/clientService/findAllRcsList"
+    name: findAllRcsList
+    meta:
+      id: req_f865c24214394d6ca8c2c9e9d852886c
+      created: 1767981674384
+      modified: 1768022876204
+      isPrivate: false
+      description: ""
+      sortKey: -1767981674384
+    method: GET
+    headers:
+      - name: User-Agent
+        value: insomnia/12.1.0
+        description: ""
+        disabled: false
+    settings:
+      renderRequestBody: true
+      encodeUrl: true
+      followRedirects: global
+      cookies:
+        send: true
+        store: true
+      rebuildPath: true
+  - url: "{{ _.host }}/rcms/services/rest/clientService/findMapListByRcsCode"
+    name: findMapListByRcsCode
+    meta:
+      id: req_ea1bd82cb4ef49f9a7551028ce684435
+      created: 1767982404920
+      modified: 1768022862139
+      isPrivate: false
+      description: ""
+      sortKey: -1767982404920
+    method: POST
+    body:
+      mimeType: application/json
+      text: |-
+        {
+            "rcsCode": "123ABCD01AB01AB"
+        }
+    headers:
+      - name: Content-Type
+        value: application/json
+      - name: User-Agent
+        value: insomnia/12.1.0
+        description: ""
+        disabled: false
+    settings:
+      renderRequestBody: true
+      encodeUrl: true
+      followRedirects: global
+      cookies:
+        send: true
+        store: true
+      rebuildPath: true
+  - url: "{{ _.host }}/rcms/services/rest/clientService/findDisplayBizEleTyp"
+    name: findDisplayBizEleTyp
+    meta:
+      id: req_b0026076d6804fb1b4b060bbf5c67f8b
+      created: 1767982583946
+      modified: 1768020988484
+      isPrivate: false
+      description: ""
+      sortKey: -1767982583946
+    method: GET
+    headers:
+      - name: User-Agent
+        value: insomnia/12.1.0
+        description: ""
+        disabled: false
+    settings:
+      renderRequestBody: true
+      encodeUrl: true
+      followRedirects: global
+      cookies:
+        send: true
+        store: true
+      rebuildPath: true
+  - url: "{{ _.host }}/rcms/services/rest/clientService/findAlarmTypList"
+    name: findAlarmTypList
+    meta:
+      id: req_7789e6d367734fb3b248c7c9a083912a
+      created: 1767982650663
+      modified: 1768022852593
+      isPrivate: false
+      description: ""
+      sortKey: -1767982650663
+    method: GET
+    headers:
+      - name: User-Agent
+        value: insomnia/12.1.0
+        description: ""
+        disabled: false
+    settings:
+      renderRequestBody: true
+      encodeUrl: true
+      followRedirects: global
+      cookies:
+        send: true
+        store: true
+      rebuildPath: true
+  - url: "{{ _.host }}/rcms/services/rest/clientService/getMapDataInfo"
+    name: getMapDataInfo
+    meta:
+      id: req_4093cc6c93bf4b15a08fc0fc662a2310
+      created: 1767983937003
+      modified: 1768022840738
+      isPrivate: false
+      description: ""
+      sortKey: -1767983937003
+    method: POST
+    body:
+      mimeType: application/json
+      text: |-
+        {
+            "mapCode": "AA"
+        }
+    headers:
+      - name: Content-Type
+        value: application/json
+      - name: User-Agent
+        value: insomnia/12.1.0
+        description: ""
+        disabled: false
+    settings:
+      renderRequestBody: true
+      encodeUrl: true
+      followRedirects: global
+      cookies:
+        send: true
+        store: true
+      rebuildPath: true
+  - url: "{{ _.host }}/rcms/services/rest/clientService/getRabbitMqParam"
+    name: getRabbitMqParam
+    meta:
+      id: req_5649d4b311d54079b11e748959d409ca
+      created: 1768020836623
+      modified: 1768022841866
+      isPrivate: false
+      description: ""
+      sortKey: -1768020836623
+    method: GET
+    headers:
+      - name: User-Agent
+        value: insomnia/12.1.0
+        description: ""
+        disabled: false
+    settings:
+      renderRequestBody: true
+      encodeUrl: true
+      followRedirects: global
+      cookies:
+        send: true
+        store: true
+      rebuildPath: true
+cookieJar:
+  name: Default Jar
+  meta:
+    id: jar_46583dfaa4dbc821fb9e41d80cab953089eca65d
+    created: 1767980904700
+    modified: 1767980904700
+environments:
+  name: Base Environment
+  meta:
+    id: env_46583dfaa4dbc821fb9e41d80cab953089eca65d
+    created: 1767980904697
+    modified: 1768021059721
+    isPrivate: false
+  data:
+    host: http://172.18.2.72:8182
+    "": ""

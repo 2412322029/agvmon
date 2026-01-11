@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<row>
+    <dateChg>2026-01-11 01:53:42</dateChg>
+    <dstMapCode>BB</dstMapCode>
+    <endX>612007.0</endX>
+    <endY>444036.0</endY>
+    <mapCode>BB</mapCode>
+    <startX>612007.0</startX>
+    <startY>444036.0</startY>
+    <subTaskId>19BA907B427TFSD_ECS</subTaskId>
+    <subTaskType>S019</subTaskType>
+    <subTaskTypeStr>拣货任务</subTaskTypeStr>
+    <taskStatus>9</taskStatus>
+    <taskStatusStr>已结束</taskStatusStr>
+    <taskType>LLO_BUF_DOWN_1</taskType>
+    <taskTypeStr>LLO下料</taskTypeStr>
+    <wbCode>612007BB444036</wbCode>
+</row>

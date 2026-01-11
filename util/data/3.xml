@@ -1,0 +1,110 @@
+
+2026-01-11 07:01:11,158 - ZeroMQSubscriber - INFO - 已连接到消息服务器: tcp://172.18.2.84:8990
+2026-01-11 07:01:11,158 - ZeroMQSubscriber - INFO - 已订阅主题: 
+2026-01-11 07:01:11,158 - ZeroMQSubscriber - INFO - ZeroMQ订阅者已启动，等待消息...
+2026-01-11 07:01:11,241 - ZeroMQSubscriber - INFO - 收到消息内容: <?xml version="1.0" encoding="UTF-8" ?>
+ <Message>
+<Type>ROBOT_STATUS</Type>
+<MapCode>BB</MapCode>
+<Robot>
+<Id>4069</Id>
+<IP>172.18.44.32</IP>
+<Pos x="608801" y="474909" h="0"/>
+<LoadStatus>0</LoadStatus>
+<Forklift>
+<ForkHeight>0</ForkHeight>
+<LoadStatus>0</LoadStatus>
+</Forklift>
+<Direction>-90</Direction>
+<Battery>73</Battery>
+<Soh>99</Soh>
+<Speed>0</Speed>
+<Status>246</Status>
+<AlarmMain>0</AlarmMain>
+<AlarmSub>0</AlarmSub>
+<Stop>0</Stop>
+<Stay>0</Stay>
+<TgtDistance>0</TgtDistance>
+<Remove>1</Remove>
+<Change>0</Change>
+<Version>V4.2.206build251020svn1673493</Version>
+<RollerStatus>40000</RollerStatus>
+</Robot>
+<Pod>
+<Id></Id>
+<Bind>0</Bind>
+</Pod>
+</Message>
+
+2026-01-11 07:01:12,243 - ZeroMQSubscriber - INFO - 收到消息内容: <?xml version="1.0" encoding="UTF-8" ?>
+ <Message>
+<Type>ROBOT_PATH</Type>
+<MapCode>BB</MapCode>
+<RobotId>4069</RobotId>
+<Paths Count="0"/>
+</Message>
+
+2026-01-11 07:01:13,244 - ZeroMQSubscriber - INFO - 收到消息内容: <?xml version="1.0" encoding="UTF-8" ?>
+ <Message>
+<Type>TRP_BLOCK_CELL</Type>
+<MapCode>BB</MapCode>
+<RobotId>4069</RobotId>
+<Blocks Count="1">
+<Block form="0" width="750" length="1650" x="608800" y="474909" th="-90"/>
+</Blocks>
+</Message>
+
+2026-01-11 07:01:14,245 - ZeroMQSubscriber - INFO - 收到消息内容: <?xml version="1.0" encoding="UTF-8" ?>
+ <Message>
+<Type>ROBOT_STATUS</Type>
+<MapCode>BB</MapCode>
+<Robot>
+<Id>4101</Id>
+<IP>172.18.44.94</IP>
+<Pos x="600908" y="497337" h="0"/>
+<LoadStatus>0</LoadStatus>
+<Forklift>
+<ForkHeight>0</ForkHeight>
+<LoadStatus>0</LoadStatus>
+</Forklift>
+<Direction>0</Direction>
+<Battery>68</Battery>
+<Soh>223</Soh>
+<Speed>0</Speed>
+<Status>7</Status>
+<AlarmMain>0</AlarmMain>
+<AlarmSub>0</AlarmSub>
+<Stop>0</Stop>
+<Stay>0</Stay>
+<TgtDistance>1</TgtDistance>
+<Remove>0</Remove>
+<Change>0</Change>
+<Version>V4.2.206build250806svn1602031</Version>
+<RollerStatus>40000</RollerStatus>
+</Robot>
+<Pod>
+<Id></Id>
+<Bind>0</Bind>
+</Pod>
+</Message>
+
+2026-01-11 07:01:15,246 - ZeroMQSubscriber - INFO - 收到消息内容: <?xml version="1.0" encoding="UTF-8" ?>
+ <Message>
+<Type>ROBOT_PATH</Type>
+<MapCode>BB</MapCode>
+<RobotId>4101</RobotId>
+<Paths Count="2">
+<Path x="601150" y="497338" th="0"/>
+<Path x="600908" y="497338" th="0"/>
+</Paths>
+</Message>
+
+2026-01-11 07:01:16,246 - ZeroMQSubscriber - INFO - 收到消息内容: <?xml version="1.0" encoding="UTF-8" ?>
+ <Message>
+<Type>TRP_BLOCK_CELL</Type>
+<MapCode>BB</MapCode>
+<RobotId>4101</RobotId>
+<Blocks Count="1">
+<Block form="0" width="750" length="1650" x="600908" y="497337" th="0"/>
+</Blocks>
+</Message>
