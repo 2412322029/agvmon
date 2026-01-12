@@ -1,10 +1,241 @@
 import json
 import logging
+import os
 import xml.etree.ElementTree as ET
 
 from PIL import Image, ImageDraw, ImageFont
 
 logger = logging.getLogger(__name__)
+
+
+class Robot_msg_decode:
+    @staticmethod
+    def parse(self, json_data) -> (str, dict):
+        """
+        解析JSON数据，根据消息类型调用相应的解析方法
+
+        参数:
+        json_data (str或dict): 要解析的JSON数据
+
+        返回:
+        tuple: (消息类型, 解析后的字典)
+        """
+        try:
+            data = json.loads(json_data) if isinstance(json_data, str) else json_data
+            message = data.get("Message", {})
+            msg_type = message.get("Type")
+
+            if msg_type == "ROBOT_STATUS":
+                return msg_type, self.parse_robot_status(message)
+            elif msg_type == "ROBOT_PATH":
+                return msg_type, self.parse_robot_path(message)
+            elif msg_type == "TRP_BLOCK_CELL":
+                return msg_type, self.parse_trp_block_cell(message)
+            else:
+                logger.warning(f"未知的消息类型: {msg_type} - {message}")
+
+        except Exception as e:
+            logger.error(f"解析JSON数据失败: {e}")
+            return msg_type, {}
+
+    # 滚轮状态映射字典
+    ROLLER_STATUS_MAP = {
+        40000: "正常",
+    }
+
+    @staticmethod
+    def pretty_print_robot_status(rsd: dict):
+        return f"""设备编号 {rsd.get("robot_id"):<7}  加载状态: {rsd.get("load_status"):<8} 设备任务: {rsd.get("status"):<18} 电量: {rsd.get("battery")}%"""
+    
+    @staticmethod
+    def parse_robot_status(self, message):
+        """解析ROBOT_STATUS类型的消息"""
+        robot = message.get("Robot", {})
+        pod = message.get("Pod", {})
+
+        # 解析状态码
+        status_code = int(robot.get("Status", -1))
+        status_text, alarm_type = AmrStatusType(status_code)
+
+        # 解析滚轮状态
+        roller_status_code = int(robot.get("RollerStatus", 0))
+        roller_status_text = self.ROLLER_STATUS_MAP.get(
+            roller_status_code, roller_status_code
+        )
+
+        # 解析布尔字段
+        stop = self._map_boolean(int(robot.get("Stop", 0)))
+        stay = self._map_boolean(int(robot.get("Stay", 0)))
+        remove = self._map_boolean(int(robot.get("Remove", 0)))
+        change = self._map_boolean(int(robot.get("Change", 0)))
+
+        return {
+            "type": message.get("Type"),
+            "map_code": message.get("MapCode"),
+            "robot_id": robot.get("Id"),
+            "ip": robot.get("IP"),
+            "position": {
+                "x": float(robot["Pos"].get("x", 0)) if robot.get("Pos") else 0,
+                "y": float(robot["Pos"].get("y", 0)) if robot.get("Pos") else 0,
+                "h": float(robot["Pos"].get("h", 0)) if robot.get("Pos") else 0,
+            },
+            "load_status": int(robot.get("LoadStatus", 0)),
+            "forklift": {
+                "fork_height": int(robot["Forklift"].get("ForkHeight", 0))
+                if robot.get("Forklift")
+                else 0,
+                "load_status": int(robot["Forklift"].get("LoadStatus", 0))
+                if robot.get("Forklift")
+                else 0,
+            },
+            "direction": int(robot.get("Direction", 0)),
+            "battery": int(robot.get("Battery", 0)),
+            "speed": int(robot.get("Speed", 0)),
+            "status": status_text,  # 使用映射后的状态文字
+            "status_code": status_code,  # 保留原始状态码
+            "alarm": AlarmType(f'{robot.get("AlarmMain", 0)}-{robot.get("AlarmSub", 0)}'),
+            "stop": stop,  # 布尔值
+            "stay": stay,  # 布尔值
+            "tgt_distance": int(robot.get("TgtDistance", 0)),
+            "remove": remove,  # 布尔值
+            "change": change,  # 布尔值
+            "version": robot.get("Version"),
+            "roller_status": roller_status_text,  # 使用映射后的滚轮状态文字
+            "roller_status_code": roller_status_code,  # 保留原始滚轮状态码
+            "pod": {"id": pod.get("Id"), "bind": int(pod.get("Bind", 0))},
+        }
+
+    def _map_boolean(self, value):
+        """将0/1转换为false/true，其他值返回原始值"""
+        if value == 0:
+            return False
+        elif value == 1:
+            return True
+        return value
+
+    @staticmethod
+    def parse_robot_path(self, message):
+        """解析ROBOT_PATH类型的消息"""
+        paths = message.get("Paths", {})
+        self.data = {
+            "type": message.get("Type"),
+            "map_code": message.get("MapCode"),
+            "robot_id": paths.get("RobotId"),
+            "count": int(paths.get("Count", 0)),
+            "path": paths.get("Path", []),
+        }
+        return self.data
+
+    @staticmethod
+    def parse_trp_block_cell(self, message):
+        """解析TRP_BLOCK_CELL类型的消息"""
+        blocks = message.get("Blocks", {})
+        self.data = {
+            "type": message.get("Type"),
+            "map_code": message.get("MapCode"),
+            "robot_id": blocks.get("RobotId"),
+            "count": int(blocks.get("Count", 0)),
+            "block": blocks.get("Block", []),
+        }
+        return self.data
+
+
+def AlarmType(t: str):
+    """
+    根据告警代码映射告警信息
+
+    参数:
+        t: 告警类型代码（如"1-1"表示主控告警-相机未获取到导航数据）
+    返回:
+        dict: 包含告警名称、解决方案等信息的字典
+    """
+    try:
+        # 解析告警类型代码，格式为"主类型-子类型"或单独的主类型
+        if "-" in t:
+            main_code, sub_code = t.split("-", 1)
+        else:
+            main_code, sub_code = t, None
+        # 构建AmrStatusInfo.json文件路径
+        file_path = os.path.join(os.path.dirname(__file__), "data", "AlarmInfo.json")
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        # 查找主告警类型
+        for main_alarm in data:
+            if main_alarm.get("code") == main_code:
+                main_name = main_alarm.get("name", "")
+
+                # 如果没有子类型，返回主告警信息
+                if not sub_code:
+                    return {
+                        "main_code": main_code,
+                        "main_name": main_name,
+                        "sub_code": "",
+                        "sub_name": "",
+                        "solution": "",
+                    }
+
+                # 查找子告警类型
+                for sub_alarm in main_alarm.get("alarmTpeVO", []):
+                    if sub_alarm.get("code") == sub_code:
+                        return {
+                            "main_code": main_code,
+                            "main_name": main_name,
+                            "sub_code": sub_code,
+                            "sub_name": sub_alarm.get("name", ""),
+                            "solution": sub_alarm.get("solution", ""),
+                        }
+
+        # 如果未找到匹配的告警类型
+        return {
+            "main_code": main_code,
+            "main_name": "",
+            "sub_code": sub_code or "",
+            "sub_name": "",
+            "solution": "",
+        }
+    except Exception as e:
+        return {
+            "main_code": "",
+            "main_name": "",
+            "sub_code": "",
+            "sub_name": "",
+            "solution": "",
+        }
+def AmrStatusType(t: str):
+    """
+    根据机器人状态代码查询状态名称和异常标识
+
+    参数:
+        t: 机器人状态代码（如"1"表示任务完成）
+
+    返回:
+        dict: 包含状态名称和异常标识的字典
+    """
+
+    # 构建AmrStatusInfo.json文件路径
+    file_path = os.path.join(os.path.dirname(__file__), "data", "AmrStatusInfo.json")
+
+    try:
+        with open(file_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+
+        # 获取状态列表
+        status_list = data.get("data", [])
+
+        # 查找匹配的状态
+        for status in status_list:
+            if status.get("code") == str(t) and status.get("type") == "1":
+                return {
+                    "name": status.get("name", "-"),
+                    "abnormal": bool(int(status.get("abnormal", False))),
+                }
+
+        # 如果未找到匹配的状态
+        return {"name": f"未知状态({t})", "abnormal": False}
+    except Exception:
+        return {"name": f"未知状态({t})", "abnormal": False}
+
+
 def parse_mapxml(content):
     root = ET.fromstring(content)
     map_data = []
@@ -178,7 +409,6 @@ def generate_map_image(
 
     # 如果show_labels为True，绘制文本标签
     if show_labels and "ret_name_list" in share_map_data:
-
         # 初始化默认字体参数
         default_font_family = "simsun.ttc"
         default_font_size = 16
@@ -214,13 +444,17 @@ def generate_map_image(
 
             # 适当缩放字体大小，考虑地图尺寸和缩放因子
             base_font_size = ret_name["size"]
-            
+
             # 基于地图整体尺寸的自适应缩放
-            size_factor = min(image_width, image_height) / 1000.0  # 相对于1000像素尺寸的因子
+            size_factor = (
+                min(image_width, image_height) / 1000.0
+            )  # 相对于1000像素尺寸的因子
             scaled_font_size = base_font_size * font_scale * compile_scale * size_factor
-            
+
             # 根据文本长度调整字体大小，长文本使用稍小字体
-            text_length_factor = max(0.7, min(1.0, 20.0 / max(len(text), 10)))  # 文本越长，因子越小
+            text_length_factor = max(
+                0.7, min(1.0, 20.0 / max(len(text), 10))
+            )  # 文本越长，因子越小
             scaled_font_size *= text_length_factor
 
             # 确保字体大小合理（不过小或过大）
@@ -266,7 +500,7 @@ def generate_map_image(
 
             # 计算各行列的大小和文本总大小
             line_metrics = []  # 存储每行的宽度、高度和边界框
-            
+
             for line in text_lines:
                 try:
                     # 使用textbbox获取精确的文本边界框
@@ -274,7 +508,7 @@ def generate_map_image(
                     width = bbox[2] - bbox[0]
                     height = bbox[3] - bbox[1]
                     ascent = abs(bbox[1])  # 从基线到顶部的距离
-                    descent = bbox[3]      # 从基线到底部的距离
+                    descent = bbox[3]  # 从基线到底部的距离
                     line_metrics.append((width, height, ascent, descent, bbox))
                 except Exception:
                     # 回退计算
@@ -285,26 +519,30 @@ def generate_map_image(
                         line_metrics.append((width, height, ascent, descent, None))
                     except Exception:
                         # 完全回退
-                        line_metrics.append((0, current_font.getsize("A")[1], 0, 0, None))
+                        line_metrics.append(
+                            (0, current_font.getsize("A")[1], 0, 0, None)
+                        )
 
             # 计算文本总尺寸
             line_widths = [m[0] for m in line_metrics]
             line_ascent = [m[2] for m in line_metrics]
             line_descent = [m[3] for m in line_metrics]
-            
+
             max_line_width = max(line_widths) if line_widths else 0
             total_ascent = max(line_ascent) if line_ascent else 0
             total_descent = max(line_descent) if line_descent else 0
-            
+
             # 计算行高和行间距
             line_height = total_ascent + total_descent
             line_spacing = line_height * 0.2  # 行间距为行高的20%
-            total_text_height = line_height + (len(text_lines) - 1) * (line_height + line_spacing)
+            total_text_height = line_height + (len(text_lines) - 1) * (
+                line_height + line_spacing
+            )
 
             # 计算起始位置以居中整个文本块
             # 水平居中
             start_x = pixel_x - max_line_width // 2
-            
+
             # 垂直居中，考虑文本的基线位置
             start_y = pixel_y - total_text_height // 2 + total_ascent
 
@@ -318,7 +556,7 @@ def generate_map_image(
 
             for i, (line, metrics) in enumerate(zip(text_lines, line_metrics)):
                 line_width, _, _, _, _ = metrics
-                
+
                 # 计算此行的水平居中位置，使用每行实际宽度
                 line_x = pixel_x - line_width // 2
 
@@ -403,15 +641,17 @@ def generate_map_image(
                 # 向SVG添加文本，使用正确的字体系列和缩放大小
                 font_family = ret_name.get("font", "Microsoft YaHei, Arial")
                 base_font_size = ret_name["size"]
-                
+
                 # 使用与PNG相同的缩放逻辑
                 size_factor = min(image_width, image_height) / 1000.0
-                scaled_font_size = base_font_size * font_scale * compile_scale * size_factor
-                
+                scaled_font_size = (
+                    base_font_size * font_scale * compile_scale * size_factor
+                )
+
                 # 根据文本长度调整字体大小
                 text_length_factor = max(0.7, min(1.0, 20.0 / max(len(text), 10)))
                 scaled_font_size *= text_length_factor
-                
+
                 # 确保字体大小合理
                 font_size = max(8, min(scaled_font_size, 32))
 
@@ -438,3 +678,5 @@ def generate_map_image(
         logger.info(f"SVG矢量图像已保存到 {svg_filename}")
 
     return image
+
+# print(AmrStatusType(246))

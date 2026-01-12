@@ -3,6 +3,7 @@ import traceback
 
 import xmltodict
 import zmq
+from dataparse import Robot_msg_decode
 from logger import logger
 from rcms_api import RcmsApi
 
@@ -88,10 +89,11 @@ class ZeroMQSubscriber:
             while True:
                 content = self.receive_message()
                 if content is not None:
-                    self.xmlmsgdecode(content=content)
+                    content = xmltodict.parse(content)
                     if callback:
                         try:
-                            callback(content)
+                            msg_type, j = Robot_msg_decode.parse(content)
+                            callback(msg_type, j)
                         except Exception as e:
                             traceback.print_exc()
                             logger.error(f"回调函数执行错误: {e}")
@@ -102,22 +104,7 @@ class ZeroMQSubscriber:
             logger.error(f"订阅者运行错误: {e}")
         finally:
             self.close()
-
-    def xmlmsgdecode(self, content):
-        content = xmltodict.parse(content)
-        Type = content["Message"]["Type"]
-        if Type == "ROBOT_STATUS":
-            Robot = content["Message"]["Robot"]
-            self.robot_msg_docode(Robot)
-        else:
-            logger.debug(f"收到消息内容: {content}")
-
-    def robot_msg_docode(self, Robot: dict):
-        logger.info(
-            f"小车状态: Id {Robot['Id']} - 电池 {Robot['Battery']}% - 状态 {Robot['Status']} - 位置 ({Robot['Pos']['x']},{Robot['Pos']['y']})"
-            f"- 速度 {Robot['Speed']} - 警告{Robot['AlarmMain']}- 子警告{Robot['AlarmSub']}-滚动状态 {Robot['RollerStatus']}"
-        )
-
+            
     def close(self):
         """关闭订阅者连接"""
         try:
@@ -143,8 +130,14 @@ if __name__ == "__main__":
             ZERO_MQ_IP, ZERO_MQ_CTRL_PORT, ZERO_MQ_MESSAGE_PORT
         )
         # 运行订阅者，订阅所有主题
+        def message_callback(msg_type, content):
+            """处理接收到的消息"""
+            if msg_type == "ROBOT_STATUS":
+                Robot_msg_decode.parse_robot_status(content)
+            else:
+                logger.info(f"收到{msg_type}消息: {content}")
 
-        subscriber.run()
+        subscriber.run(message_callback)    
     except Exception as e:
         logger.error(f"主程序错误: {e}")
         exit(1)
