@@ -1,53 +1,23 @@
-import logging
-import sys
-import xml.etree.ElementTree as ET
-
 import pika
 
 # 配置日志
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler("rabbitmq.log", encoding="utf-8"),
-    ],
-)
-logger = logging.getLogger(__name__)
+from logger import logger
+from rcms_api import RcmsApi
+
+logger = logger.getChild("rabbitmq")
 
 
 class RabbitMQClient:
-    def __init__(self, xml_config=None):
-        self.config = self._parse_xml_config(xml_config) if xml_config else None
+    def __init__(self, cg: dict):
+        self.config = {
+            "user": cg["rabbitmpUser"],
+            "exchange": cg["rabbitmqExchange"],
+            "host": cg["rabbitmqIp"],
+            "password": cg["rabbitmqPassword"],
+            "port": cg["rabbitmqPort"],
+        }
         self.connection = None
         self.channel = None
-
-    def _parse_xml_config(self, xml_content):
-        """解析XML配置信息"""
-        try:
-            root = ET.fromstring(xml_content)
-            config = {
-                "user": root.find("rabbitmpUser").text
-                if root.find("rabbitmpUser") is not None
-                else "root",
-                "exchange": root.find("rabbitmqExchange").text
-                if root.find("rabbitmqExchange") is not None
-                else "exchangeMsg",
-                "host": root.find("rabbitmqIp").text
-                if root.find("rabbitmqIp") is not None
-                else "127.0.0.1",
-                "password": root.find("rabbitmqPassword").text
-                if root.find("rabbitmqPassword") is not None
-                else "",
-                "port": int(root.find("rabbitmqPort").text)
-                if root.find("rabbitmqPort") is not None
-                else 5672,
-            }
-            logger.info(f"解析XML配置成功: {config}")
-            return config
-        except Exception as e:
-            logger.error(f"解析XML配置失败: {e}")
-            raise
 
     def connect(self, host=None, port=None, user=None, password=None, virtual_host="/"):
         """建立RabbitMQ连接"""
@@ -190,18 +160,12 @@ class RabbitMQClient:
 # 示例用法
 if __name__ == "__main__":
     # XML配置示例
-    xml_config = """<?xml version="1.0" encoding="utf-8" standalone="yes"?> 
- <result> 
-     <rabbitmpUser>root</rabbitmpUser> 
-     <rabbitmqExchange>exchangeMsg</rabbitmqExchange> 
-     <rabbitmqIp>172.18.2.90</rabbitmqIp> 
-     <rabbitmqPassword>Hik12345+</rabbitmqPassword> 
-     <rabbitmqPort>5672</rabbitmqPort> 
- </result>"""
+    api = RcmsApi()
+    api.build_from_cache()
 
     try:
         # 创建客户端实例
-        client = RabbitMQClient(xml_config)
+        client = RabbitMQClient(api.rabbitmqdata)
 
         # 连接到RabbitMQ
         client.connect()
@@ -217,15 +181,17 @@ if __name__ == "__main__":
 
         # 定义消息处理回调
         def callback(ch, method, properties, body):
-            logger.info(f"收到消息: {body.decode('utf-8')}")
+            logger.debug(f"收到消息: {body.decode('utf-8')}")
             ch.basic_ack(delivery_tag=method.delivery_tag)
 
         # 开始消费消息（注释掉，避免阻塞）
-        client.consume_message('test_queue', callback)
+        client.consume_message("test_queue", callback)
 
         logger.info("RabbitMQ客户端示例运行成功")
 
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         logger.error(f"RabbitMQ客户端示例运行失败: {e}")
     finally:
         client.close() if "client" in locals() else None

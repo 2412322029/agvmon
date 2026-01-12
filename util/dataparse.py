@@ -1,9 +1,10 @@
 import json
+import logging
 import xml.etree.ElementTree as ET
 
 from PIL import Image, ImageDraw, ImageFont
 
-
+logger = logging.getLogger(__name__)
 def parse_mapxml(content):
     root = ET.fromstring(content)
     map_data = []
@@ -69,68 +70,6 @@ def parse_ShareMapInfo(j):
     return json.dumps(map_data, indent=2, ensure_ascii=False)
 
 
-def xml2json(xml_content):
-    """
-    将XML内容转换为JSON格式。
-
-    参数:
-        xml_content (str): XML字符串内容
-
-    返回:
-        str: XML的JSON字符串表示
-    """
-
-    def element_to_dict(element):
-        """递归将XML元素转换为字典。"""
-        result = {}
-
-        # 添加属性（如果存在）
-        if element.attrib:
-            result["@attributes"] = element.attrib
-
-        # 处理子元素
-        children = list(element)
-        if children:
-            # 按标签名分组子元素，处理多个相同标签的情况
-            child_dict = {}
-            for child in children:
-                child_tag = child.tag
-                child_data = element_to_dict(child)
-
-                if child_tag in child_dict:
-                    # 如果标签已存在，转换为列表
-                    if not isinstance(child_dict[child_tag], list):
-                        child_dict[child_tag] = [child_dict[child_tag]]
-                    child_dict[child_tag].append(child_data)
-                else:
-                    child_dict[child_tag] = child_data
-
-            result.update(child_dict)
-
-        # 添加文本内容（如果存在且没有子元素）
-        text = element.text.strip() if element.text and element.text.strip() else None
-        tail = element.tail.strip() if element.tail and element.tail.strip() else None
-
-        if text and not children:
-            result = text
-        elif text:
-            result["#text"] = text
-
-        if tail:
-            result["#tail"] = tail
-
-        return result
-
-    # 解析XML内容
-    root = ET.fromstring(xml_content)
-
-    # 将根元素转换为字典
-    xml_dict = {root.tag: element_to_dict(root)}
-
-    # 转换为JSON并返回
-    return xml_dict
-
-
 # 从ShareMapInfo数据生成地图图像的函数
 def generate_map_image(
     share_map_json,
@@ -194,17 +133,17 @@ def generate_map_image(
     coord_width = maxX - minX
     coord_height = maxY - minY
 
-    print(f"找到 {len(share_map_data['map_ret_list'])} 个地图区域")
-    print(f"坐标范围: X({minX}, {maxX}), Y({minY}, {maxY})")
-    print(f"坐标空间尺寸: {coord_width} x {coord_height}")
+    logger.info(f"找到 {len(share_map_data['map_ret_list'])} 个地图区域")
+    logger.info(f"坐标范围: X({minX}, {maxX}), Y({minY}, {maxY})")
+    logger.info(f"坐标空间尺寸: {coord_width} x {coord_height}")
 
     # 确定图像尺寸和缩放因子
     scale = desired_width / coord_width * compile_scale
     image_width = int(coord_width * scale)
     image_height = int(coord_height * scale)
 
-    print(f"图像尺寸: {image_width} x {image_height} 像素")
-    print(f"缩放因子: {scale:.4f}")
+    logger.info(f"图像尺寸: {image_width} x {image_height} 像素")
+    logger.info(f"缩放因子: {scale:.4f}")
 
     # 将坐标转换为图像像素的辅助函数
     def coord_to_pixel(coord, min_val, max_val, image_size):
@@ -496,6 +435,6 @@ def generate_map_image(
         with open(svg_filename, "w", encoding="utf-8") as f:
             f.write("\n".join(svg_content))
 
-        print(f"SVG矢量图像已保存到 {svg_filename}")
+        logger.info(f"SVG矢量图像已保存到 {svg_filename}")
 
     return image

@@ -3,9 +3,14 @@ import os
 import pathlib
 
 import httpx
+import xmltodict
 from config import cfg
-from dataparse import generate_map_image, parse_ShareMapInfo, xml2json
+from dataparse import generate_map_image, parse_ShareMapInfo
 from helper import sharemap2json
+from logger import logger
+
+logger = logger.getChild("rcms_api")
+
 
 fake_path = pathlib.Path(os.path.join(os.path.dirname(__file__), "data/fake"))
 if not fake_path.exists():
@@ -36,13 +41,13 @@ class RcmsApi:
             ".", "_"
         ).replace(":", "-")
         if not self.current_cache_path.exists():
+            logger.info(f"创建缓存目录 {self.current_cache_path}")
             self.current_cache_path.mkdir()
 
     def cache_data(self):
         """
         持久化数据到文件
         """
-        import json
 
         p = self.current_cache_path
         if not p.exists():
@@ -60,7 +65,8 @@ class RcmsApi:
                 json.dump(self.__dict__[k], f, indent=2, ensure_ascii=False)
         with open(p / "sharemapdata.xml", "w", encoding="utf-8") as f:
             f.write(self.sharemapdata)
-        print(f"数据已持久化到 {p}")
+        logger.info(f"数据已持久化到 {p}")
+
     def close(self):
         """关闭httpx客户端"""
         self.client.close()
@@ -80,14 +86,14 @@ class RcmsApi:
         method = "findDeviceListByElcMapCode"
         c = ""
         if self.fake:
-            result = xml2json(self.fake_data(method))
+            result = xmltodict.parse(self.fake_data(method))
         else:
             url = f"{self.base_url}/{method}"
             data = {"elcMapCode": elc_map_code}
             response = self.client.post(url, json=data)
             response.raise_for_status()
             c = response.text
-            result = xml2json(c)
+            result = xmltodict.parse(c)
 
         # 将结果存储到self.data
         self.devicelist = result["rows"]["row"]
@@ -102,14 +108,14 @@ class RcmsApi:
         method = "findMapListByRcsCode"
         c = ""
         if self.fake:
-            result = xml2json(self.fake_data(method))
+            result = xmltodict.parse(self.fake_data(method))
         else:
             url = f"{self.base_url}/{method}"
             data = {"rcsCode": rcs_code}
             response = self.client.post(url, json=data)
             response.raise_for_status()
             c = response.text
-            result = xml2json(c)
+            result = xmltodict.parse(c)
 
         # 将结果存储到self.data
         self.maplist = result["rows"]["row"]
@@ -123,13 +129,13 @@ class RcmsApi:
         method = "findAllRcsList"
         c = ""
         if self.fake:
-            result = xml2json(self.fake_data(method))
+            result = xmltodict.parse(self.fake_data(method))
         else:
             url = f"{self.base_url}/{method}"
             response = self.client.get(url)
             response.raise_for_status()
             c = response.text
-            result = xml2json(c)
+            result = xmltodict.parse(c)
         # 将结果存储到self.data
         self.rcsdata = result["rows"]["row"]
         return method, c
@@ -142,13 +148,13 @@ class RcmsApi:
         method = "findDisplayBizEleTyp"
         c = ""
         if self.fake:
-            result = xml2json(self.fake_data(method))
+            result = xmltodict.parse(self.fake_data(method))
         else:
             url = f"{self.base_url}/{method}"
             response = self.client.get(url)
             response.raise_for_status()
             c = response.text
-            result = xml2json(c)
+            result = xmltodict.parse(c)
 
         # 将结果存储到self.data
         self.displaytype = result["MapEleTyps"]["MapEleTyp"]
@@ -162,13 +168,13 @@ class RcmsApi:
         method = "findAlarmTypList"
         c = ""
         if self.fake:
-            result = xml2json(self.fake_data(method))
+            result = xmltodict.parse(self.fake_data(method))
         else:
             url = f"{self.base_url}/{method}"
             response = self.client.get(url)
             response.raise_for_status()
             c = response.text
-            result = xml2json(c)
+            result = xmltodict.parse(c)
 
         # 将结果存储到self.data
         self.alarmtype = result["rows"]["row"]
@@ -183,15 +189,15 @@ class RcmsApi:
         method = "getMapDataInfo"
         c = ""
         if self.fake:
-            result = xml2json(self.fake_data(method))
+            c = xmltodict.parse(self.fake_data(method))
         else:
             url = f"{self.base_url}/{method}"
             data = {"mapCode": map_code}
             response = self.client.post(url, json=data)
             response.raise_for_status()
-            c = response.text
-        
-        self.mapdata = result["rows"]["row"]
+            c = xmltodict.parse(response.text)
+
+        self.mapdata = c["rows"]["row"]
         return method, c
 
     def get_share_map_data_info(self, map_code: str, typen: int = 1):
@@ -211,6 +217,7 @@ class RcmsApi:
             data = {"mapCode": map_code, "shareInfos": {"content": "", "type": typen}}
             response = self.client.post(url, json=data)
             response.raise_for_status()
+            print(response.json())
             c = sharemap2json(response.json())
         self.sharemapdata = c
         return method, c
@@ -223,13 +230,13 @@ class RcmsApi:
         method = "getRabbitMqParam"
         c = ""
         if self.fake:
-            result = xml2json(self.fake_data(method))
+            result = xmltodict.parse(self.fake_data(method))
         else:
             url = f"{self.base_url}/{method}"
             response = self.client.get(url)
             response.raise_for_status()
             c = response.text
-            result = xml2json(c)
+            result = xmltodict.parse(c)
 
         # 将结果存储到self.data
         self.rabbitmqdata = result["result"]
@@ -239,10 +246,10 @@ class RcmsApi:
         """
         自动设置动态配置，按照API依赖关系调用
         """
-        print("开始自动设置动态配置...")
+        logger.info("开始自动设置动态配置...")
 
         # 1. 先获取所有RCS列表
-        print("1. 获取所有RCS列表...")
+        logger.info("1. 获取所有RCS列表...")
         self.find_all_rcs_list()
 
         # 2. 从RCS列表中获取第一个RCS的code
@@ -251,10 +258,10 @@ class RcmsApi:
 
         if self.rcsdata:
             rcs_code = self.rcsdata[0].get("code", "")
-            print(f"   使用RCS代码: {rcs_code}")
+            logger.info(f"   使用RCS代码: {rcs_code}")
 
             # 3. 根据RCS代码获取地图列表
-            print("2. 根据RCS代码获取地图列表...")
+            logger.info("2. 根据RCS代码获取地图列表...")
             self.find_map_list_by_rcs_code(rcs_code)
 
             # 4. 从地图列表中获取第一个地图的code
@@ -263,35 +270,35 @@ class RcmsApi:
 
             if self.maplist:
                 map_code = self.maplist[0].get("code", "")
-                print(f"   使用地图代码: {map_code}")
+                logger.info(f"   使用地图代码: {map_code}")
 
                 # 5. 根据地图代码获取设备列表
-                print("3. 根据地图代码获取设备列表...")
+                logger.info("3. 根据地图代码获取设备列表...")
                 self.find_device_list_by_elc_map_code(map_code)
 
                 # 6. 获取地图数据信息
-                print("4. 获取地图数据信息...")
+                logger.info("4. 获取地图数据信息...")
                 self.get_map_data_info(map_code)
 
         # 7. 获取其他配置信息
-        print("5. 获取显示业务元素类型...")
+        logger.info("5. 获取显示业务元素类型...")
         self.find_display_biz_ele_typ()
 
-        print("6. 获取报警类型列表...")
+        logger.info("6. 获取报警类型列表...")
         self.find_alarm_typ_list()
 
-        print("7. 获取RabbitMQ参数...")
+        logger.info("7. 获取RabbitMQ参数...")
         self.get_rabbit_mq_param()
 
         # 8. 获取共享地图数据信息
-        print("8. 获取共享地图数据信息...")
+        logger.info("8. 获取共享地图数据信息...")
         self.get_share_map_data_info(map_code)
 
-        print("自动设置动态配置完成！")
+        logger.info("自动设置动态配置完成！")
 
     def build_from_raw(self):
         """
-        从原始数据构建API对象
+        从原始数据构建API对象 并且缓存
         cache_data()
         """
         self.auto_set_dynamic_cfg()
@@ -312,7 +319,7 @@ class RcmsApi:
         ]:
             file_path = self.current_cache_path / f"{d}.json"
             if not file_path.exists():
-                print(f"缓存文件不存在: {file_path}")
+                logger.warning(f"缓存文件不存在: {file_path}")
                 continue
 
             with open(file_path, "r", encoding="utf-8") as f:
@@ -322,7 +329,7 @@ class RcmsApi:
             with open(map_data_path, "r", encoding="utf-8") as f:
                 self.sharemapdata = f.read()
         else:
-            print(f"地图数据缓存文件不存在: {map_data_path}")
+            logger.warning(f"地图数据缓存文件不存在: {map_data_path}")
 
     def fake_data(self, method: str):
         """
@@ -353,7 +360,7 @@ class RcmsApi:
             n, content = method()
             with open(f"{fake_path}/{n}.xml", "w", encoding="utf-8") as f:
                 f.write(content)
-                print(f"已生成模拟数据: {n}")
+                logger.info(f"已生成模拟数据: {n}")
 
     def genmapimage(self):
         """
@@ -362,10 +369,10 @@ class RcmsApi:
         try:
             # Parse the XML content
             json_result = parse_ShareMapInfo(self.sharemapdata)
-            print("Parse successful!")
+            logger.info("Parse successful!")
 
             # Generate and save both PNG and SVG images
-            print("\nGenerating map images...")
+            logger.info("Generating map images...")
 
             # Generate PNG image
             map_image = generate_map_image(
@@ -373,8 +380,10 @@ class RcmsApi:
             )
             png_path = self.current_cache_path / "map_image.png"
             map_image.save(png_path)
-            print(f"PNG image saved to {png_path}")
-            print(f"PNG dimensions: {map_image.size[0]} x {map_image.size[1]} pixels")
+            logger.info(f"PNG image saved to {png_path}")
+            logger.info(
+                f"PNG dimensions: {map_image.size[0]} x {map_image.size[1]} pixels"
+            )
 
             # Generate SVG image
             svg_path = self.current_cache_path / "map_image.svg"
@@ -387,16 +396,15 @@ class RcmsApi:
             )
 
         except Exception as e:
-            print(f"Error: {e}")
+            logger.error(f"Error: {e}")
             import traceback
 
             traceback.print_exc()
 
 
-# 测试代码
 if __name__ == "__main__":
-    api = RcmsApi(fake=True)
+    api = RcmsApi()
     api.build_from_raw()
-    
-    api.build_from_cache()
+
+    # api.build_from_cache()
     api.genmapimage()
