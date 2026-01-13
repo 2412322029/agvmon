@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import time
 import xml.etree.ElementTree as ET
 
 from PIL import Image, ImageDraw, ImageFont
@@ -10,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class Robot_msg_decode:
     @staticmethod
-    def parse(self, json_data) -> (str, dict):
+    def parse(json_data) -> (str, dict):
         """
         解析JSON数据，根据消息类型调用相应的解析方法
 
@@ -26,13 +27,9 @@ class Robot_msg_decode:
             msg_type = message.get("Type")
 
             if msg_type == "ROBOT_STATUS":
-                return msg_type, self.parse_robot_status(message)
-            elif msg_type == "ROBOT_PATH":
-                return msg_type, self.parse_robot_path(message)
-            elif msg_type == "TRP_BLOCK_CELL":
-                return msg_type, self.parse_trp_block_cell(message)
+                return msg_type, Robot_msg_decode.parse_robot_status(message)
             else:
-                logger.warning(f"未知的消息类型: {msg_type} - {message}")
+                return msg_type, message
 
         except Exception as e:
             logger.error(f"解析JSON数据失败: {e}")
@@ -45,34 +42,35 @@ class Robot_msg_decode:
 
     @staticmethod
     def pretty_print_robot_status(rsd: dict):
-        return f"""设备编号 {rsd.get("robot_id"):<7}  加载状态: {rsd.get("load_status"):<8} 设备任务: {rsd.get("status"):<18} 电量: {rsd.get("battery")}%"""
+        if rsd.get("abnormal"):
+            print(f"""设备编号 {rsd.get("robot_id"):<7} 设备任务: {rsd.get("status"):<18}  abnormal: {rsd.get("abnormal"):<8}  电量: {rsd.get("battery")}% alarm {rsd.get("alarm").get("main_name")};{rsd.get("alarm").get("sub_name")}""")
     
     @staticmethod
-    def parse_robot_status(self, message):
+    def parse_robot_status(message):
         """解析ROBOT_STATUS类型的消息"""
         robot = message.get("Robot", {})
         pod = message.get("Pod", {})
 
         # 解析状态码
         status_code = int(robot.get("Status", -1))
-        status_text, alarm_type = AmrStatusType(status_code)
-
+        status_text, abnormal = AmrStatusType(status_code)
+        # print(status_text)
         # 解析滚轮状态
         roller_status_code = int(robot.get("RollerStatus", 0))
-        roller_status_text = self.ROLLER_STATUS_MAP.get(
+        roller_status_text = Robot_msg_decode.ROLLER_STATUS_MAP.get(
             roller_status_code, roller_status_code
         )
 
         # 解析布尔字段
-        stop = self._map_boolean(int(robot.get("Stop", 0)))
-        stay = self._map_boolean(int(robot.get("Stay", 0)))
-        remove = self._map_boolean(int(robot.get("Remove", 0)))
-        change = self._map_boolean(int(robot.get("Change", 0)))
+        stop = Robot_msg_decode._map_boolean(int(robot.get("Stop", 0)))
+        stay = Robot_msg_decode._map_boolean(int(robot.get("Stay", 0)))
+        remove = Robot_msg_decode._map_boolean(int(robot.get("Remove", 0)))
+        change = Robot_msg_decode._map_boolean(int(robot.get("Change", 0)))
 
         return {
             "type": message.get("Type"),
             "map_code": message.get("MapCode"),
-            "robot_id": robot.get("Id"),
+            "RobotId": robot.get("Id"),
             "ip": robot.get("IP"),
             "position": {
                 "x": float(robot["Pos"].get("x", 0)) if robot.get("Pos") else 0,
@@ -93,6 +91,7 @@ class Robot_msg_decode:
             "speed": int(robot.get("Speed", 0)),
             "status": status_text,  # 使用映射后的状态文字
             "status_code": status_code,  # 保留原始状态码
+            "abnormal": abnormal,
             "alarm": AlarmType(f'{robot.get("AlarmMain", 0)}-{robot.get("AlarmSub", 0)}'),
             "stop": stop,  # 布尔值
             "stay": stay,  # 布尔值
@@ -103,42 +102,16 @@ class Robot_msg_decode:
             "roller_status": roller_status_text,  # 使用映射后的滚轮状态文字
             "roller_status_code": roller_status_code,  # 保留原始滚轮状态码
             "pod": {"id": pod.get("Id"), "bind": int(pod.get("Bind", 0))},
+            "time":time.time()
         }
 
-    def _map_boolean(self, value):
+    def _map_boolean(value):
         """将0/1转换为false/true，其他值返回原始值"""
         if value == 0:
             return False
         elif value == 1:
             return True
         return value
-
-    @staticmethod
-    def parse_robot_path(self, message):
-        """解析ROBOT_PATH类型的消息"""
-        paths = message.get("Paths", {})
-        self.data = {
-            "type": message.get("Type"),
-            "map_code": message.get("MapCode"),
-            "robot_id": paths.get("RobotId"),
-            "count": int(paths.get("Count", 0)),
-            "path": paths.get("Path", []),
-        }
-        return self.data
-
-    @staticmethod
-    def parse_trp_block_cell(self, message):
-        """解析TRP_BLOCK_CELL类型的消息"""
-        blocks = message.get("Blocks", {})
-        self.data = {
-            "type": message.get("Type"),
-            "map_code": message.get("MapCode"),
-            "robot_id": blocks.get("RobotId"),
-            "count": int(blocks.get("Count", 0)),
-            "block": blocks.get("Block", []),
-        }
-        return self.data
-
 
 def AlarmType(t: str):
     """
@@ -225,15 +198,13 @@ def AmrStatusType(t: str):
         # 查找匹配的状态
         for status in status_list:
             if status.get("code") == str(t) and status.get("type") == "1":
-                return {
-                    "name": status.get("name", "-"),
-                    "abnormal": bool(int(status.get("abnormal", False))),
-                }
+                return status.get("name", "-"),bool(int(status.get("abnormal", False)))
+                
 
         # 如果未找到匹配的状态
-        return {"name": f"未知状态({t})", "abnormal": False}
+        return f"未知状态({t})", False
     except Exception:
-        return {"name": f"未知状态({t})", "abnormal": False}
+        return f"未知状态({t})", False
 
 
 def parse_mapxml(content):

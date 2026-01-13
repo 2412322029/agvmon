@@ -97,7 +97,8 @@ class ZeroMQSubscriber:
                         except Exception as e:
                             traceback.print_exc()
                             logger.error(f"回调函数执行错误: {e}")
-                time.sleep(1)  # 防止CPU占用过高
+                            exit()
+                time.sleep(0.01)  
         except KeyboardInterrupt:
             logger.info("订阅者已停止")
         except Exception as e:
@@ -119,6 +120,11 @@ class ZeroMQSubscriber:
 
 if __name__ == "__main__":
     """主程序入口"""
+    import json
+
+    import redis
+    from config import cfg
+    r = redis.Redis(host='localhost', port=6379, db=2)
     try:
         api = RcmsApi()
         api.build_from_cache()
@@ -129,13 +135,21 @@ if __name__ == "__main__":
         subscriber = ZeroMQSubscriber(
             ZERO_MQ_IP, ZERO_MQ_CTRL_PORT, ZERO_MQ_MESSAGE_PORT
         )
+        rdstag = cfg.get("rcms.host").split("://")[1].replace(":","-")
         # 运行订阅者，订阅所有主题
         def message_callback(msg_type, content):
             """处理接收到的消息"""
-            if msg_type == "ROBOT_STATUS":
-                Robot_msg_decode.parse_robot_status(content)
-            else:
-                logger.info(f"收到{msg_type}消息: {content}")
+            # logger.info(f"收到{msg_type}消息")
+            print(".",end="",flush=True)
+            if msg_type == "ROBOT_STATUS" or msg_type == "ROBOT_PATH" :
+                # Robot_msg_decode.pretty_print_robot_status(content)
+                # print(f"{rdstag}:{msg_type}",content.get("RobotId","-1"),json.dumps(content))
+                r.hset(f"{rdstag}:{msg_type}", key=content.get("RobotId","-1"), value=json.dumps(content))
+            elif msg_type == "BLOCK_CELL" or msg_type == "CHARGE_INFO" or msg_type == "VALID_ROBOT_NUM":
+                r.set(f"{rdstag}:{msg_type}", value=json.dumps(content))
+                # logger.info(f"收到{msg_type}消息: {content}")
+            # elif msg_type == "BLOCK_CELL" or msg_type == "CHARGE_INFO" or msg_type == "VALID_ROBOT_NUM":
+            #     r.hset(f"{rdstag}:{msg_type}", key=str(int(time.time())), value=json.dumps(content))
 
         subscriber.run(message_callback)    
     except Exception as e:

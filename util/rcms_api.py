@@ -33,6 +33,7 @@ class RcmsApi:
         self.rabbitmqdata = {}
         self.mapdata = {}
         self.sharemapdata = ""
+        self.maplinedata ={}
         self.maplist = None
         self.alarmtype = {}
         self.devicelist = {}
@@ -200,6 +201,21 @@ class RcmsApi:
         self.mapdata = c["rows"]["row"]
         return method, c
 
+    def get_line_info(self,map_code: str):
+        method = "findByElcMapCode"
+        c = ""
+        if self.fake:
+            with open(f"{fake_path}/{method}.json", "r", encoding="utf-8") as f:
+                c = sharemap2json(json.load(f))
+        else:
+            url = f"{self.base_url}/{method}"
+            payload = {"mapCode": map_code}
+            response = self.client.post(url,data=payload)
+            response.raise_for_status()
+            c = sharemap2json(response.json())
+        self.maplinedata = c
+        return method, c
+
     def get_share_map_data_info(self, map_code: str, typen: int = 1):
         """
         获取共享地图数据信息
@@ -217,7 +233,7 @@ class RcmsApi:
             data = {"mapCode": map_code, "shareInfos": {"content": "", "type": typen}}
             response = self.client.post(url, json=data)
             response.raise_for_status()
-            print(response.json())
+            # print(response.json())
             c = sharemap2json(response.json())
         self.sharemapdata = c
         return method, c
