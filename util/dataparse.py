@@ -73,19 +73,11 @@ class Robot_msg_decode:
             "RobotId": robot.get("Id"),
             "ip": robot.get("IP"),
             "position": {
-                "x": robot.get("Pos", {}).get("x", 0),
-                "y": robot.get("Pos", {}).get("y", 0),
-                "h": robot.get("Pos", {}).get("h", 0),
+                "x": robot.get("Pos", {}).get("@x", 0),
+                "y": robot.get("Pos", {}).get("@y", 0),
+                "h": robot.get("Pos", {}).get("@h", 0),
             },
             "load_status": int(robot.get("LoadStatus", 0)),
-            "forklift": {
-                "fork_height": int(robot["Forklift"].get("ForkHeight", 0))
-                if robot.get("Forklift")
-                else 0,
-                "load_status": int(robot["Forklift"].get("LoadStatus", 0))
-                if robot.get("Forklift")
-                else 0,
-            },
             "direction": int(robot.get("Direction", 0)),
             "battery": int(robot.get("Battery", 0)),
             "speed": int(robot.get("Speed", 0)),

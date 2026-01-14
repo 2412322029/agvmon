@@ -1,5 +1,6 @@
 import argparse
 
+from backend.app import run_api_server
 from util.logger import logger
 from util.rabbitmq import run_rabbitmq_server
 from util.rcms_api import RcmsApi
@@ -23,6 +24,9 @@ def main():
     
     # 添加interval选项
     parser.add_argument("-i",'--interval', type=float, default=None, help='更新间隔时间（秒），适用于--zeromq和--show-robot选项')
+    
+    # web api
+    parser.add_argument('--web', action='store_true', help='运行FastAPI WebSocket服务器')
     
     args = parser.parse_args()
     
@@ -51,6 +55,8 @@ def main():
             show_robot_status(args.interval)
         else:
             show_robot_status()
+    elif args.web:
+        run_api_server()
     else:
         parser.print_help()
 
