@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class Robot_msg_decode:
     @staticmethod
-    def parse(json_data) -> (str, dict):
+    def parse(json_data) -> tuple[str, dict]:
         """
         解析JSON数据，根据消息类型调用相应的解析方法
 
@@ -73,9 +73,9 @@ class Robot_msg_decode:
             "RobotId": robot.get("Id"),
             "ip": robot.get("IP"),
             "position": {
-                "x": float(robot["Pos"].get("x", 0)) if robot.get("Pos") else 0,
-                "y": float(robot["Pos"].get("y", 0)) if robot.get("Pos") else 0,
-                "h": float(robot["Pos"].get("h", 0)) if robot.get("Pos") else 0,
+                "x": robot.get("Pos", {}).get("x", 0),
+                "y": robot.get("Pos", {}).get("y", 0),
+                "h": robot.get("Pos", {}).get("h", 0),
             },
             "load_status": int(robot.get("LoadStatus", 0)),
             "forklift": {
@@ -166,7 +166,7 @@ def AlarmType(t: str):
             "sub_name": "",
             "solution": "",
         }
-    except Exception as e:
+    except Exception:
         return {
             "main_code": "",
             "main_name": "",
@@ -456,7 +456,7 @@ def generate_map_image(
                 else:
                     # 直接尝试指定的字体系列
                     current_font = ImageFont.truetype(font_family, int(final_font_size))
-            except Exception as e:
+            except Exception:
                 # 如果指定的字体失败，尝试默认字体系列
                 try:
                     current_font = ImageFont.truetype(
@@ -495,11 +495,11 @@ def generate_map_image(
                         )
 
             # 计算文本总尺寸
-            line_widths = [m[0] for m in line_metrics]
+            # line_widths = [m[0] for m in line_metrics]
             line_ascent = [m[2] for m in line_metrics]
             line_descent = [m[3] for m in line_metrics]
 
-            max_line_width = max(line_widths) if line_widths else 0
+            # max_line_width = max(line_widths) if line_widths else 0
             total_ascent = max(line_ascent) if line_ascent else 0
             total_descent = max(line_descent) if line_descent else 0
 
@@ -512,7 +512,7 @@ def generate_map_image(
 
             # 计算起始位置以居中整个文本块
             # 水平居中
-            start_x = pixel_x - max_line_width // 2
+            # start_x = pixel_x - max_line_width // 2
 
             # 垂直居中，考虑文本的基线位置
             start_y = pixel_y - total_text_height // 2 + total_ascent

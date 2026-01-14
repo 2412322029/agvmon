@@ -4,12 +4,14 @@ import pathlib
 
 import httpx
 import xmltodict
-from config import cfg
-from dataparse import generate_map_image, parse_ShareMapInfo
-from helper import sharemap2json
-from logger import logger
+from .config import cfg
+from .dataparse import generate_map_image, parse_ShareMapInfo
+from .helper import sharemap2json
+import logging
 
-logger = logger.getChild("rcms_api")
+
+
+logger = logging.getLogger(__name__)   
 
 
 fake_path = pathlib.Path(os.path.join(os.path.dirname(__file__), "data/fake"))

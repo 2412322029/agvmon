@@ -70,7 +70,7 @@ class RcsWebApi:
             raise Exception(
                 f"登录失败，状态码：{response.status_code}，响应内容：{response.text}"
             )
-        if response.json().get("success") != True:
+        if not response.json().get("success"):
             raise Exception(f"登录失败，响应内容：{response.json()}")
         return response.json()
 

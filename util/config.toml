@@ -2,3 +2,8 @@ fake = false
 log_level = "INFO"
 [rcms]
 host = "http://172.18.2.72:8182"
+
+[redis]
+host = "127.0.0.1"
+port = 6379
+db = 2

@@ -1,10 +1,11 @@
+# 配置日志
+import logging
+
 import pika
 
-# 配置日志
-from logger import logger
-from rcms_api import RcmsApi
+from .rcms_api import RcmsApi
 
-logger = logger.getChild("rabbitmq")
+logger = logging.getLogger(__name__)
 
 
 class RabbitMQClient:
@@ -157,12 +158,7 @@ class RabbitMQClient:
             raise
 
 
-# 示例用法
-if __name__ == "__main__":
-    # XML配置示例
-    api = RcmsApi()
-    api.build_from_cache()
-
+def run_rabbitmq_server(api: RcmsApi):
     try:
         # 创建客户端实例
         client = RabbitMQClient(api.rabbitmqdata)
@@ -191,7 +187,15 @@ if __name__ == "__main__":
 
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         logger.error(f"RabbitMQ客户端示例运行失败: {e}")
     finally:
         client.close() if "client" in locals() else None
+
+
+# 示例用法
+if __name__ == "__main__":
+    api = RcmsApi()
+    api.build_from_cache()
+    run_rabbitmq_server(api)
