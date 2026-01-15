@@ -1,15 +1,14 @@
 import json
+import logging
 import os
 import pathlib
 
 import httpx
 import xmltodict
+
 from .config import cfg
 from .dataparse import generate_map_image, parse_ShareMapInfo
 from .helper import sharemap2json
-import logging
-
-
 
 logger = logging.getLogger(__name__)   
 
@@ -35,6 +34,7 @@ class RcmsApi:
         self.rabbitmqdata = {}
         self.mapdata = {}
         self.sharemapdata = ""
+        self.sharemapdata_dict = {}
         self.maplinedata ={}
         self.maplist = None
         self.alarmtype = {}
@@ -63,6 +63,7 @@ class RcmsApi:
             "rcsdata",
             "maplist",
             "mapdata",
+            "sharemapdata_dict",
         ]:
             with open(p / f"{k}.json", "w", encoding="utf-8") as f:
                 json.dump(self.__dict__[k], f, indent=2, ensure_ascii=False)
@@ -238,6 +239,7 @@ class RcmsApi:
             # print(response.json())
             c = sharemap2json(response.json())
         self.sharemapdata = c
+        self.sharemapdata_dict = xmltodict.parse(c)
         return method, c
 
     def get_rabbit_mq_param(self):
@@ -326,6 +328,7 @@ class RcmsApi:
         """
         从缓存数据构建API对象
         """
+        retmsg = []
         for d in [
             "rcsdata",
             "maplist",
@@ -334,10 +337,12 @@ class RcmsApi:
             "alarmtype",
             "rabbitmqdata",
             "mapdata",
+            "sharemapdata_dict",
         ]:
             file_path = self.current_cache_path / f"{d}.json"
             if not file_path.exists():
                 logger.warning(f"缓存文件不存在: {file_path}")
+                retmsg.append(f"缓存文件不存在: {file_path}")
                 continue
 
             with open(file_path, "r", encoding="utf-8") as f:
@@ -346,8 +351,12 @@ class RcmsApi:
         if map_data_path.exists():
             with open(map_data_path, "r", encoding="utf-8") as f:
                 self.sharemapdata = f.read()
+                self.sharemapdata_dict = xmltodict.parse(self.sharemapdata)
         else:
             logger.warning(f"地图数据缓存文件不存在: {map_data_path}")
+            retmsg.append(f"地图数据缓存文件不存在: {map_data_path}")
+        logger.info("从缓存数据构建API对象完成！")
+        return retmsg
 
     def fake_data(self, method: str):
         """

@@ -1,6 +1,7 @@
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend.api.rcmsapi import rcms_router
 from backend.api.redis_client import get_rdstag, redis_client
 from backend.api.startup import setup_startup_event
 from backend.api.static_routes import (
@@ -34,6 +35,9 @@ setup_404_handler(app)
 
 # 配置启动事件
 setup_startup_event(app)
+
+# 包含RcmsApi路由
+app.include_router(rcms_router, prefix="/api")
 
 # 设置WebSocket路由
 @app.websocket("/ws/robot-status")

@@ -1,7 +1,25 @@
 <script setup>
-import { NButton, NCard, NDataTable, NDivider, NDrawer, NSpace, NTabPane, NTabs, NTag, NText, useLoadingBar } from 'naive-ui'
+import { NButton, NCard, NDataTable, NDivider, NDrawer, NSpace, NSpin, NTabPane, NTabs, NTag, NText, useLoadingBar, useMessage } from 'naive-ui'
 import { computed, h, onBeforeUnmount, onMounted, ref } from 'vue'
+import MapComponent from '../components/MapComponent.vue'
 
+const robotImgUrl = computed(() => location.origin + '/api/robot_img/online.png')
+const robot_fullImgUrl = computed(() => location.origin + '/api/robot_img/full.png')
+
+// 解析滚筒状态码，返回4个位置的状态数组
+// 后4位从左到右：左下(1)、左上(2)、右下(3)、右上(4)
+const rollerPositions = computed(() => {
+  if (!selectedRobot.value) return [false, false, false, false]
+
+  // 获取滚筒状态码，默认0
+  const rollerStatus = selectedRobot.value.roller_status_code || 0
+
+  // 取后4位数字，转换为字符串并确保4位（不足补0）
+  const last4Digits = String(rollerStatus).slice(-4).padStart(4, '0')
+
+  // 分割为数组，转换为布尔值（0为false，1为true）
+  return last4Digits.split('').map(digit => digit === '1')
+})
 // 响应式抽屉宽度
 const drawerWidth = computed(() => {
   // 根据屏幕尺寸动态调整抽屉宽度
@@ -16,13 +34,14 @@ const drawerWidth = computed(() => {
 
 // 初始化loading bar
 const loadingBar = useLoadingBar()
+const message = useMessage()
 const isConnected = ref(false)
 const ws = ref(null)
 // 状态管理
 const robotData = ref([])
 const loading = ref(true)
 const timestamp = ref('')
-const message = ref('正在获取机器人状态数据...')
+const messageText = ref('正在获取机器人状态数据...')
 // Tab状态
 const activeTab = ref('all') // all, abnormal, removed
 // 选中的机器人
@@ -133,9 +152,9 @@ const columns = [
       // 30-80%: 保持橙色(255,153,0)
       // 80-100%: 橙(255,153,0) → 绿(0,128,0)
       const batteryPercent = Math.max(0, Math.min(100, batteryValue))
-      
+
       let red, green, blue
-      
+
       if (batteryPercent <= 30) {
         // 0-30%: 红 → 橙
         const t = batteryPercent / 30
@@ -154,7 +173,7 @@ const columns = [
         green = Math.round(153 - t * 25) // 153 → 128
         blue = 0
       }
-      
+
       const color = `rgb(${red}, ${green}, ${blue})`
 
       return h('div', {
@@ -189,7 +208,7 @@ const columns = [
 // 连接WebSocket
 const connectWebSocket = () => {
   loading.value = true
-  message.value = '正在连接服务器...'
+  messageText.value = '正在连接服务器...'
 
   try {
     // 创建WebSocket连接（使用相对路径）
@@ -203,7 +222,7 @@ const connectWebSocket = () => {
       console.log('WebSocket连接已打开')
       isConnected.value = true
       loading.value = false
-      message.value = 'WebSocket连接已打开'
+      messageText.value = 'WebSocket连接已打开'
       console.log('连接状态:', isConnected.value)
     }
 
@@ -272,7 +291,7 @@ const connectWebSocket = () => {
       console.log('WebSocket连接已关闭')
       isConnected.value = false
       loading.value = false
-      message.value = 'WebSocket连接已关闭'
+      messageText.value = 'WebSocket连接已关闭'
       loadingBar.error()
 
       // 尝试重新连接
@@ -284,7 +303,7 @@ const connectWebSocket = () => {
       console.error('WebSocket连接错误:', error)
       isConnected.value = false
       loading.value = false
-      message.value = 'WebSocket连接错误'
+      messageText.value = 'WebSocket连接错误'
       loadingBar.error()
     }
 
@@ -292,7 +311,7 @@ const connectWebSocket = () => {
     console.error('创建WebSocket连接失败:', error)
     isConnected.value = false
     loading.value = false
-    message.value = '创建WebSocket连接失败'
+    messageText.value = '创建WebSocket连接失败'
     loadingBar.error()
 
     // 尝试重新连接
@@ -319,6 +338,7 @@ const refreshData = () => {
     connectWebSocket()
   }
 }
+
 
 // 生命周期钩子
 onMounted(() => {
@@ -370,11 +390,12 @@ const getFilteredData = () => {
           1000).toLocaleString('zh-CN') : '' }}</span>
 
         <NText v-if="loading" type="secondary" style="text-align: center; display: block; margin: 40px 0;">
-          {{ message }}
+          {{ messageText }}
         </NText>
 
         <NDataTable v-else :columns="columns" :data="getFilteredData()" :pagination="false" bordered stripe
           size="medium" empty-text="暂无机器人数据" />
+
 
         <NDivider />
 
@@ -388,7 +409,24 @@ const getFilteredData = () => {
     <NDrawer v-model:show="showDetailDrawer" placement="right" :width="drawerWidth" title="机器人详细信息"
       @close="closeDetailModal">
       <div v-if="selectedRobot" class="detail-drawer-content">
-        <h1>{{ selectedRobot.RobotId }}</h1>
+        <h1 style="font-size: 24px; font-weight: bold; display: flex;">{{ selectedRobot.RobotId }}
+          <span style="margin-left: 10px; position: relative; width: 40px; height: 40px; display: inline-block;">
+            <img :src="robotImgUrl" style="width: 40px; height: 40px; transform: rotate(180deg);" alt="">
+            <!-- 左下 (第1位) -->
+            <img v-if="rollerPositions[0]" :src="robot_fullImgUrl"
+              style="position: absolute; bottom: 8px; left:11px; width: 8px; height: 8px;" alt="">
+            <!-- 左上 (第2位) -->
+            <img v-if="rollerPositions[1]" :src="robot_fullImgUrl"
+              style="position: absolute; top: 11px; left: 11px; width: 8px; height: 8px;" alt="">
+            <!-- 右下 (第3位) -->
+            <img v-if="rollerPositions[2]" :src="robot_fullImgUrl"
+              style="position: absolute; bottom: 8px; right: 8px; width: 8px; height: 8px;" alt="">
+            <!-- 右上 (第4位) -->
+            <img v-if="rollerPositions[3]" :src="robot_fullImgUrl"
+              style="position: absolute; top: 11px; right: 8px; width: 8px; height: 8px;" alt="">
+          </span>
+
+        </h1>
         <div class="detail-section">
           <h4>基本信息</h4>
           <div class="detail-item">
@@ -431,6 +469,9 @@ const getFilteredData = () => {
                 <NTag :type="selectedRobot.stay ? 'info' : 'success'" size="small">
                   停留: {{ selectedRobot.stay ? '是' : '否' }}
                 </NTag>
+                <NTag :type="selectedRobot.remove ? 'danger' : 'success'" size="small">
+                  排除: {{ selectedRobot.remove ? '是' : '否' }}
+                </NTag>
               </NSpace>
             </div>
           </div>
@@ -450,7 +491,7 @@ const getFilteredData = () => {
         <div class="detail-section">
           <h4>位置与方向</h4>
           <div class="detail-item">
-            <span class="label">位置X:</span>
+            <span class="label">位置:</span>
             <span class="value">{{ selectedRobot.position?.x || 0 }}，{{ selectedRobot.position?.y || 0 }}，{{
               selectedRobot.position?.h || 0 }}</span>
           </div>
@@ -465,24 +506,10 @@ const getFilteredData = () => {
         </div>
 
         <div class="detail-section">
-          <h4>负载信息</h4>
-          <div class="detail-item">
-            <span class="label">负载状态:</span>
-            <span class="value">{{ selectedRobot.load_status || 0 }}</span>
-          </div>
-        </div>
-
-
-
-        <div class="detail-section">
           <h4>系统信息</h4>
           <div class="detail-item">
             <span class="label">版本:</span>
             <span class="value">{{ selectedRobot.version || '未知' }}</span>
-          </div>
-          <div class="detail-item">
-            <span class="label">滚筒状态:</span>
-            <span class="value">{{ selectedRobot.roller_status || '未知' }}</span>
           </div>
           <div class="detail-item">
             <span class="label">滚筒状态码:</span>
@@ -505,10 +532,6 @@ const getFilteredData = () => {
         <div class="detail-section">
           <h4>其他状态</h4>
           <div class="detail-item">
-            <span class="label">是否移除:</span>
-            <span class="value">{{ selectedRobot.remove ? '是' : '否' }}</span>
-          </div>
-          <div class="detail-item">
             <span class="label">是否变化:</span>
             <span class="value">{{ selectedRobot.change ? '是' : '否' }}</span>
           </div>
@@ -516,7 +539,7 @@ const getFilteredData = () => {
 
         <div class="detail-section">
           <h4>完整数据</h4>
-          <pre class="pre">
+          <pre class="pre" style="max-height: 200px; overflow-y: auto;">
         {{ JSON.stringify(selectedRobot, null, 2) }}
       </pre>
         </div>
@@ -609,7 +632,7 @@ const getFilteredData = () => {
 
 /* 调整机器人ID标题大小 */
 .detail-drawer-content h1 {
-  font-size: 16px;
+  font-size: 20px;
   margin-bottom: 16px;
 }
 

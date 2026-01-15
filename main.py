@@ -37,7 +37,11 @@ def main():
     if args.build_raw:
         rapi.build_from_raw()
     elif args.build_cache:
-        rapi.build_from_cache()
+        retmsg = rapi.build_from_cache()
+        if retmsg:
+            logger.error(f"构建模型缓存失败: {retmsg}")
+        else:
+            logger.info("从缓存构建模型成功")
     elif args.genmap:
         rapi.build_from_cache()  # 生成地图前需要构建模型
         rapi.genmapimage()
