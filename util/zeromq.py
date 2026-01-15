@@ -147,6 +147,7 @@ def Map_info_update(api: RcmsApi, map_index: int = 0, interval: float = 0.01):
         )
         rdstag = cfg.get("rcms.host").split("://")[1].replace(":", "-")
         message_count = 0
+
         def message_callback(msg_type, content):
             nonlocal message_count
             message_count += 1
@@ -156,23 +157,24 @@ def Map_info_update(api: RcmsApi, map_index: int = 0, interval: float = 0.01):
                     end="",
                     flush=True,
                 )
-            if msg_type == "ROBOT_STATUS" or msg_type == "ROBOT_PATH":
+            count = msg_dict.get(msg_type, 0)
+            msg_dict.update({msg_type: count + 1})
+            if msg_type == "ROBOT_STATUS" or msg_type == "ROBOT_PATH" or msg_type == "TRP_BLOCK_CELL":
                 r.hset(
                     f"{rdstag}:{msg_type}",
                     key=content.get("RobotId", "-1"),
                     value=json.dumps(content),
                 )
-            count = msg_dict.get(msg_type, 0)
-            msg_dict.update({msg_type: count + 1})
-            # elif (
-            #     msg_type == "BLOCK_CELL"
-            #     or msg_type == "CHARGE_INFO"
-            #     or msg_type == "VALID_ROBOT_NUM"
-            # ):
-            #     r.set(f"{rdstag}:{msg_type}", value=json.dumps(content))
-            # logger.info(f"收到{msg_type}消息: {content}")
-            # elif msg_type == "BLOCK_CELL" or msg_type == "CHARGE_INFO" or msg_type == "VALID_ROBOT_NUM":
-            #     r.hset(f"{rdstag}:{msg_type}", key=str(int(time.time())), value=json.dumps(content))
+
+            elif (
+                msg_type == "BLOCK_CELL"
+                or msg_type == "CHARGE_INFO"
+                or msg_type == "VALID_ROBOT_NUM"
+            ):
+                r.set(f"{rdstag}:{msg_type}", value=json.dumps(content))
+            # elif msg_type == "TASK_INFO_REQ":
+            #     r.hset(f"{rdstag}:{msg_type}", key=content.get("@ReqCode"), value=json.dumps(content), ex=60*5)
+
 
         subscriber.run(message_callback, interval=interval)
     except Exception as e:

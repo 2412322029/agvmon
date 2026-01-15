@@ -276,7 +276,7 @@ const connectWebSocket = () => {
       loadingBar.error()
 
       // 尝试重新连接
-      setTimeout(connectWebSocket, 3000)
+      // setTimeout(connectWebSocket, 3000)
     }
 
     // 连接错误
@@ -296,7 +296,6 @@ const connectWebSocket = () => {
     loadingBar.error()
 
     // 尝试重新连接
-    setTimeout(connectWebSocket, 3000)
   }
 }
 
