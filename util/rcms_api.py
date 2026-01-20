@@ -134,6 +134,7 @@ class RcmsApi:
         c = ""
         if self.fake:
             result = xmltodict.parse(self.fake_data(method))
+            logger.info("使用模拟数据")
         else:
             url = f"{self.base_url}/{method}"
             response = self.client.get(url)

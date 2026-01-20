@@ -25,7 +25,7 @@ def build_rcms_from_cache_api():
 @rcms_router.get("/build_from_raw") 
 def build_rcms_from_raw_api(request: Request):
     try:
-        rapi.fake = request.query_params.get("fake", default=False)
+        rapi.fake = request.query_params.get("fake", default=False) == "true"
         rapi.build_from_raw()
     except Exception as e:
         return {"message": "error", "errors": [str(e)]}

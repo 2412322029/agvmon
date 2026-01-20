@@ -1,7 +1,10 @@
+from datetime import datetime, timedelta
 from hashlib import md5
+from urllib.parse import quote
 
 import httpx
-from config import cfg
+
+from .config import cfg
 
 
 class RcsWebApi:
@@ -10,7 +13,10 @@ class RcsWebApi:
     """
 
     def __init__(
-        self, base_url=cfg.get("rcms.host") + "/rcms/web", username=None, password=None
+        self,
+        base_url=cfg.get("rcms.host") + "/rcms/web",
+        username=cfg.get("rcms.username"),
+        password=cfg.get("rcms.password"),
     ):
         """
         初始化RCS Web API客户端
@@ -25,7 +31,7 @@ class RcsWebApi:
                 "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
             }
         )
-        self.login(username, password)
+        # self.login(username, password)
 
     def _dict_to_formdata(self, data_dict: dict) -> str:
         """
@@ -39,7 +45,7 @@ class RcsWebApi:
         """
         temp = []
         for k, v in data_dict.items():
-            temp.append(f"{k}={v}")
+            temp.append(f"{quote(str(k))}={quote(str(v))}")
         return "&".join(temp)
 
     def login(self, username, password, pwd_safe_level="3"):
@@ -72,6 +78,76 @@ class RcsWebApi:
             )
         if not response.json().get("success"):
             raise Exception(f"登录失败，响应内容：{response.json()}")
+        return response.json()
+
+    def find_tasks_detail(
+        self,
+        robotCode="",
+        taskTyp="",
+        taskStatus="",
+        carrierId="",
+        podCode="",
+        ctnrCode="",
+        tranTaskNum="",
+        wbCode="",
+        uname="",
+        dstMapCode="",
+        groupNum="",
+        liftCode="",
+        srcEqName="",
+        desEqName="",
+        sdateTo=None,
+        edateTo=None,
+        limit=20,
+    ):
+        """
+        查询任务详情
+        返回:
+            dict: 查询响应的JSON数据
+        """
+        url = self.base_url + "/transTask/findListWithPages.action"
+
+        # 如果没有提供日期范围，使用近2天：昨天00:00:00到今天23:59:59
+        if sdateTo is None or edateTo is None:
+            today = datetime.today()
+            yesterday = today - timedelta(days=1)
+
+            sdateTo = yesterday.strftime("%Y-%m-%d+00:00:00")
+            edateTo = today.strftime("%Y-%m-%d+23:59:59")
+
+        data = {
+            "start": 1,
+            "taskTyp": taskTyp,
+            "taskStatus": taskStatus,
+            "carrierId": carrierId,
+            "podCode": podCode,
+            "ctnrCode": ctnrCode,
+            "tranTaskNum": tranTaskNum,
+            "wbCode": wbCode,
+            "uname": uname,
+            "dstMapCode": dstMapCode,
+            "groupNum": groupNum,
+            "liftCode": liftCode,
+            "srcEqName": srcEqName,
+            "desEqName": desEqName,
+            "robotCode": robotCode,
+            "sdateTo": sdateTo,
+            "edateTo": edateTo,
+            "limit": limit,
+        }
+        self.client.headers.update(
+            {"accept": "application/json, text/javascript, */*; q=0.01"}
+        )
+        response = self.client.post(
+            url,
+            data=self._dict_to_formdata(data),
+        )
+        if response.status_code != 200:
+            raise Exception(
+                f"查询任务详情失败，状态码：{response.status_code}，响应内容：{response.text}"
+            )
+        if not response.json().get("success"):
+            raise Exception(f"查询任务详情失败，响应内容：{response.json()}")
         return response.json()
 
     def find_sub_tasks_detail(
@@ -138,17 +214,17 @@ class RcsWebApi:
 # 示例用法（如果直接运行此文件）
 if __name__ == "__main__":
     # 创建RCS Web API客户端实例
-    rcs_api = RcsWebApi(
-        username="lll",
-        password="Hik@123++",
+    rcs_web_api = RcsWebApi(
+        username=cfg.get("rcms.username"),
+        password=cfg.get("rcms.password"),
     )
-
+    print(rcs_web_api.find_tasks_detail(robotCode=""))
     # 查询子任务详情示例
-    subtask_response = rcs_api.find_sub_tasks_detail(
-        trans_task_num="MFAGV3002026011208003876632HS"
-    )
-    print("子任务详情:", subtask_response)
+    # subtask_response = rcs_web_api.find_sub_tasks_detail(
+    #     trans_task_num="MFAGV3002026011608201393195HS"
+    # )
+    # print("子任务详情:", subtask_response)
 
-    # 获取AGV状态示例
-    agv_status_response = rcs_api.get_agv_status(map_short_name="MOD2L30")
-    print("AGV状态:", agv_status_response)
+    # # 获取AGV状态示例
+    # agv_status_response = rcs_web_api.get_agv_status(map_short_name="MOD2L30")
+    # print("AGV状态:", agv_status_response)

@@ -41,6 +41,11 @@ const menuOptions = [
     //     onClick: () => router.push('/map/sharemapdata')
     //   }
     // ]
+  },
+  {
+    label: '任务查询',
+    key: '/task-query',
+    onClick: () => router.push('/task-query')
   }
 ]
 </script>

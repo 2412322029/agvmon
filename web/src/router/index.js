@@ -30,6 +30,12 @@ const router = createRouter({
       name: 'map',
       component: () => import('../views/MapView.vue'),
     },
+    // Task Query Page
+    {
+      path: '/task-query',
+      name: 'task-query',
+      component: () => import('../views/TaskQueryView.vue'),
+    },
   ],
 })
 

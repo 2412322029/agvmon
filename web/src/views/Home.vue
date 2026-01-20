@@ -1,8 +1,7 @@
 <script setup>
-import { NButton, NCard, NDataTable, NDivider, NDrawer, NSpace, NSpin, NTabPane, NTabs, NTag, NText, useLoadingBar, useMessage } from 'naive-ui'
+import TaskDisplayComponent from '@/components/TaskDisplayComponent.vue'
+import { NButton, NCard, NDataTable, NDivider, NDrawer, NSpace, NTabPane, NTabs, NTag, NText, useLoadingBar, useMessage } from 'naive-ui'
 import { computed, h, onBeforeUnmount, onMounted, ref } from 'vue'
-import MapComponent from '../components/MapComponent.vue'
-
 const robotImgUrl = computed(() => location.origin + '/api/robot_img/online.png')
 const robot_fullImgUrl = computed(() => location.origin + '/api/robot_img/full.png')
 
@@ -47,6 +46,8 @@ const activeTab = ref('all') // all, abnormal, removed
 // 选中的机器人
 const selectedRobot = ref(null)
 const showDetailDrawer = ref(false)
+// 详情抽屉标签页状态
+const detailActiveTab = ref('info')
 
 // 显示机器人详细信息
 const showRobotDetail = (robot) => {
@@ -425,124 +426,136 @@ const getFilteredData = () => {
             <img v-if="rollerPositions[3]" :src="robot_fullImgUrl"
               style="position: absolute; top: 11px; right: 8px; width: 8px; height: 8px;" alt="">
           </span>
-
         </h1>
-        <div class="detail-section">
-          <h4>基本信息</h4>
-          <div class="detail-item">
-            <span class="label">IP地址:</span>
-            <span class="value">{{ selectedRobot.ip || '未知' }}</span>
-          </div>
-          <div class="detail-item">
-            <span class="label">状态:</span>
-            <span class="value">{{ selectedRobot.status || '未知' }}</span>
-          </div>
-          <div class="detail-item">
-            <span class="label">状态码:</span>
-            <span class="value">{{ selectedRobot.status_code || 0 }}</span>
-          </div>
-          <div class="detail-item">
-            <span class="label">电量:</span>
-            <span class="value">{{ selectedRobot.battery || 0 }}%</span>
-          </div>
-          <div class="detail-item">
-            <span class="label">速度:</span>
-            <span class="value">{{ selectedRobot.speed || 0 }}mm/s</span>
-          </div>
-          <div class="detail-item">
-            <span class="label">地图代码:</span>
-            <span class="value">{{ selectedRobot.map_code || '未知' }}</span>
-          </div>
-        </div>
-        <div class="detail-section">
-          <h4>异常与报警</h4>
-          <div class="detail-item">
-            <span class="label">状态信息:</span>
-            <div class="value">
-              <NSpace>
-                <NTag :type="selectedRobot.abnormal ? 'error' : 'success'" size="small">
-                  异常: {{ selectedRobot.abnormal ? '是' : '否' }}
-                </NTag>
-                <NTag :type="selectedRobot.stop ? 'warning' : 'success'" size="small">
-                  停止: {{ selectedRobot.stop ? '是' : '否' }}
-                </NTag>
-                <NTag :type="selectedRobot.stay ? 'info' : 'success'" size="small">
-                  停留: {{ selectedRobot.stay ? '是' : '否' }}
-                </NTag>
-                <NTag :type="selectedRobot.remove ? 'danger' : 'success'" size="small">
-                  排除: {{ selectedRobot.remove ? '是' : '否' }}
-                </NTag>
-              </NSpace>
+
+        <!-- 标签页 -->
+        <NTabs v-model:value="detailActiveTab" type="card" style="margin: 20px 0;">
+          <NTabPane name="info" tab="基本信息">
+            <div class="detail-section">
+              <h4>基本信息</h4>
+              <div class="detail-item">
+                <span class="label">IP地址:</span>
+                <span class="value">{{ selectedRobot.ip || '未知' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="label">状态:</span>
+                <span class="value">{{ selectedRobot.status || '未知' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="label">状态码:</span>
+                <span class="value">{{ selectedRobot.status_code || 0 }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="label">电量:</span>
+                <span class="value">{{ selectedRobot.battery || 0 }}%</span>
+              </div>
+              <div class="detail-item">
+                <span class="label">速度:</span>
+                <span class="value">{{ selectedRobot.speed || 0 }}mm/s</span>
+              </div>
+              <div class="detail-item">
+                <span class="label">地图代码:</span>
+                <span class="value">{{ selectedRobot.map_code || '未知' }}</span>
+              </div>
             </div>
-          </div>
-          <div class="detail-item">
-            <span class="label">主报警名称:</span>
-            <span class="value">{{ selectedRobot.alarm?.main_name || '无' }}</span>
-          </div>
-          <div class="detail-item">
-            <span class="label">子报警名称:</span>
-            <span class="value">{{ selectedRobot.alarm?.sub_name || '无' }}</span>
-          </div>
-          <div class="detail-item">
-            <span class="label">解决方案:</span>
-            <span class="value">{{ selectedRobot.alarm?.solution || '无' }}</span>
-          </div>
-        </div>
-        <div class="detail-section">
-          <h4>位置与方向</h4>
-          <div class="detail-item">
-            <span class="label">位置:</span>
-            <span class="value">{{ selectedRobot.position?.x || 0 }}，{{ selectedRobot.position?.y || 0 }}，{{
-              selectedRobot.position?.h || 0 }}</span>
-          </div>
-          <div class="detail-item">
-            <span class="label">方向:</span>
-            <span class="value">{{ selectedRobot.direction || 0 }}°</span>
-          </div>
-          <div class="detail-item">
-            <span class="label">目标距离:</span>
-            <span class="value">{{ selectedRobot.tgt_distance || 0 }}mm</span>
-          </div>
-        </div>
+            <div class="detail-section">
+              <h4>异常与报警</h4>
+              <div class="detail-item">
+                <span class="label">状态信息:</span>
+                <div class="value">
+                  <NSpace>
+                    <NTag :type="selectedRobot.abnormal ? 'error' : 'success'" size="small">
+                      异常: {{ selectedRobot.abnormal ? '是' : '否' }}
+                    </NTag>
+                    <NTag :type="selectedRobot.stop ? 'warning' : 'success'" size="small">
+                      停止: {{ selectedRobot.stop ? '是' : '否' }}
+                    </NTag>
+                    <NTag :type="selectedRobot.stay ? 'info' : 'success'" size="small">
+                      停留: {{ selectedRobot.stay ? '是' : '否' }}
+                    </NTag>
+                    <NTag :type="selectedRobot.remove ? 'danger' : 'success'" size="small">
+                      排除: {{ selectedRobot.remove ? '是' : '否' }}
+                    </NTag>
+                  </NSpace>
+                </div>
+              </div>
+              <div class="detail-item">
+                <span class="label">主报警名称:</span>
+                <span class="value">{{ selectedRobot.alarm?.main_name || '无' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="label">子报警名称:</span>
+                <span class="value">{{ selectedRobot.alarm?.sub_name || '无' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="label">解决方案:</span>
+                <span class="value">{{ selectedRobot.alarm?.solution || '无' }}</span>
+              </div>
+            </div>
+            <div class="detail-section">
+              <h4>位置与方向</h4>
+              <div class="detail-item">
+                <span class="label">位置:</span>
+                <span class="value">{{ selectedRobot.position?.x || 0 }}，{{ selectedRobot.position?.y || 0 }}，{{
+                  selectedRobot.position?.h || 0 }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="label">方向:</span>
+                <span class="value">{{ selectedRobot.direction || 0 }}°</span>
+              </div>
+              <div class="detail-item">
+                <span class="label">目标距离:</span>
+                <span class="value">{{ selectedRobot.tgt_distance || 0 }}mm</span>
+              </div>
+            </div>
 
-        <div class="detail-section">
-          <h4>系统信息</h4>
-          <div class="detail-item">
-            <span class="label">版本:</span>
-            <span class="value">{{ selectedRobot.version || '未知' }}</span>
-          </div>
-          <div class="detail-item">
-            <span class="label">滚筒状态码:</span>
-            <span class="value">{{ selectedRobot.roller_status_code || 0 }}</span>
-          </div>
-          <div class="detail-item">
-            <span class="label">POD ID:</span>
-            <span class="value">{{ selectedRobot.pod?.id || '无' }}</span>
-          </div>
-          <div class="detail-item">
-            <span class="label">POD绑定:</span>
-            <span class="value">{{ selectedRobot.pod?.bind || 0 }}</span>
-          </div>
-          <div class="detail-item">
-            <span class="label">时间:</span>
-            <span class="value">{{ new Date(selectedRobot.time * 1000).toLocaleString() }}</span>
-          </div>
-        </div>
+            <div class="detail-section">
+              <h4>系统信息</h4>
+              <div class="detail-item">
+                <span class="label">版本:</span>
+                <span class="value">{{ selectedRobot.version || '未知' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="label">滚筒状态码:</span>
+                <span class="value">{{ selectedRobot.roller_status_code || 0 }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="label">POD ID:</span>
+                <span class="value">{{ selectedRobot.pod?.id || '无' }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="label">POD绑定:</span>
+                <span class="value">{{ selectedRobot.pod?.bind || 0 }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="label">时间:</span>
+                <span class="value">{{ new Date(selectedRobot.time * 1000).toLocaleString() }}</span>
+              </div>
+            </div>
 
-        <div class="detail-section">
-          <h4>其他状态</h4>
-          <div class="detail-item">
-            <span class="label">是否变化:</span>
-            <span class="value">{{ selectedRobot.change ? '是' : '否' }}</span>
-          </div>
-        </div>
+            <div class="detail-section">
+              <h4>其他状态</h4>
+              <div class="detail-item">
+                <span class="label">是否变化:</span>
+                <span class="value">{{ selectedRobot.change ? '是' : '否' }}</span>
+              </div>
+            </div>
 
-        <div class="detail-section">
-          <h4>完整数据</h4>
-          <pre class="pre" style="max-height: 200px; overflow-y: auto;">
-        {{ JSON.stringify(selectedRobot, null, 2) }}
-      </pre>
-        </div>
+            <div class="detail-section">
+              <h4>完整数据</h4>
+              <pre class="pre" style="max-height: 200px; overflow-y: auto;">
+            {{ JSON.stringify(selectedRobot, null, 2) }}
+          </pre>
+            </div>
+          </NTabPane>
+          <NTabPane name="tasks" tab="任务查询">
+            <TaskDisplayComponent 
+              :robot-code="selectedRobot.RobotId" 
+              :show-query-params="false"
+              :show-details="false"
+            />
+          </NTabPane>
+        </NTabs>
       </div>
     </NDrawer>
   </div>
