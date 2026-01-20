@@ -19,7 +19,7 @@ watch(() => isFormExpanded.value, (newVal) => {
 const queryParams = reactive({
     robotCode: "",
     taskTyp: "",
-    taskStatus: "", // 默认为空，让用户自己选择
+    taskStatus: 2, // 默认为空，让用户自己选择
     carrierId: "",
     podCode: "",
     ctnrCode: "",

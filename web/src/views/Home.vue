@@ -356,11 +356,31 @@ const getFilteredData = () => {
 
   switch (activeTab.value) {
     case 'abnormal':
-      return data.filter(item => item.display_status === '异常')
+      return data.filter(item => item.abnormal === true || item.status_code == 67)
     case 'removed':
-      return data.filter(item => item.display_status === '排除')
+      return data.filter(item => item.remove === true)
     default:
       return data
+  }
+}
+const stopagv = async (agvcode = "", stop = false) => {
+  // 调用后端API，使用POST方法和JSON body
+  const response = await fetch('/api/rcs_web/stopagv', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      "agvcode": agvcode,
+      "stop": stop
+    })
+  })
+  const data = await response.json()
+
+  if (data.code == 0) {
+    message.info(data.message)
+  } else {
+    message.error(data.message)
   }
 }
 </script>
@@ -473,7 +493,7 @@ const getFilteredData = () => {
                     <NTag :type="selectedRobot.stay ? 'info' : 'success'" size="small">
                       停留: {{ selectedRobot.stay ? '是' : '否' }}
                     </NTag>
-                    <NTag :type="selectedRobot.remove ? 'danger' : 'success'" size="small">
+                    <NTag :type="selectedRobot.remove ? 'info' : 'success'" size="small">
                       排除: {{ selectedRobot.remove ? '是' : '否' }}
                     </NTag>
                   </NSpace>
@@ -491,6 +511,10 @@ const getFilteredData = () => {
                 <span class="label">解决方案:</span>
                 <span class="value">{{ selectedRobot.alarm?.solution || '无' }}</span>
               </div>
+              <NSpace>
+                <NButton @click="stopagv(selectedRobot.RobotId, stop = true)" type="error">停止</NButton>
+                <NButton @click="stopagv(selectedRobot.RobotId, stop = false)" type="primary">恢复</NButton>
+              </NSpace>
             </div>
             <div class="detail-section">
               <h4>位置与方向</h4>
@@ -549,12 +573,15 @@ const getFilteredData = () => {
             </div>
           </NTabPane>
           <NTabPane name="tasks" tab="任务查询">
-            <TaskDisplayComponent 
-              :robot-code="selectedRobot.RobotId" 
-              :show-query-params="false"
-              :show-details="false"
-            />
+            <TaskDisplayComponent :robot-code="selectedRobot.RobotId" :taskStatus="2" :show-query-params="false"
+              :show-details="false" />
           </NTabPane>
+          <!-- <NTabPane name="action" tab="操作">
+            <NSpace>
+              <NButton @click="stopagv(selectedRobot.RobotId, stop = true)" type="error">停止</NButton>
+              <NButton @click="stopagv(selectedRobot.RobotId, stop = false)" type="primary">恢复</NButton>
+            </NSpace>
+          </NTabPane> -->
         </NTabs>
       </div>
     </NDrawer>

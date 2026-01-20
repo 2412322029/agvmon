@@ -1,5 +1,5 @@
 <script setup>
-import { NBadge, NButton, NModal, NSpin, NTable, useMessage } from 'naive-ui'
+import { NBadge, NModal, NSpin, NTable, useMessage } from 'naive-ui'
 import { computed, ref, watch } from 'vue'
 
 const props = defineProps({
@@ -18,6 +18,10 @@ const props = defineProps({
     showDetails: {
         type: Boolean,
         default: true
+    },
+    taskStatus:{
+        type: Number,
+        default: 2
     }
 })
 
@@ -53,6 +57,7 @@ const queryTasksByRobotCode = async () => {
         // 构建查询参数
         const queryParams = {
             robotCode: props.robotCode,
+            taskStatus: props.taskStatus,
             limit: 20  // 限制返回数量
         };
 

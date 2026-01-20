@@ -4,7 +4,7 @@ from urllib.parse import quote
 
 import httpx
 
-from .config import cfg
+from util.config import cfg
 
 
 class RcsWebApi:
@@ -25,13 +25,15 @@ class RcsWebApi:
             base_url: RCS系统的基础URL
         """
         self.base_url = base_url
+        self.username = username
+        self.password = password
         self.client = httpx.Client(
             headers={
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
                 "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
             }
         )
-        # self.login(username, password)
+        self.login(username, password)
 
     def _dict_to_formdata(self, data_dict: dict) -> str:
         """
@@ -45,7 +47,8 @@ class RcsWebApi:
         """
         temp = []
         for k, v in data_dict.items():
-            temp.append(f"{quote(str(k))}={quote(str(v))}")
+            temp.append(f"{quote(str(k))}={quote(str(v))}".replace("%2B", "+"))
+            # temp.append(f"{k}={v}")
         return "&".join(temp)
 
     def login(self, username, password, pwd_safe_level="3"):
@@ -70,8 +73,13 @@ class RcsWebApi:
 
         response = self.client.post(
             url,
-            data=self._dict_to_formdata(data),
+            data=data,
+            cookies={
+                "JSESSIONID": "86DFC75B5C1472F831C3E15FF31152B5",
+                "HIK_COOKIE": "19BDC358E70VGIB",
+            },
         )
+        print(response.text)
         if response.status_code != 200:
             raise Exception(
                 f"登录失败，状态码：{response.status_code}，响应内容：{response.text}"
@@ -112,8 +120,8 @@ class RcsWebApi:
             today = datetime.today()
             yesterday = today - timedelta(days=1)
 
-            sdateTo = yesterday.strftime("%Y-%m-%d+00:00:00")
-            edateTo = today.strftime("%Y-%m-%d+23:59:59")
+            sdateTo = yesterday.strftime("%Y-%m-%d 00:00:00")
+            edateTo = today.strftime("%Y-%m-%d 23:59:59")
 
         data = {
             "start": 1,
@@ -134,19 +142,29 @@ class RcsWebApi:
             "sdateTo": sdateTo,
             "edateTo": edateTo,
             "limit": limit,
+            # "bigDataFlag": True,
+            "showHisData": False,
         }
         self.client.headers.update(
             {"accept": "application/json, text/javascript, */*; q=0.01"}
         )
-        response = self.client.post(
-            url,
-            data=self._dict_to_formdata(data),
-        )
+        # data=
+        response = self.client.post(url, data=data)
+
+        if not response.text:
+            self.login(username=self.username, password=self.password)
+            response = self.client.post(url, data=data)
         if response.status_code != 200:
             raise Exception(
                 f"查询任务详情失败，状态码：{response.status_code}，响应内容：{response.text}"
             )
-        if not response.json().get("success"):
+        # print(response.text)
+        try:
+            d = response.json()
+        except Exception as e:
+            # print(response.text)
+            return {"success": False, "msg": response.text}
+        if not d.get("success"):
             raise Exception(f"查询任务详情失败，响应内容：{response.json()}")
         return response.json()
 
@@ -173,7 +191,23 @@ class RcsWebApi:
 
         response = self.client.post(
             url,
-            data=self._dict_to_formdata(data),
+            data=data,
+        )
+        return response.json()
+
+    def stopResumeOffline(self, agvCodes="", flag="resume"):  # stop / resume
+        url = self.base_url + "/agvControl/stopResumeOffline.action"
+        data = {
+            "clientCode": "",
+            "robotNum": "",
+            "agvCodes": agvCodes,
+            "mapShortName": "",
+            "stopResumeOffline": flag,
+        }
+        self.client.headers.update({"content-type": "application/json"})
+        response = self.client.post(
+            url,
+            json=data,
         )
         return response.json()
 

@@ -15,7 +15,7 @@ rcs_api = RcsWebApi()
 def find_tasks_detail_api(
     robotCode: str = Body("", description="机器人代码"),
     taskTyp: str = Body("", description="任务类型"),
-    taskStatus: str = Body("", description="任务状态"),
+    taskStatus: int = Body(2, description="任务状态"),
     carrierId: str = Body("", description="载体ID"),
     podCode: str = Body("", description="Pod代码"),
     ctnrCode: str = Body("", description="容器代码"),
@@ -71,6 +71,19 @@ def find_sub_tasks_detail_api(
         return {"message": "error", "errors": [str(e)]}
 
 
+@rcs_web_router.post("/stopagv")
+def stopagv(
+    agvcode=Body("", description="agv编号"), stop=Body(False, description="是否stop")
+):
+    try:
+        result = rcs_api.stopResumeOffline(
+            agvCodes=agvcode, flag="stop" if stop else "resume"
+        )
+        return result
+    except Exception as e:
+        return {"message": "error", "errors": [str(e)]}
+
+
 @rcs_web_router.post("/get_agv_status")
 def get_agv_status_api(
     client_code: str = "",
@@ -91,11 +104,11 @@ def get_agv_status_api(
 
 
 @rcs_web_router.post("/login")
-def login_api(username: str, password: str, pwd_safe_level: str = "3"):
+def login_api(username, password, pwd_safe_level: str = "3"):
     try:
         result = rcs_api.login(
             username=username, password=password, pwd_safe_level=pwd_safe_level
         )
         return result
     except Exception as e:
-        return {"message": "error", "errors": [str(e)]}
+        return {"message": "error", "errors": [str(e)], "success": False}
