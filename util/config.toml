@@ -1,5 +1,7 @@
 fake = false
 log_level = "INFO"
+zmq_auto_kill_timedelta = 5
+
 [rcms]
 host = "http://172.18.2.72:8182"
 username = "lll"

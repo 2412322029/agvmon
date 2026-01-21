@@ -1,6 +1,6 @@
 <script setup>
-import { NButton, NCard, NCheckbox, NMessageProvider, NResult, useMessage } from 'naive-ui'
-import { ref } from 'vue'
+import { NButton, NCard, NCheckbox, NResult, useMessage } from 'naive-ui'
+import { onMounted, onUnmounted, ref } from 'vue'
 
 // Build from Cache
 const cacheLoading = ref(false)
@@ -61,6 +61,145 @@ const buildFromRaw = async () => {
     rawLoading.value = false
   }
 }
+
+// ZeroMQ Process Management
+const zeromqLoading = ref(false)
+const zeromqResult = ref(null)
+const zeromqInfo = ref(null)
+const zeromqStatus = ref('stopped') // stopped, running, error
+const isStopActionPending = ref(false)
+
+// Helper functions
+const hasErrorInResult = (result) => {
+  return result.error || (result.message && result.message.includes('错误'));
+}
+
+const getResultTitle = (result) => {
+  if (result.error) return 'Error';
+  if (result.message) return 'Result';
+  return 'Info';
+}
+
+// Get ZeroMQ program info
+const getZeromqInfo = async () => {
+  try {
+    const response = await fetch('/api/rcms/zeromq_program_info')
+    const data = await response.json()
+    
+    if (data.message === '程序信息获取成功') {
+      zeromqInfo.value = data.info
+      zeromqStatus.value = 'running'
+    } else if (data.message === '未找到程序信息') {
+      zeromqInfo.value = null
+      zeromqStatus.value = 'stopped'
+    } else {
+      zeromqInfo.value = null
+      zeromqStatus.value = 'error'
+    }
+  } catch (error) {
+    zeromqInfo.value = null
+    zeromqStatus.value = 'error'
+  }
+}
+
+// Start ZeroMQ process
+const startZeromqProcess = async () => {
+  zeromqLoading.value = true
+  isStopActionPending.value = false
+  zeromqResult.value = null
+  
+  try {
+    const response = await fetch('/api/rcms/start_zeromq_map_update', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({})
+    })
+    const data = await response.json()
+    
+    zeromqResult.value = data
+    
+    if (data.message.includes('已启动') || data.message.includes('已存在')) {
+      message.success(data.message)
+      zeromqStatus.value = 'running'
+    } else {
+      message.warning(data.message)
+    }
+  } catch (error) {
+    zeromqResult.value = { success: false, message: 'Network error', error: error.message }
+    message.error('Network error')
+  } finally {
+    zeromqLoading.value = false
+    // Refresh info after operation
+    await getZeromqInfo()
+  }
+}
+
+// Stop ZeroMQ process
+const stopZeromqProcess = async () => {
+  zeromqLoading.value = true
+  isStopActionPending.value = true
+  zeromqResult.value = null
+  
+  try {
+    const response = await fetch('/api/rcms/stop_zeromq_map_update', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({})
+    })
+    const data = await response.json()
+    
+    zeromqResult.value = data
+    
+    if (data.message.includes('已停止')) {
+      message.success(data.message)
+      zeromqStatus.value = 'stopped'
+    } else {
+      message.warning(data.message)
+    }
+  } catch (error) {
+    zeromqResult.value = { success: false, message: 'Network error', error: error.message }
+    message.error('Network error')
+  } finally {
+    zeromqLoading.value = false
+    isStopActionPending.value = false
+    // Refresh info after operation
+    await getZeromqInfo()
+  }
+}
+
+// Refresh ZeroMQ info periodically
+let refreshInterval = null
+
+const startAutoRefresh = () => {
+  if (refreshInterval) {
+    clearInterval(refreshInterval)
+  }
+  refreshInterval = setInterval(async () => {
+    await getZeromqInfo()
+  }, 5000) // Refresh every 5 seconds
+}
+
+const stopAutoRefresh = () => {
+  if (refreshInterval) {
+    clearInterval(refreshInterval)
+    refreshInterval = null
+  }
+}
+
+// Initialize when component mounts
+onMounted(() => {
+  getZeromqInfo()
+  startAutoRefresh()
+})
+
+// Clean up on component unmount
+onUnmounted(() => {
+  stopAutoRefresh()
+})
 </script>
 
 <template>
@@ -144,6 +283,84 @@ const buildFromRaw = async () => {
         </div>
       </NCard>
     </div>
+    
+    <!-- ZeroMQ Process Management Card -->
+    <NCard title="ZeroMQ Process Management" :bordered="true" class="service-card">
+      <div class="service-content">
+        <p>Manage ZeroMQ Map Update process.</p>
+        
+        <div class="zeromq-controls">
+          <NButton 
+            type="success" 
+            @click="startZeromqProcess" 
+            :loading="zeromqLoading && !isStopActionPending"
+            :disabled="zeromqStatus === 'running'"
+            size="medium"
+            style="margin-right: 10px;"
+          >
+            Start Process
+          </NButton>
+          
+          <NButton 
+            type="error" 
+            @click="stopZeromqProcess" 
+            :loading="zeromqLoading && isStopActionPending"
+            :disabled="zeromqStatus !== 'running'"
+            size="medium"
+          >
+            Stop Process
+          </NButton>
+        </div>
+        
+        <div class="status-indicator">
+          <span :class="['status-badge', 
+            zeromqStatus === 'running' ? 'status-running' : 
+            zeromqStatus === 'stopped' ? 'status-stopped' : 'status-error'
+          ]">
+            Status: {{ zeromqStatus }}
+          </span>
+        </div>
+        
+        <div v-if="zeromqInfo" class="zeromq-info">
+          <h4>Process Information:</h4>
+          <div class="info-item">
+            <strong>PID:</strong> {{ zeromqInfo.pid }}
+          </div>
+          <div class="info-item">
+            <strong>Start Time:</strong> {{ zeromqInfo.start_time }}
+          </div>
+          <div class="info-item">
+            <strong>Last Update:</strong> {{ zeromqInfo.last_update }}
+          </div>
+          <div class="info-item">
+            <strong>Message Count:</strong> {{ zeromqInfo.message_count }}
+          </div>
+          <details class="msg-dict-details">
+            <summary><strong>Message Dictionary:</strong></summary>
+            <div v-for="(value, key) in zeromqInfo.msg_dict" :key="key" class="msg-item">
+              <span class="msg-key">{{ key }}:</span>
+              <span class="msg-value">{{ value }}</span>
+            </div>
+          </details>
+        </div>
+        
+        <div v-if="zeromqResult" class="result-container">
+          <NResult
+            :status="hasErrorInResult(zeromqResult) ? 'error' : 'info'"
+            :title="getResultTitle(zeromqResult)"
+            :description="zeromqResult.message || zeromqResult.error"
+            size="small"
+          >
+            <template #footer>
+              <div v-if="zeromqResult.info" class="result-info">
+                <p><strong>PID:</strong> {{ zeromqResult.info.pid }}</p>
+                <p><strong>Status:</strong> {{ zeromqResult.info.start_time ? 'Running' : 'Stopped' }}</p>
+              </div>
+            </template>
+          </NResult>
+        </div>
+      </div>
+    </NCard>
   </div>
 </template>
 
@@ -212,6 +429,93 @@ const buildFromRaw = async () => {
   color: #ff4d4f;
 }
 
+.zeromq-controls {
+  display: flex;
+  gap: 10px;
+  margin: 15px 0;
+  justify-content: center;
+}
+
+.status-indicator {
+  margin: 15px 0;
+}
+
+.status-badge {
+  padding: 5px 10px;
+  border-radius: 4px;
+  font-weight: bold;
+}
+
+.status-running {
+  background-color: #f6ffed;
+  color: #52c41a;
+  border: 1px solid #b7eb8f;
+}
+
+.status-stopped {
+  background-color: #f9f9f9;
+  color: #666;
+  border: 1px solid #ddd;
+}
+
+.status-error {
+  background-color: #fff2f0;
+  color: #ff4d4f;
+  border: 1px solid #ffccc7;
+}
+
+.zeromq-info {
+  background-color: #f9f9f9;
+  padding: 15px;
+  border-radius: 4px;
+  margin: 15px 0;
+  width: 100%;
+}
+
+.zeromq-info h4 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  color: #333;
+}
+
+.info-item {
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.msg-dict-details {
+  margin-top: 10px;
+}
+
+.msg-dict-details summary {
+  cursor: pointer;
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.msg-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0;
+  font-size: 13px;
+}
+
+.msg-key {
+  font-weight: 500;
+  color: #555;
+  width: 120px;
+}
+
+.msg-value {
+  color: #333;
+  text-align: right;
+  flex-grow: 1;
+}
+
+.result-info p {
+  margin: 5px 0;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .services-grid {
@@ -230,6 +534,23 @@ const buildFromRaw = async () => {
   .page-title {
     font-size: 20px;
     margin-bottom: 20px;
+  }
+  
+  .zeromq-controls {
+    flex-direction: column;
+  }
+  
+  .zeromq-controls .n-button {
+    width: 100%;
+  }
+  
+  .msg-key {
+    width: 100px;
+    font-size: 12px;
+  }
+  
+  .msg-value {
+    font-size: 12px;
   }
 }
 </style>

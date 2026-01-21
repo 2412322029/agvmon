@@ -1,6 +1,9 @@
 import json
 import logging
+import os
+import threading
 import time
+from datetime import datetime
 
 import redis
 import xmltodict
@@ -135,9 +138,15 @@ def Map_info_update(api: RcmsApi, map_index: int = 0, interval: float = 0.01):
 
     r = redis.Redis(**cfg.get("redis"))
 
+    # 记录程序启动时间
+    start_time = datetime.now()
+    pid = os.getpid()
+
     try:
-        # api = RcmsApi()
-        # api.build_from_cache()
+        if not api.rcsdata:
+            logger.warning("地图数据为空 重新构建缓存")
+            api = RcmsApi()
+            api.build_from_cache()
         ZERO_MQ_IP = api.rcsdata[map_index].get("ip")
         ZERO_MQ_CTRL_PORT = api.rcsdata[map_index].get("zeroMqCtrlPort")
         ZERO_MQ_MESSAGE_PORT = api.rcsdata[map_index].get("zeroMqMessagePort")
@@ -147,6 +156,32 @@ def Map_info_update(api: RcmsApi, map_index: int = 0, interval: float = 0.01):
         )
         rdstag = cfg.get("rcms.host").split("://")[1].replace(":", "-")
         message_count = 0
+
+        # 创建一个线程定期将程序信息写入Redis
+
+        def update_program_info():
+            while True:
+                try:
+                    program_info = {
+                        "pid": pid,
+                        "start_time": start_time.strftime("%Y-%m-%d %H:%M:%S"),
+                        "last_update": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "msg_dict": msg_dict.copy(),  # 复制当前的msg_dict
+                    }
+                    # 将程序信息写入Redis
+                    r.set(
+                        f"{rdstag}:program_info",
+                        json.dumps(program_info, ensure_ascii=False),
+                        ex=10,
+                    )
+                    time.sleep(2)  # 每2秒更新一次
+                except Exception as e:
+                    logger.error(f"更新程序信息到Redis时出错: {e}")
+                    time.sleep(2)  # 出错时也等待2秒再重试
+
+        # 启动定期更新程序信息的线程
+        info_thread = threading.Thread(target=update_program_info, daemon=True)
+        info_thread.start()
 
         def message_callback(msg_type, content):
             nonlocal message_count
@@ -159,7 +194,11 @@ def Map_info_update(api: RcmsApi, map_index: int = 0, interval: float = 0.01):
                 )
             count = msg_dict.get(msg_type, 0)
             msg_dict.update({msg_type: count + 1})
-            if msg_type == "ROBOT_STATUS" or msg_type == "ROBOT_PATH" or msg_type == "TRP_BLOCK_CELL":
+            if (
+                msg_type == "ROBOT_STATUS"
+                or msg_type == "ROBOT_PATH"
+                or msg_type == "TRP_BLOCK_CELL"
+            ):
                 r.hset(
                     f"{rdstag}:{msg_type}",
                     key=content.get("RobotId", "-1"),
@@ -175,9 +214,10 @@ def Map_info_update(api: RcmsApi, map_index: int = 0, interval: float = 0.01):
             # elif msg_type == "TASK_INFO_REQ":
             #     r.hset(f"{rdstag}:{msg_type}", key=content.get("@ReqCode"), value=json.dumps(content), ex=60*5)
 
-
         subscriber.run(message_callback, interval=interval)
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         logger.error(f"主程序错误: {e}")
         exit(1)
 

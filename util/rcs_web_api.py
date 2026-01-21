@@ -33,7 +33,7 @@ class RcsWebApi:
                 "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
             }
         )
-        self.login(username, password)
+        # self.login(username, password)
 
     def _dict_to_formdata(self, data_dict: dict) -> str:
         """
@@ -161,7 +161,7 @@ class RcsWebApi:
         # print(response.text)
         try:
             d = response.json()
-        except Exception as e:
+        except Exception:
             # print(response.text)
             return {"success": False, "msg": response.text}
         if not d.get("success"):
