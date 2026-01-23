@@ -64,6 +64,10 @@ class RcsWebApi:
         返回:
             dict: 登录响应的JSON数据
         """
+        # 验证用户名和密码不为None
+        if not username or not password:
+            raise Exception("用户名和密码不能为空")
+        
         url = self.base_url + "/login/login.action"
         data = {
             "ecsUserName": username,

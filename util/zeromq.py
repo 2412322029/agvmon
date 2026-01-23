@@ -9,9 +9,9 @@ import redis
 import xmltodict
 import zmq
 
-from .config import cfg
-from .dataparse import Robot_msg_decode
-from .rcms_api import RcmsApi
+from util.config import cfg
+from util.dataparse import Robot_msg_decode
+from util.rcms_api import RcmsApi
 
 logger = logging.getLogger(__name__)
 msg_dict = {
@@ -138,11 +138,22 @@ def Map_info_update(api: RcmsApi, map_index: int = 0, interval: float = 0.01):
 
     r = redis.Redis(**cfg.get("redis"))
 
-    # 记录程序启动时间
-    start_time = datetime.now()
-    pid = os.getpid()
-
+    # Check if another instance is already running
+    rdstag = cfg.get("rcms.host").split("://")[1].replace(":", "-")
+    program_info_key = f"{rdstag}:program_info"
+    
     try:
+        existing_info = r.get(program_info_key)
+        if existing_info:
+            existing_info = json.loads(existing_info)
+            existing_pid = existing_info.get("pid")
+            logger.info(f"已存在运行中的实例，PID: {existing_pid}")
+            exit(-1)
+        
+        # Record program start time
+        start_time = datetime.now()
+        pid = os.getpid()
+
         if not api.rcsdata:
             logger.warning("地图数据为空 重新构建缓存")
             api = RcmsApi()
@@ -172,7 +183,7 @@ def Map_info_update(api: RcmsApi, map_index: int = 0, interval: float = 0.01):
                     r.set(
                         f"{rdstag}:program_info",
                         json.dumps(program_info, ensure_ascii=False),
-                        ex=10,
+                        ex=3,
                     )
                     time.sleep(2)  # 每2秒更新一次
                 except Exception as e:

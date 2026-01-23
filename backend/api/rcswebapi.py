@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Body
 
+from util.config import cfg
 from util.rcs_web_api import RcsWebApi
 
 rcs_web_router = APIRouter(
@@ -104,11 +105,26 @@ def get_agv_status_api(
 
 
 @rcs_web_router.post("/login")
-def login_api(username, password, pwd_safe_level: str = "3"):
+def login_api(username: str, password: str, pwd_safe_level: str = "3"):
     try:
         result = rcs_api.login(
             username=username, password=password, pwd_safe_level=pwd_safe_level
         )
         return result
     except Exception as e:
-        return {"message": "error", "errors": [str(e)], "success": False}
+        return {"message": f"error {str(e)}", "success": False}
+
+
+@rcs_web_router.get("/login2")
+def login_api2():
+    try:
+        result = rcs_api.login(
+            username=cfg.get("rcms.username"),
+            password=cfg.get("rcms.password"),
+            pwd_safe_level="3",
+        )
+        return result
+    except Exception as e:
+        return {"message": f"error {str(e)}", "success": False}
+
+

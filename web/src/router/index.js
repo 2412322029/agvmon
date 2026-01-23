@@ -36,6 +36,12 @@ const router = createRouter({
       name: 'task-query',
       component: () => import('../views/TaskQueryView.vue'),
     },
+    // RCS Web Login Page
+    {
+      path: '/rcs-web-login',
+      name: 'rcs-web-login',
+      component: () => import('../views/RCSWebLogin.vue'),
+    },
   ],
 })
 

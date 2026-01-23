@@ -11,8 +11,7 @@ from fastapi.websockets import WebSocketDisconnect
 
 from util.config import cfg
 
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
-import api.rcmsapi as rcmsapi
+from backend.api import rcmsapi
 
 active_connections: Set[WebSocket] = set()
 
@@ -35,14 +34,13 @@ async def start_zeromq_management_task():
             has_active_websocket = len(active_connections) > 0
 
             should_stop_due_to_idle = (
-                idle_time > timedelta(minutes=timeout)
-                and not has_active_websocket
+                idle_time > timedelta(minutes=timeout) and not has_active_websocket
             )
 
-            effective_has_active_websocket = not should_stop_due_to_idle
-
             try:
-                rcmsapi.check_and_manage_zeromq_process(effective_has_active_websocket)
+                rcmsapi.check_and_manage_zeromq_process(
+                    has_active_websocket, timeout=idle_time > timedelta(minutes=timeout)
+                )
                 if should_stop_due_to_idle:
                     if not zeromq_stopped_due_to_timeout:
                         print(
@@ -104,7 +102,7 @@ async def websocket_robot_status_endpoint(websocket: WebSocket, redis_client, rd
     # 检查并确保ZeroMQ进程已启动
     global zeromq_stopped_due_to_timeout
     zeromq_stopped_due_to_timeout = False  # 重置超时标志
-    
+
     try:
         result = rcmsapi.check_and_manage_zeromq_process(True)  # 有活动连接
         print(f"新的WebSocket连接，当前连接数: {len(active_connections)}")

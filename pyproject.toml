@@ -17,3 +17,34 @@ dependencies = [
     "websockets>=16.0",
     "xmltodict>=1.0.2",
 ]
+
+[dependency-groups]
+dev = [
+    "nuitka>=2.8.9",
+]
+
+[tool.nuitka]
+# Nuitka配置选项
+standalone = true
+include-package = [
+    "backend",
+    "backend.api",
+    "util",
+]
+include-data-files = [
+    { dest="config.toml", package="util", src="config.toml" },
+]
+include-data-dir = [
+    { dest="web", src="web" },
+]
+follow-import-to = [
+    "backend",
+    "backend.api", 
+    "util",
+]
+output-dir = "dist"
+remove-output = true
+windows-console-mode = "attach"
+
+[project.scripts]
+agvmon = "main:main"

@@ -112,7 +112,7 @@ def ensure_zeromq_started():
     process.start()
     current_zeromq_process = process
     zeromq_process_started = True
-    print(f"ZeroMQ Map Update进程已启动，PID: {process.pid}")
+    # print(f"ZeroMQ Map Update进程已启动，PID: {process.pid}")
     return {"message": "ZeroMQ Map Update进程已启动", "pid": process.pid}
 
 
@@ -127,21 +127,29 @@ def ensure_zeromq_stopped():
             try:
                 current_zeromq_process.terminate()  # 使用terminate方法而不是os.kill
                 current_zeromq_process.join(timeout=5)  # 等待进程结束，最多等待5秒
-                
+
                 # 如果进程仍然存活，则强制终止
                 if current_zeromq_process.is_alive():
                     current_zeromq_process.kill()  # 强制终止
                     current_zeromq_process.join()
-                
+
                 # 清理Redis中的程序信息
                 rdstag = get_redis_and_rdstag()
                 program_info_key = f"{rdstag}:program_info"
+                _, _, _, pid = get_program_info()
+                if pid:
+                    os.kill(pid, 9)
                 r.delete(program_info_key)
 
                 zeromq_process_started = False
                 current_zeromq_process = None
 
-                return {"message": "ZeroMQ Map Update进程已停止", "pid": current_zeromq_process.pid if current_zeromq_process else None}
+                return {
+                    "message": "ZeroMQ Map Update进程已停止",
+                    "pid": current_zeromq_process.pid
+                    if current_zeromq_process
+                    else None,
+                }
             except Exception as e:
                 # 进程可能已经不存在
                 rdstag = get_redis_and_rdstag()
@@ -149,33 +157,43 @@ def ensure_zeromq_stopped():
                 r.delete(program_info_key)
                 current_zeromq_process = None
                 zeromq_process_started = False
-                return {"message": f"进程停止时出现异常: {str(e)}", "pid": current_zeromq_process.pid if current_zeromq_process else None}
+                return {
+                    "message": f"进程停止时出现异常: {str(e)}",
+                    "pid": current_zeromq_process.pid
+                    if current_zeromq_process
+                    else None,
+                }
         else:
             # 进程已死亡，清理引用
             current_zeromq_process = None
-    
+
     # 清理Redis中的程序信息
     rdstag = get_redis_and_rdstag()
     program_info_key = f"{rdstag}:program_info"
+    _, _, _, pid = get_program_info()
+    if pid:
+        os.kill(pid, 9)
     r.delete(program_info_key)
     print("ZeroMQ Map Update进程已停止")
     zeromq_process_started = False
     return {"message": "未找到正在运行的ZeroMQ Map Update进程", "pid": None}
 
 
-def check_and_manage_zeromq_process(has_active_websocket=False):
+def check_and_manage_zeromq_process(has_active_websocket=False, timeout=False):
     """检查并管理ZeroMQ进程状态"""
-    global zeromq_process_started, current_zeromq_process
-
+    phas = False
+    if r.exists(get_redis_and_rdstag() + ":program_info"):
+        phas = True
     # 如果有WebSocket连接，确保ZeroMQ进程已启动
     if has_active_websocket:
-        if current_zeromq_process and current_zeromq_process.is_alive():
+        if phas:
             return {"message": "ZeroMQ进程已在运行"}
         else:
+            print("检测到活跃的WebSocket连接，启动ZeroMQ进程")
             return ensure_zeromq_started()
     else:
         # 如果没有WebSocket连接，停止进程
-        if current_zeromq_process and current_zeromq_process.is_alive():
+        if phas and timeout:
             return ensure_zeromq_stopped()
 
     return {"message": "ZeroMQ进程状态正常"}
