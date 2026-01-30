@@ -91,11 +91,17 @@ const queryTasks = async () => {
             edateTo: queryParams.edateTo ? new Date(queryParams.edateTo).toISOString().slice(0, 19).replace('T', ' ') : null
         }
         
+        // 添加cache-busting参数
+        const timestamp = new Date().getTime();
+        
         // 调用后端API，使用POST方法和JSON body
-        const response = await fetch('/api/rcs_web/find_tasks_detail', {
+        const response = await fetch(`/api/rcs_web/find_tasks_detail?t=${timestamp}`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache',
+                'Expires': '0'
             },
             body: JSON.stringify(formattedParams)
         })

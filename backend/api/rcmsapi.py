@@ -49,7 +49,7 @@ def start_map_update_process():
 
     fresh_rapi = RcmsApi()
     fresh_rapi.build_from_cache()
-    Map_info_update(fresh_rapi)
+    Map_info_update(fresh_rapi, show_count=False)
 
 
 # 工具函数：获取程序信息
@@ -189,8 +189,11 @@ def check_and_manage_zeromq_process(has_active_websocket=False, timeout=False):
         if phas:
             return {"message": "ZeroMQ进程已在运行"}
         else:
-            print("检测到活跃的WebSocket连接，启动ZeroMQ进程")
-            return ensure_zeromq_started()
+            if cfg.get("zmq_auto"):
+                print("检测到活跃的WebSocket连接，启动ZeroMQ进程")
+                return ensure_zeromq_started()
+            else:
+                return {"message": "ZeroMQ自动启停管理已禁用"}
     else:
         # 如果没有WebSocket连接，停止进程
         if phas and timeout:

@@ -133,7 +133,7 @@ class ZeroMQSubscriber:
             logger.error(f"关闭订阅者错误: {e}")
 
 
-def Map_info_update(api: RcmsApi, map_index: int = 0, interval: float = 0.001):
+def Map_info_update(api: RcmsApi, map_index: int = 0, interval: float = 0.001, show_count: bool = True):
     """更新地图信息"""
 
     r = redis.Redis(**cfg.get("redis"))
@@ -197,7 +197,7 @@ def Map_info_update(api: RcmsApi, map_index: int = 0, interval: float = 0.001):
         def message_callback(msg_type, content):
             nonlocal message_count
             message_count += 1
-            if str(message_count).endswith("00"):
+            if show_count:
                 print(
                     f"{msg_dict.values()}{message_count} \r",
                     end="",

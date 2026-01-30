@@ -33,7 +33,7 @@ class RcsWebApi:
                 "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
             }
         )
-        self.login(username, password)
+        # self.login(username, password)
 
     def _dict_to_formdata(self, data_dict: dict) -> str:
         """

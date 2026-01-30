@@ -3,7 +3,7 @@
 Nuitka打包脚本，用于构建AGV监控系统可执行文件
 """
 
-import subprocess
+import os
 import sys
 from pathlib import Path
 
@@ -26,15 +26,16 @@ def build_with_nuitka():
         sys.executable,
         "-m",
         "nuitka",
-        "--verbose",  # 显示详细输出
+        # "--verbose",  # 显示详细输出
         "--standalone",  # 创建独立的应用程序
         "--plugin-enable=pyzmq",  # 启用pyzmq插件
         "--include-data-dir=web/dist=./web/dist",  # 包含web/dist目录
         "--include-data-dir=util/data=./util/data",  # 包含util/data目录
         """--include-data-files=util/config.toml=./util/config.toml""",  # 包含config.toml文件
         "--output-dir=dist",  # 输出目录
-        "--follow-imports",
-        # "--lto=yes",  # 跟踪所有导入并启用LTO优化
+        # "--follow-imports",
+        "--show-memory",  # 显示内存使用
+        #"--lto=yes",  # 启用LTO优化
         "--nofollow-import-to=tkinter",  # 不跟踪tkinter导入
         "--nofollow-import-to=ttk",  # 不跟踪ttk导入
         "--output-filename=agvmon.exe",  # 输出文件名
@@ -47,9 +48,10 @@ def build_with_nuitka():
 
     try:
         # 执行Nuitka构建命令
-        result = subprocess.run(nuitka_cmd, check=True, capture_output=True, text=True)
-        print("构建成功！")
-        print(result.stdout)
+        return_code = os.system(' '.join(nuitka_cmd))
+        if return_code != 0:
+            print(f"命令执行失败: {' '.join(nuitka_cmd)}\n退出代码: {return_code}")
+            sys.exit(return_code)
 
         # 显示输出文件位置
         dist_dir = project_dir / "dist"
@@ -58,10 +60,6 @@ def build_with_nuitka():
             for item in dist_dir.iterdir():
                 print(f"- {item}")
 
-    except subprocess.CalledProcessError as e:
-        print(f"构建失败: {e}")
-        print(f"错误输出: {e.stderr}")
-        sys.exit(1)
     except Exception as e:
         print(f"发生未知错误: {e}")
         sys.exit(1)

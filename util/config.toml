@@ -1,7 +1,8 @@
 fake = false
 log_level = "INFO"
 zmq_auto_kill_timedelta = 5
-zmq_auto = true
+zmq_auto = false
+test = false
 
 [rcms]
 host = "http://172.18.2.72:8182"
