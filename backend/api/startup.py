@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from backend.api.rcmsapi import rapi
 from backend.api.redis_client import get_rdstag, redis_client
 from backend.api.websocket import broadcast_robot_status, start_zeromq_management_task
+from util.config import cfg
 
 
 # 应用启动时的事件处理
@@ -17,5 +18,7 @@ def setup_startup_event(app: FastAPI):
         rdstag = get_rdstag()
         asyncio.create_task(broadcast_robot_status(redis_client, rdstag))
         # 启动ZeroMQ管理任务
-        asyncio.create_task(start_zeromq_management_task())
+        if cfg.get("zeromq.auto"):
+            print("启动ZeroMQ自动启停管理任务")
+            asyncio.create_task(start_zeromq_management_task())
         rapi.build_from_cache()

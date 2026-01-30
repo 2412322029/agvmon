@@ -26,6 +26,7 @@ def build_with_nuitka():
         sys.executable,
         "-m",
         "nuitka",
+        "--verbose",  # 显示详细输出
         "--standalone",  # 创建独立的应用程序
         "--plugin-enable=pyzmq",  # 启用pyzmq插件
         "--include-data-dir=web/dist=./web/dist",  # 包含web/dist目录
@@ -33,10 +34,12 @@ def build_with_nuitka():
         """--include-data-files=util/config.toml=./util/config.toml""",  # 包含config.toml文件
         "--output-dir=dist",  # 输出目录
         "--follow-imports",
-        "--lto=yes",  # 跟踪所有导入并启用LTO优化
+        # "--lto=yes",  # 跟踪所有导入并启用LTO优化
+        "--nofollow-import-to=tkinter",  # 不跟踪tkinter导入
+        "--nofollow-import-to=ttk",  # 不跟踪ttk导入
         "--output-filename=agvmon.exe",  # 输出文件名
         # "--windows-console-mode=attach",  # Windows控制台模式
-        str(main_py),  # 主文件路径
+        str(main_py),  # 主文件路径,
     ]
 
     print("开始构建AGV监控系统可执行文件...")
