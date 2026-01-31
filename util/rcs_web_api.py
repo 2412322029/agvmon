@@ -65,6 +65,12 @@ class RcsWebApi:
             dict: 登录响应的JSON数据
         """
         # 验证用户名和密码不为None
+        self.client = httpx.Client(
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+            }
+        )
         if not username or not password:
             raise Exception("用户名和密码不能为空")
         

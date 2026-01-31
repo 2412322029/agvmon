@@ -17,16 +17,16 @@ def main():
     group.add_argument('--rabbitmq', action='store_true', help='运行RabbitMQ更新服务器')
     
     # 添加单个操作选项
-    parser.add_argument('--build-raw', action='store_true', help='从原始数据构建模型并创建缓存')
-    parser.add_argument('--build-cache', action='store_true', help='从缓存构建模型')
-    parser.add_argument('--genmap', action='store_true', help='从模型生成地图图片')
-    parser.add_argument('--show-robot', action='store_true', help='显示机器人状态')
+    group.add_argument('--build-raw', action='store_true', help='从原始数据构建模型并创建缓存')
+    group.add_argument('--build-cache', action='store_true', help='从缓存构建模型')
+    group.add_argument('--genmap', action='store_true', help='从模型生成地图图片')
+    group.add_argument('--show-robot', action='store_true', help='显示机器人状态')
     
     # 添加interval选项
     parser.add_argument("-i",'--interval', type=float, default=None, help='更新间隔时间（秒），适用于--zeromq和--show-robot选项')
     
     # web api
-    parser.add_argument('--web', action='store_true', help='运行FastAPI WebSocket服务器')
+    group.add_argument('--web', action='store_true', help='运行FastAPI WebSocket服务器')
     
     args = parser.parse_args()
     
