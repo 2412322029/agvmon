@@ -1,6 +1,6 @@
 <script setup>
 import TaskDisplayComponent from '@/components/TaskDisplayComponent.vue'
-import { NButton, NCard, NDataTable, NDivider, NDrawer, NSpace, NTabPane, NTabs, NTag, NText, useLoadingBar, useMessage } from 'naive-ui'
+import { NButton, NCard, NDataTable, NDivider, NDrawer, NForm, NFormItem, NInput, NModal, NSpace, NTabPane, NTabs, NTag, NText, useLoadingBar, useMessage } from 'naive-ui'
 import { computed, h, onBeforeUnmount, onMounted, ref } from 'vue'
 const robotImgUrl = computed(() => location.origin + '/api/robot_img/online.png')
 const robot_fullImgUrl = computed(() => location.origin + '/api/robot_img/full.png')
@@ -67,6 +67,79 @@ const showRobotDetail = (robot) => {
 const closeDetailModal = () => {
   selectedRobot.value = null
   showDetailDrawer.value = false
+}
+
+// 异常记录模态框相关
+const showAddExceptionModal = ref(false)
+const exceptionForm = ref({
+  agv_id: '',
+  problem_description: '',
+  agv_status: '',
+  remarks: ''
+})
+
+// 打开添加异常记录模态框
+const openAddExceptionModal = () => {
+  if (selectedRobot.value) {
+    // 自动填充相关信息
+    exceptionForm.value.agv_id = selectedRobot.value.RobotId
+    
+    // 构造问题描述：坐标(X,Y) + 状态文字
+    const x = selectedRobot.value.position?.x || 0
+    const y = selectedRobot.value.position?.y || 0
+    const coordinates = `${x},${y}`
+    
+    exceptionForm.value.problem_description = coordinates
+    
+    // 使用状态码对应的文字作为小车状态
+    const statusCode = selectedRobot.value.status_code || 0
+    const statusText = selectedRobot.value.status || '未知状态'
+    exceptionForm.value.agv_status = `${statusText}(${statusCode})`
+    
+    exceptionForm.value.remarks = ''
+  }
+  showAddExceptionModal.value = true
+}
+
+// 关闭添加异常记录模态框
+const closeAddExceptionModal = () => {
+  showAddExceptionModal.value = false
+  // 重置表单
+  exceptionForm.value = {
+    agv_id: '',
+    problem_description: '',
+    agv_status: '',
+    remarks: ''
+  }
+}
+
+// 提交异常记录
+const submitExceptionRecord = async () => {
+  try {
+    const response = await fetch('/api/rcms/add_exception_logs', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        agv_id: exceptionForm.value.agv_id,
+        problem_description: exceptionForm.value.problem_description,
+        agv_status: exceptionForm.value.agv_status,
+        remarks: exceptionForm.value.remarks
+      })
+    })
+    
+    const data = await response.json()
+    
+    if (data.message === 'success') {
+      message.success('异常记录添加成功')
+      closeAddExceptionModal()
+    } else {
+      message.error(`添加失败: ${data.errors?.[0]|| JSON.stringify(data.detail) || '未知错误'}`)
+    }
+  } catch (error) {
+    message.error(`提交异常记录时发生错误: ${error.message}`)
+  }
 }
 const timeage = (time) => {
   const now = new Date()
@@ -393,7 +466,7 @@ const stopagv = async (agvcode = "", stop = false) => {
 
         <template #header-extra>
           <NSpace>
-            <NTag :type="isConnected ? 'success' : 'error'" round st·yle="margin-top: 4px;">
+            <NTag :type="isConnected ? 'success' : 'error'" round style="margin-top: 4px;">
               {{ isConnected ? 'websocket已连接' : 'websocket未连接' }}
             </NTag>
             <NButton type="primary" @click="refreshData" :loading="loading">
@@ -514,6 +587,7 @@ const stopagv = async (agvcode = "", stop = false) => {
               <NSpace>
                 <NButton @click="stopagv(selectedRobot.RobotId, stop = true)" type="error">停止</NButton>
                 <NButton @click="stopagv(selectedRobot.RobotId, stop = false)" type="primary">恢复</NButton>
+                <NButton @click="openAddExceptionModal" type="warning">添加异常记录</NButton>
               </NSpace>
             </div>
             <div class="detail-section">
@@ -576,16 +650,35 @@ const stopagv = async (agvcode = "", stop = false) => {
             <TaskDisplayComponent :robot-code="selectedRobot.RobotId" :taskStatus="2" :show-query-params="false"
               :show-details="false" />
           </NTabPane>
-          <!-- <NTabPane name="action" tab="操作">
-            <NSpace>
-              <NButton @click="stopagv(selectedRobot.RobotId, stop = true)" type="error">停止</NButton>
-              <NButton @click="stopagv(selectedRobot.RobotId, stop = false)" type="primary">恢复</NButton>
-            </NSpace>
-          </NTabPane> -->
         </NTabs>
       </div>
     </NDrawer>
+    
+    <!-- 添加异常记录模态框 -->
+    <n-modal v-model:show="showAddExceptionModal" preset="dialog" title="添加异常记录" :show-icon="false" :closable="true" :mask-closable="true" style="width: 500px; max-width: 90vw;">
+      <n-form :model="exceptionForm" label-placement="left" label-width="auto">
+        <n-form-item label="小车ID">
+          <n-input v-model:value="exceptionForm.agv_id" readonly />
+        </n-form-item>
+        <n-form-item label="问题描述">
+          <n-input v-model:value="exceptionForm.problem_description" placeholder="请输入问题描述" />
+        </n-form-item>
+        <n-form-item label="小车状态">
+          <n-input v-model:value="exceptionForm.agv_status" placeholder="请输入小车状态" />
+        </n-form-item>
+        <n-form-item label="备注">
+          <n-input v-model:value="exceptionForm.remarks" type="textarea" placeholder="请输入备注信息" />
+        </n-form-item>
+      </n-form>
+      <template #action>
+        <n-space>
+          <n-button @click="closeAddExceptionModal">取消</n-button>
+          <n-button type="primary" @click="submitExceptionRecord">提交</n-button>
+        </n-space>
+      </template>
+    </n-modal>
   </div>
+
 </template>
 
 <style scoped>

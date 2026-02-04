@@ -42,6 +42,12 @@ const router = createRouter({
       name: 'rcs-web-login',
       component: () => import('../views/RCSWebLogin.vue'),
     },
+    // Exception Records Page
+    {
+      path: '/exception-records',
+      name: 'exception-records',
+      component: () => import('../views/ExceptionRecordsView.vue'),
+    },
   ],
 })
 

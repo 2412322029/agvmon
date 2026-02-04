@@ -5,6 +5,10 @@ import os
 import redis
 import xmltodict
 from fastapi import APIRouter, Request
+from pydantic import BaseModel, Field
+
+# 导入异常日志数据库
+from .exception_log import ExceptionLogDB
 
 # 配置multiprocessing使用spawn方式启动子进程，使子进程独立于父进程
 try:
@@ -277,3 +281,171 @@ def get_zeromq_program_info():
         return {"message": "程序信息获取成功", "info": info_data}
     else:
         return {"message": "未找到程序信息", "info": None}
+
+
+# 创建异常日志数据库实例
+exception_db = ExceptionLogDB()
+
+
+# Pydantic模型定义
+class ExceptionLogCreate(BaseModel):
+    agv_id: str = Field(..., description="小车ID")
+    problem_description: str = Field(..., description="问题描述")
+    agv_status: str = Field(None, description="小车状态")
+    remarks: str = Field(None, description="备注")
+
+
+class ExceptionLogUpdate(BaseModel):
+    agv_id: str = Field(None, description="小车ID")
+    problem_description: str = Field(None, description="问题描述")
+    agv_status: str = Field(None, description="小车状态")
+    remarks: str = Field(None, description="备注")
+
+
+class ExceptionLogQuery(BaseModel):
+    id: int = Field(None, description="日志ID")
+    agv_id: str = Field(None, description="小车ID")
+    keyword: str = Field(None, description="关键词搜索")
+    start_date: str = Field(None, description="开始日期")
+    end_date: str = Field(None, description="结束日期")
+    agv_status: str = Field(None, description="小车状态")
+    page: int = Field(None, description="页码")
+    page_size: int = Field(None, description="每页大小")
+
+
+# 异常日志相关API接口
+@rcms_router.get("/exception_logs/{log_id}")
+def get_exception_log(log_id: int):
+    """根据ID获取单条异常日志"""
+    try:
+        log = exception_db.get_exception_log(log_id)
+        if log:
+            return {"message": "success", "data": log}
+        else:
+            return {"message": "error", "errors": ["Log not found"]}
+    except Exception as e:
+        return {"message": "error", "errors": [str(e)]}
+
+
+@rcms_router.post("/add_exception_logs")
+def add_exception_log(log_data: ExceptionLogCreate):
+    """添加异常日志"""
+    try:
+        # 确保必需字段非空
+        agv_id = log_data.agv_id if log_data.agv_id else ""
+        problem_description = log_data.problem_description if log_data.problem_description else "无问题描述"
+        
+        log_id = exception_db.add_exception_log(
+            agv_id, problem_description, log_data.agv_status, log_data.remarks
+        )
+        return {"message": "success", "data": {"id": log_id}}
+    except Exception as e:
+        return {"message": "error", "errors": [str(e)]}
+
+
+@rcms_router.put("/exception_logs/{log_id}")
+def update_exception_log(log_id: int, log_data: ExceptionLogUpdate):
+    """更新异常日志"""
+    try:
+        success = exception_db.update_exception_log(
+            log_id, 
+            log_data.agv_id, 
+            log_data.problem_description, 
+            log_data.agv_status, 
+            log_data.remarks
+        )
+        if success:
+            return {"message": "success", "data": {"updated": True}}
+        else:
+            return {"message": "error", "errors": ["Log not found or update failed"]}
+    except Exception as e:
+        return {"message": "error", "errors": [str(e)]}
+
+
+@rcms_router.delete("/exception_logs/{log_id}")
+def delete_exception_log(log_id: int):
+    """删除异常日志"""
+    try:
+        success = exception_db.delete_exception_log(log_id)
+        if success:
+            return {"message": "success", "data": {"deleted": True}}
+        else:
+            return {"message": "error", "errors": ["Log not found or deletion failed"]}
+    except Exception as e:
+        return {"message": "error", "errors": [str(e)]}
+
+
+@rcms_router.delete("/exception_logs/agv/{agv_id}")
+def delete_exception_logs_by_agv(agv_id: str):
+    """删除指定小车的所有异常日志"""
+    try:
+        deleted_count = exception_db.delete_exception_logs_by_agv(agv_id)
+        return {"message": "success", "data": {"deleted_count": deleted_count}}
+    except Exception as e:
+        return {"message": "error", "errors": [str(e)]}
+
+
+@rcms_router.get("/exception_logs")
+def query_exception_logs_get(
+    id: int = None,
+    agv_id: str = None,
+    keyword: str = None,
+    start_date: str = None,
+    end_date: str = None,
+    agv_status: str = None,
+    page: int = None,
+    page_size: int = None
+):
+    """统一查询异常日志（传统查询方式，兼容原有接口）"""
+    try:
+        # 如果指定了具体的ID，则获取单条记录
+        if id is not None:
+            log = exception_db.get_exception_log(id)
+            if log:
+                return {"message": "success", "data": {"data": [log], "total_count": 1, "page": 1, "page_size": 1, "total_pages": 1}}
+            else:
+                return {"message": "error", "errors": ["Log not found"]}
+        else:
+            # 使用统一查询接口
+            logs = exception_db.query_exception_logs(
+                agv_id=agv_id,
+                keyword=keyword, 
+                start_date=start_date, 
+                end_date=end_date, 
+                agv_status=agv_status,
+                page=page,
+                page_size=page_size
+            )
+            return {"message": "success", "data": logs}
+    except Exception as e:
+        return {"message": "error", "errors": [str(e)]}
+
+
+@rcms_router.post("/exception_logs/query")
+def query_exception_logs_post(log_data: ExceptionLogQuery):
+    """统一查询异常日志（使用请求体传递参数）"""
+    try:
+        # 如果指定了具体的ID，则获取单条记录
+        if log_data.id is not None:
+            log = exception_db.get_exception_log(log_data.id)
+            if log:
+                return {"message": "success", "data": {"data": [log], "total_count": 1, "page": 1, "page_size": 1, "total_pages": 1}}
+            else:
+                return {"message": "error", "errors": ["Log not found"]}
+        else:
+            # 使用统一查询接口，处理可能的空值情况
+            logs = exception_db.query_exception_logs(
+                agv_id=log_data.agv_id if log_data.agv_id else None,
+                keyword=log_data.keyword if log_data.keyword else None, 
+                start_date=log_data.start_date if log_data.start_date else None, 
+                end_date=log_data.end_date if log_data.end_date else None, 
+                agv_status=log_data.agv_status if log_data.agv_status else None,
+                page=log_data.page if log_data.page else 1,
+                page_size=log_data.page_size if log_data.page_size else 10
+            )
+            return {"message": "success", "data": logs}
+    except Exception as e:
+        return {"message": "error", "errors": [str(e)]}
+
+
+

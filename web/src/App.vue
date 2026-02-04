@@ -1,5 +1,5 @@
 <script setup>
-import { NButton, NConfigProvider, NDropdown, NMenu, NMessageProvider, NSplit } from 'naive-ui';
+import { NButton, NConfigProvider, NDropdown, NMenu, NMessageProvider, NSplit, zhCN, dateZhCN } from 'naive-ui';
 import { onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
@@ -51,6 +51,11 @@ const menuOptions = [
     label: 'RCS Web 登录',
     key: '/rcs-web-login',
     onClick: () => router.push('/rcs-web-login')
+  },
+  {
+    label: '异常记录',
+    key: '/exception-records',
+    onClick: () => router.push('/exception-records')
   }
 ];
 
@@ -88,7 +93,7 @@ onUnmounted(() => {
 
 <template>
   <n-message-provider>
-    <n-config-provider>
+    <n-config-provider :locale="zhCN" :date-locale="dateZhCN">
       <div>
         <!-- 顶部导航 -->
         <n-split :default-size="1">
