@@ -2,15 +2,13 @@ import io
 import json
 import time
 
-import redis
 from colorama import Fore, Style, init
 
-from .config import cfg
+from .config import cfg, r
 
 # 初始化colorama
 init(autoreset=True)
 
-r = redis.Redis(**cfg.get("redis"))
 rdstag = cfg.get("rcms.host").split("://")[1].replace(":", "-")
 
 
@@ -62,7 +60,7 @@ def show_robot_status(interval=0.1):
             buffer.write(
                 f"time: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}   "
                 f"{Fore.GREEN}|{bar}|{Style.RESET_ALL}"
-                f"{1/interval:.2f} Hz\n"
+                f"{1 / interval:.2f} Hz\n"
             )
             # 获取机器人状态输出
             robot_output = print_robot_status()
@@ -109,7 +107,11 @@ def print_robot_status():
 
         # 确定显示状态
         display_status = "正常"
-        if status.get("abnormal") or int(status.get("status_code")) in [67,61] or "异常" in status.get("status"):
+        if (
+            status.get("abnormal")
+            or int(status.get("status_code")) in [67, 61]
+            or "异常" in status.get("status")
+        ):
             display_status = "异常"
         elif status.get("stop"):
             display_status = "暂停"

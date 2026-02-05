@@ -8,6 +8,7 @@ dependencies = [
     "colorama>=0.4.6",
     "fastapi>=0.128.0",
     "httpx>=0.28.1",
+    "paramiko",
     "pika>=1.3.2",
     "pillow>=12.1.0",
     "pyzmq>=27.1.0",
@@ -16,6 +17,7 @@ dependencies = [
     "uvicorn[standard]>=0.40.0",
     "websockets>=16.0",
     "xmltodict>=1.0.2",
+    
 ]
 
 [dependency-groups]

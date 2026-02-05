@@ -53,6 +53,12 @@ const router = createRouter({
       path: '/agv',
       name: 'agv-protocol-parser',
       component: () => import('../views/AGVProtocolParser.vue'),
+    },
+    // SSH View Page
+    {
+      path: '/ssh',
+      name: 'ssh',
+      component: () => import('../views/SSHView.vue'),
     }
   ],
 })

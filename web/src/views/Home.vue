@@ -1,7 +1,8 @@
 <script setup>
 import TaskDisplayComponent from '@/components/TaskDisplayComponent.vue'
+import SSHComponent from '@/components/ssh.vue'
 import { NButton, NCard, NDataTable, NDivider, NDrawer, NForm, NFormItem, NInput, NModal, NSpace, NTabPane, NTabs, NTag, NText, useLoadingBar, useMessage } from 'naive-ui'
-import { computed, h, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, h, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 const robotImgUrl = computed(() => location.origin + '/api/robot_img/online.png')
 const robot_fullImgUrl = computed(() => location.origin + '/api/robot_img/full.png')
 
@@ -48,6 +49,32 @@ const selectedRobot = ref(null)
 const showDetailDrawer = ref(false)
 // 详情抽屉标签页状态
 const detailActiveTab = ref('info')
+// SSH面板状态
+const showSSHPanel = ref(false)
+
+// SSH连接配置
+const sshConfig = reactive({
+  username: '',  // 默认用户名
+  password: ''  // 默认密码
+})
+
+// 处理标签切换
+const handleTabChange = (tabName) => {
+  if (tabName === 'files') {
+    showSSHPanel.value = true
+  } else {
+    showSSHPanel.value = false
+  }
+}
+
+// 监听标签变化，在抽屉打开时如果切换到files标签，也要显示SSH面板
+watch(detailActiveTab, (newVal) => {
+  if (newVal === 'files' && showDetailDrawer.value) {
+    showSSHPanel.value = true
+  } else if (newVal !== 'files') {
+    showSSHPanel.value = false
+  }
+})
 
 // 显示机器人详细信息
 const showRobotDetail = (robot) => {
@@ -67,6 +94,7 @@ const showRobotDetail = (robot) => {
 const closeDetailModal = () => {
   selectedRobot.value = null
   showDetailDrawer.value = false
+  showSSHPanel.value = false  // 关闭SSH面板，这将导致断开连接
 }
 
 // 异常记录模态框相关
@@ -500,7 +528,7 @@ const stopagv = async (agvcode = "", stop = false) => {
     </div>
 
     <!-- 机器人详情抽屉 -->
-    <NDrawer v-model:show="showDetailDrawer" placement="right" :width="drawerWidth" title="机器人详细信息"
+    <NDrawer v-model:show="showDetailDrawer" placement="right" :width="drawerWidth" 
       @close="closeDetailModal">
       <div v-if="selectedRobot" class="detail-drawer-content">
         <h1 style="font-size: 24px; font-weight: bold; display: flex;">{{ selectedRobot.RobotId }}
@@ -522,7 +550,7 @@ const stopagv = async (agvcode = "", stop = false) => {
         </h1>
 
         <!-- 标签页 -->
-        <NTabs v-model:value="detailActiveTab" type="card" style="margin: 20px 0;">
+        <NTabs v-model:value="detailActiveTab" type="card" style="margin: 20px 0;" @update:value="handleTabChange">
           <NTabPane name="info" tab="基本信息">
             <div class="detail-section">
               <h4>基本信息</h4>
@@ -650,6 +678,18 @@ const stopagv = async (agvcode = "", stop = false) => {
             <TaskDisplayComponent :robot-code="selectedRobot.RobotId" :taskStatus="2" :show-query-params="false"
               :show-details="false" />
           </NTabPane>
+          <NTabPane name="files" tab="文件列表">
+              <div class="ssh-panel">
+                <SSHComponent 
+                  v-if="showSSHPanel" 
+                  :defaultHost="selectedRobot.ip" 
+                  :defaultUsername="sshConfig.username" 
+                  :defaultPassword="sshConfig.password" 
+                  :showInput="false"
+                  :autoConnect="true" 
+                />
+              </div>
+            </NTabPane>
         </NTabs>
       </div>
     </NDrawer>
@@ -929,6 +969,12 @@ const stopagv = async (agvcode = "", stop = false) => {
   /* 调整抽屉标题大小 */
   :deep(.n-drawer__title) {
     font-size: 14px;
+  }
+  
+  /* SSH面板样式 */
+  .ssh-panel {
+    height: calc(100vh - 150px); /* 调整高度以适应抽屉 */
+    overflow-y: auto;
   }
 }
 

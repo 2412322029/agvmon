@@ -5,11 +5,10 @@ import threading
 import time
 from datetime import datetime
 
-import redis
 import xmltodict
 import zmq
 
-from util.config import cfg
+from util.config import cfg, r
 from util.dataparse import Robot_msg_decode
 from util.rcms_api import RcmsApi
 
@@ -133,15 +132,15 @@ class ZeroMQSubscriber:
             logger.error(f"关闭订阅者错误: {e}")
 
 
-def Map_info_update(api: RcmsApi, map_index: int = 0, interval: float = 0.001, show_count: bool = True):
+def Map_info_update(
+    api: RcmsApi, map_index: int = 0, interval: float = 0.001, show_count: bool = True
+):
     """更新地图信息"""
-
-    r = redis.Redis(**cfg.get("redis"))
 
     # Check if another instance is already running
     rdstag = cfg.get("rcms.host").split("://")[1].replace(":", "-")
     program_info_key = f"{rdstag}:program_info"
-    
+
     try:
         existing_info = r.get(program_info_key)
         if existing_info:
@@ -149,7 +148,7 @@ def Map_info_update(api: RcmsApi, map_index: int = 0, interval: float = 0.001, s
             existing_pid = existing_info.get("pid")
             logger.info(f"已存在运行中的实例，PID: {existing_pid}")
             exit(-1)
-        
+
         # Record program start time
         start_time = datetime.now()
         pid = os.getpid()
@@ -228,6 +227,7 @@ def Map_info_update(api: RcmsApi, map_index: int = 0, interval: float = 0.001, s
         subscriber.run(message_callback, interval=interval)
     except Exception as e:
         import traceback
+
         traceback.print_exc()
         logger.error(f"主程序错误: {e}")
         exit(1)

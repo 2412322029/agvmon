@@ -1,9 +1,10 @@
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 
+from backend.api.agvssh import agv_web_router
 from backend.api.rcmsapi import rcms_router
 from backend.api.rcswebapi import rcs_web_router
-from backend.api.redis_client import get_rdstag, redis_client
+from backend.api.redis_client import get_rdstag
 from backend.api.startup import setup_startup_event
 from backend.api.static_routes import (
     setup_404_handler,
@@ -11,7 +12,7 @@ from backend.api.static_routes import (
     setup_static_files,
 )
 from backend.api.websocket import websocket_robot_status_endpoint
-from util.config import cfg
+from util.config import cfg, r
 
 # 创建FastAPI应用
 app = FastAPI(title="AGV Monitor API", description="AGV机器人状态监控WebSocket接口")
@@ -40,6 +41,9 @@ setup_startup_event(app)
 # 包含RcsWebApi路由
 app.include_router(rcs_web_router, prefix="/api")
 
+# 包含AgvWebApi路由
+app.include_router(agv_web_router, prefix="/api")
+
 # 包含RcmsApi路由
 app.include_router(rcms_router, prefix="/api")
 
@@ -48,7 +52,7 @@ app.include_router(rcms_router, prefix="/api")
 async def websocket_robot_status(websocket: WebSocket):
     """机器人状态WebSocket接口"""
     rdstag = get_rdstag()
-    await websocket_robot_status_endpoint(websocket, redis_client, rdstag)
+    await websocket_robot_status_endpoint(websocket, r, rdstag)
 
 
 def run_api_server():

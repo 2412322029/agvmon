@@ -61,6 +61,11 @@ const menuOptions = [
     label: 'agveq协议解析',
     key: '/agv',
     onClick: () => router.push('/agv')
+  },
+  {
+    label: 'SSH 文件管理',
+    key: '/ssh',
+    onClick: () => router.push('/ssh')
   }
 ];
 
