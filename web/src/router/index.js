@@ -48,6 +48,12 @@ const router = createRouter({
       name: 'exception-records',
       component: () => import('../views/ExceptionRecordsView.vue'),
     },
+    // AGV Protocol Parser Page
+    {
+      path: '/agv',
+      name: 'agv-protocol-parser',
+      component: () => import('../views/AGVProtocolParser.vue'),
+    }
   ],
 })
 

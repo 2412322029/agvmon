@@ -211,6 +211,9 @@ rcms_router = APIRouter(
     tags=["rcms"],
 )
 
+@rcms_router.get("/remove_agv_status")
+def remove_agv_status():
+    ...
 
 @rcms_router.get("/build_from_cache")
 def build_rcms_from_cache_api():

@@ -1,5 +1,5 @@
 <script setup>
-import { NButton, NConfigProvider, NDropdown, NMenu, NMessageProvider, NSplit, zhCN, dateZhCN } from 'naive-ui';
+import { dateZhCN, NButton, NConfigProvider, NDropdown, NMenu, NMessageProvider, NSplit, zhCN } from 'naive-ui';
 import { onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
@@ -56,6 +56,11 @@ const menuOptions = [
     label: '异常记录',
     key: '/exception-records',
     onClick: () => router.push('/exception-records')
+  },
+    {
+    label: 'agveq协议解析',
+    key: '/agv',
+    onClick: () => router.push('/agv')
   }
 ];
 
