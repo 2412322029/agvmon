@@ -111,19 +111,19 @@ const openAddExceptionModal = () => {
   if (selectedRobot.value) {
     // 自动填充相关信息
     exceptionForm.value.agv_id = selectedRobot.value.RobotId
-    
+
     // 构造问题描述：坐标(X,Y) + 状态文字
     const x = selectedRobot.value.position?.x || 0
     const y = selectedRobot.value.position?.y || 0
     const coordinates = `${x},${y}`
-    
+
     exceptionForm.value.problem_description = coordinates
-    
+
     // 使用状态码对应的文字作为小车状态
     const statusCode = selectedRobot.value.status_code || 0
     const statusText = selectedRobot.value.status || '未知状态'
     exceptionForm.value.agv_status = `${statusText}(${statusCode})`
-    
+
     exceptionForm.value.remarks = ''
   }
   showAddExceptionModal.value = true
@@ -156,14 +156,14 @@ const submitExceptionRecord = async () => {
         remarks: exceptionForm.value.remarks
       })
     })
-    
+
     const data = await response.json()
-    
+
     if (data.message === 'success') {
       message.success('异常记录添加成功')
       closeAddExceptionModal()
     } else {
-      message.error(`添加失败: ${data.errors?.[0]|| JSON.stringify(data.detail) || '未知错误'}`)
+      message.error(`添加失败: ${data.errors?.[0] || JSON.stringify(data.detail) || '未知错误'}`)
     }
   } catch (error) {
     message.error(`提交异常记录时发生错误: ${error.message}`)
@@ -195,6 +195,18 @@ const timeage = (time) => {
     const days = Math.floor(diffSeconds / 86400)
     return `⬇${days}d`
   }
+}
+
+const colored = (row) => {
+  let s = "black"
+  if (row.abnormal || row.status_code == 67 || (row.status && row.status.includes('异常'))) {
+    s = "red"
+  }
+  if (row.status_text.includes('遇障') || row.status_text.includes('对接微调')) {
+    s = "#FF9900"
+  }
+  
+  return s
 }
 // 表格列配置
 const columns = [
@@ -236,7 +248,7 @@ const columns = [
       return h('div', {
         class: 'device-task-container',
         style: {
-          color: row.abnormal || row.status_code == 67 || row.status_code == 61 || (row.status && row.status.includes('异常')) ? "red" : "black"
+          color: colored(row)
         },
       }, { default: () => row.device_task || '-' })
     }
@@ -457,7 +469,7 @@ const getFilteredData = () => {
 
   switch (activeTab.value) {
     case 'abnormal':
-      return data.filter(item => item.abnormal === true || item.status_code == 67)
+      return data.filter(item => item.abnormal === true || item.status_code == 67 || item.display_status == "异常")
     case 'removed':
       return data.filter(item => item.remove === true)
     default:
@@ -528,8 +540,7 @@ const stopagv = async (agvcode = "", stop = false) => {
     </div>
 
     <!-- 机器人详情抽屉 -->
-    <NDrawer v-model:show="showDetailDrawer" placement="right" :width="drawerWidth" 
-      @close="closeDetailModal">
+    <NDrawer v-model:show="showDetailDrawer" placement="right" :width="drawerWidth" @close="closeDetailModal">
       <div v-if="selectedRobot" class="detail-drawer-content">
         <h1 style="font-size: 24px; font-weight: bold; display: flex;">{{ selectedRobot.RobotId }}
           <span style="margin-left: 10px; position: relative; width: 40px; height: 40px; display: inline-block;">
@@ -679,23 +690,18 @@ const stopagv = async (agvcode = "", stop = false) => {
               :show-details="false" />
           </NTabPane>
           <NTabPane name="files" tab="文件列表">
-              <div class="ssh-panel">
-                <SSHComponent 
-                  v-if="showSSHPanel" 
-                  :defaultHost="selectedRobot.ip" 
-                  :defaultUsername="sshConfig.username" 
-                  :defaultPassword="sshConfig.password" 
-                  :showInput="false"
-                  :autoConnect="true" 
-                />
-              </div>
-            </NTabPane>
+            <div class="ssh-panel">
+              <SSHComponent v-if="showSSHPanel" :defaultHost="selectedRobot.ip" :defaultUsername="sshConfig.username"
+                :defaultPassword="sshConfig.password" :showInput="false" :autoConnect="true" />
+            </div>
+          </NTabPane>
         </NTabs>
       </div>
     </NDrawer>
-    
+
     <!-- 添加异常记录模态框 -->
-    <n-modal v-model:show="showAddExceptionModal" preset="dialog" title="添加异常记录" :show-icon="false" :closable="true" :mask-closable="true" style="width: 500px; max-width: 90vw;">
+    <n-modal v-model:show="showAddExceptionModal" preset="dialog" title="添加异常记录" :show-icon="false" :closable="true"
+      :mask-closable="true" style="width: 500px; max-width: 90vw;">
       <n-form :model="exceptionForm" label-placement="left" label-width="auto">
         <n-form-item label="小车ID">
           <n-input v-model:value="exceptionForm.agv_id" readonly />
@@ -970,10 +976,11 @@ const stopagv = async (agvcode = "", stop = false) => {
   :deep(.n-drawer__title) {
     font-size: 14px;
   }
-  
+
   /* SSH面板样式 */
   .ssh-panel {
-    height: calc(100vh - 150px); /* 调整高度以适应抽屉 */
+    height: calc(100vh - 150px);
+    /* 调整高度以适应抽屉 */
     overflow-y: auto;
   }
 }

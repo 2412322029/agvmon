@@ -611,7 +611,7 @@ const handleWindowResize = () => {
 onUnmounted(async () => {
     if (connected.value && sshId.value) {
         try {
-            const response = await axios.get(`/api/agv/disconnect?id=${sshId.value}`)
+            const response = await axios.get(`/agv/disconnect?id=${sshId.value}`)
             if (response.data.message === '断开成功') {
                 console.log('SSH连接已自动断开')
             }
