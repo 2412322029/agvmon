@@ -1,0 +1,21 @@
+[
+  {
+    "acceptRobotMessagePort": "8988",
+    "alarmServerIp": "123ABCD01AB01CD",
+    "alarmServerPort": "8788",
+    "code": "123ABCD01AB01AB",
+    "ip": "172.18.2.76",
+    "name": "RCS",
+    "ntpServerIp": "172.18.2.72",
+    "ntpServerPort": "123",
+    "orgCode": "1001",
+    "port": "8902",
+    "reportAngle": "25",
+    "reportCycle": "200",
+    "reportDistance": "500",
+    "restPort": "8994",
+    "typeCode": "1",
+    "zeroMqCtrlPort": "8989",
+    "zeroMqMessagePort": "8990"
+  }
+]

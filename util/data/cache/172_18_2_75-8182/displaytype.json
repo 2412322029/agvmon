@@ -1,0 +1,82 @@
+[
+  {
+    "Type": "9",
+    "Value": "ARC_AREA",
+    "Name": "弧线区"
+  },
+  {
+    "Type": "1",
+    "Value": "BIN_TYPE",
+    "Name": "仓库储位"
+  },
+  {
+    "Type": "15",
+    "Value": "BLOCK_AREA",
+    "Name": "自动门"
+  },
+  {
+    "Type": "20",
+    "Value": "BUFFER_BIN_TYPE",
+    "Name": "产线缓冲区"
+  },
+  {
+    "Type": "21",
+    "Value": "BUFFER_CROSS_TYPE",
+    "Name": "缓冲交接区"
+  },
+  {
+    "Type": "27",
+    "Value": "CORRIDOR_TYPE",
+    "Name": "入库交接区"
+  },
+  {
+    "Type": "24",
+    "Value": "END_CROSS_TYPE",
+    "Name": "产线交接区"
+  },
+  {
+    "Type": "23",
+    "Value": "HEAD_CROSS_TYPE",
+    "Name": "线头交接区"
+  },
+  {
+    "Type": "26",
+    "Value": "MAP_CROSS_TYPE",
+    "Name": "地图交接区"
+  },
+  {
+    "Type": "33",
+    "Value": "QRCROSS_TYPE",
+    "Name": "切至二维码"
+  },
+  {
+    "Type": "25",
+    "Value": "RECOVER_CROSS_TYPE",
+    "Name": "回收交接区"
+  },
+  {
+    "Type": "28",
+    "Value": "SELF_CHECK",
+    "Name": "自检区"
+  },
+  {
+    "Type": "34",
+    "Value": "SLAMCROSS_TYPE",
+    "Name": "切至slam"
+  },
+  {
+    "Type": "30",
+    "Value": "STAND_BY",
+    "Name": "待命点"
+  },
+  {
+    "Type": "18",
+    "Value": "WIND_DOOR",
+    "Name": "风淋门"
+  },
+  {
+    "Type": "10",
+    "Value": "WORK_TYPE",
+    "Name": "工作区"
+  }
+]

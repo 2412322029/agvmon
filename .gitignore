@@ -9,5 +9,6 @@ wheels/
 # Virtual environments
 .venv
 
-util/data/*
+util/data/download/*
+util/data/exception_log.db
 log/*

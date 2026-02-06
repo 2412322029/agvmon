@@ -1,0 +1,563 @@
+{
+  "code": "0",
+  "message": "成功",
+  "data": [
+    { "code": "1", "name": "任务完成", "type": "1", "abnormal": "0" },
+    { "code": "2", "name": "任务执行中", "type": "1", "abnormal": "0" },
+    { "code": "4", "name": "机器人空闲", "type": "1", "abnormal": "0" },
+    { "code": "5", "name": "机器人暂停", "type": "1", "abnormal": "0" },
+    { "code": "6", "name": "举放货架中", "type": "1", "abnormal": "0" },
+    { "code": "7", "name": "充电中", "type": "1", "abnormal": "0" },
+    { "code": "8", "name": "弧线行走中", "type": "1", "abnormal": "0" },
+    { "code": "9", "name": "电池充满维护", "type": "1", "abnormal": "0" },
+    { "code": "11", "name": "背货未识别", "type": "1", "abnormal": "1" },
+    { "code": "12", "name": "货架角度偏移", "type": "1", "abnormal": "1" },
+    { "code": "13", "name": "运动库异常", "type": "1", "abnormal": "1" },
+    { "code": "14", "name": "货码无法识别", "type": "1", "abnormal": "1" },
+    { "code": "15", "name": "货码不匹配", "type": "1", "abnormal": "1" },
+    { "code": "16", "name": "举升异常", "type": "1", "abnormal": "1" },
+    { "code": "17", "name": "充电桩异常", "type": "1", "abnormal": "1" },
+    { "code": "18", "name": "电量无增加", "type": "1", "abnormal": "1" },
+    { "code": "19", "name": "充电站失联", "type": "1", "abnormal": "1" },
+    { "code": "20", "name": "充电指令角度错误", "type": "1", "abnormal": "1" },
+    { "code": "21", "name": "平台指令错误", "type": "1", "abnormal": "1" },
+    { "code": "22", "name": "货架位置不可信", "type": "1", "abnormal": "1" },
+    { "code": "23", "name": "外力下放", "type": "1", "abnormal": "1" },
+    { "code": "24", "name": "货架位置偏移", "type": "1", "abnormal": "1" },
+    { "code": "25", "name": "设备不在锁定区", "type": "1", "abnormal": "1" },
+    { "code": "26", "name": "下放重试失败", "type": "1", "abnormal": "1" },
+    { "code": "27", "name": "货架摆歪", "type": "1", "abnormal": "1" },
+    { "code": "28", "name": "举升电量低", "type": "1", "abnormal": "1" },
+    { "code": "29", "name": "后退角度偏大", "type": "1", "abnormal": "1" },
+    { "code": "30", "name": "未背货架举升在上", "type": "1", "abnormal": "1" },
+    { "code": "31", "name": "区域锁定失败", "type": "1", "abnormal": "1" },
+    { "code": "32", "name": "充电站未连接", "type": "1", "abnormal": "1" },
+    { "code": "33", "name": "旋转申请暂时失败", "type": "1", "abnormal": "1" },
+    {
+      "code": "34",
+      "name": "地图切换点地码未识别",
+      "type": "1",
+      "abnormal": "1"
+    },
+    { "code": "35", "name": "异常偏航", "type": "1", "abnormal": "1" },
+    { "code": "36", "name": "显示屏操作中", "type": "1", "abnormal": "1" },
+    { "code": "37", "name": "旋转申请永久失败", "type": "1", "abnormal": "1" },
+    { "code": "38", "name": "货架堵转", "type": "1", "abnormal": "1" },
+    { "code": "40", "name": "分拣物件中", "type": "1", "abnormal": "0" },
+    { "code": "41", "name": "只能移动，不作业", "type": "1", "abnormal": "1" },
+    { "code": "42", "name": "翻盖任务单号为0", "type": "1", "abnormal": "1" },
+    {
+      "code": "43",
+      "name": "翻盖任务单号不匹配",
+      "type": "1",
+      "abnormal": "1"
+    },
+    { "code": "44", "name": "翻盖上升超时", "type": "1", "abnormal": "1" },
+    { "code": "45", "name": "翻盖下放超时", "type": "1", "abnormal": "1" },
+    { "code": "46", "name": "线激光标定中", "type": "1", "abnormal": "0" },
+    { "code": "47", "name": "称重传感器异常", "type": "1", "abnormal": "1" },
+    { "code": "48", "name": "超重", "type": "1", "abnormal": "1" },
+    { "code": "56", "name": "滚动控制中", "type": "1", "abnormal": "0" },
+    { "code": "57", "name": "对接滚动失败", "type": "1", "abnormal": "1" },
+    { "code": "58", "name": "传动指令错误", "type": "1", "abnormal": "1" },
+    { "code": "59", "name": "对接传动超时", "type": "1", "abnormal": "1" },
+    {
+      "code": "60",
+      "name": "对接料箱个数不匹配",
+      "type": "1",
+      "abnormal": "1"
+    },
+    { "code": "61", "name": "对接微调中", "type": "1", "abnormal": "0" },
+    { "code": "62", "name": "对接微调失败", "type": "1", "abnormal": "1" },
+    { "code": "63", "name": "AMR作业中", "type": "1", "abnormal": "1" },
+    { "code": "64", "name": "等待复位按钮触发", "type": "1", "abnormal": "1" },
+    { "code": "65", "name": "动作执行失败", "type": "1", "abnormal": "1" },
+    {
+      "code": "66",
+      "name": "货架二维码标定失败",
+      "type": "1",
+      "abnormal": "1"
+    },
+    { "code": "67", "name": "第三方机构动作中", "type": "1", "abnormal": "0" },
+    { "code": "70", "name": "交通管制中", "type": "1", "abnormal": "1" },
+    {
+      "code": "79",
+      "name": "货架下微调次数超限",
+      "type": "1",
+      "abnormal": "1"
+    },
+    { "code": "81", "name": "前方遇障", "type": "1", "abnormal": "1" },
+    { "code": "82", "name": "后方遇障", "type": "1", "abnormal": "1" },
+    { "code": "83", "name": "左侧遇障", "type": "1", "abnormal": "1" },
+    { "code": "84", "name": "右侧遇障", "type": "1", "abnormal": "1" },
+    {
+      "code": "85",
+      "name": "TOF相机检测到障碍物",
+      "type": "1",
+      "abnormal": "1"
+    },
+    { "code": "86", "name": "内部遇障", "type": "1", "abnormal": "1" },
+    {
+      "code": "87",
+      "name": "左侧叉尖遇障(光电或防撞触发)",
+      "type": "1",
+      "abnormal": "1"
+    },
+    {
+      "code": "88",
+      "name": "右侧叉尖遇障(光电或防撞触发)",
+      "type": "1",
+      "abnormal": "1"
+    },
+    { "code": "89", "name": "遇障结束", "type": "1", "abnormal": "0" },
+    {
+      "code": "91",
+      "name": "举升不在低位空车移动",
+      "type": "1",
+      "abnormal": "1"
+    },
+    { "code": "92", "name": "非轴向移动", "type": "1", "abnormal": "1" },
+    {
+      "code": "93",
+      "name": "原地举升位置偏差大",
+      "type": "1",
+      "abnormal": "1"
+    },
+    { "code": "94", "name": "斜线背货架任务", "type": "1", "abnormal": "1" },
+    {
+      "code": "95",
+      "name": "弧线目标个数不匹配",
+      "type": "1",
+      "abnormal": "1"
+    },
+    {
+      "code": "96",
+      "name": "禁止货架下转弯任务",
+      "type": "1",
+      "abnormal": "1"
+    },
+    {
+      "code": "97",
+      "name": "非旋转码上转弯任务",
+      "type": "1",
+      "abnormal": "1"
+    },
+    { "code": "98", "name": "任务角度异常", "type": "1", "abnormal": "1" },
+    {
+      "code": "99",
+      "name": "传感器校验中或MCU未READY",
+      "type": "1",
+      "abnormal": "1"
+    },
+    { "code": "100", "name": "货架信息缺失", "type": "1", "abnormal": "1" },
+    {
+      "code": "101",
+      "name": "平台指令业务对象参数错误",
+      "type": "1",
+      "abnormal": "1"
+    },
+    {
+      "code": "102",
+      "name": "平台指令小车料箱位置错误",
+      "type": "1",
+      "abnormal": "1"
+    },
+    {
+      "code": "103",
+      "name": "平台指令料箱尺寸超限",
+      "type": "1",
+      "abnormal": "1"
+    },
+    {
+      "code": "104",
+      "name": "平台指令伸缩机构伸缩量超限",
+      "type": "1",
+      "abnormal": "1"
+    },
+    {
+      "code": "105",
+      "name": "平台指令和载货状态冲突",
+      "type": "1",
+      "abnormal": "1"
+    },
+    {
+      "code": "106",
+      "name": "箱到人执行动作失败",
+      "type": "1",
+      "abnormal": "1"
+    },
+    { "code": "107", "name": "箱到人货物丢失", "type": "1", "abnormal": "1" },
+    { "code": "109", "name": "平台指令错误结束", "type": "1", "abnormal": "1" },
+    { "code": "110", "name": "自检进行中", "type": "1", "abnormal": "0" },
+    { "code": "111", "name": "自检发生异常", "type": "1", "abnormal": "1" },
+    { "code": "112", "name": "零位检测失败", "type": "1", "abnormal": "1" },
+    { "code": "113", "name": "SDK地图切换中", "type": "1", "abnormal": "0" },
+    { "code": "114", "name": "SLAM定位失败", "type": "1", "abnormal": "1" },
+    { "code": "115", "name": "SLAM地图配置中", "type": "1", "abnormal": "0" },
+    { "code": "116", "name": "手动模式", "type": "1", "abnormal": "1" },
+    {
+      "code": "117",
+      "name": "平台告警小车异常(如叉车不再拓扑路径，此时需要查看平台告警状态)",
+      "type": "1",
+      "abnormal": "1"
+    },
+    { "code": "118", "name": "小板升级中", "type": "1", "abnormal": "0" },
+    { "code": "119", "name": "感知库异常", "type": "1", "abnormal": "1" },
+    { "code": "120", "name": "动态绕障", "type": "1", "abnormal": "0" },
+    { "code": "121", "name": "动态绕障失败", "type": "1", "abnormal": "1" },
+    { "code": "122", "name": "定位库异常", "type": "1", "abnormal": "1" },
+    { "code": "123", "name": "机械臂异常", "type": "1", "abnormal": "1" },
+    { "code": "124", "name": "光通信失败", "type": "1", "abnormal": "1" },
+    { "code": "130", "name": "RCU举升维护状态", "type": "1", "abnormal": "0" },
+    {
+      "code": "150",
+      "name": "载货状态与任务冲突",
+      "type": "1",
+      "abnormal": "1"
+    },
+    { "code": "151", "name": "机器人自主调整", "type": "1", "abnormal": "0" },
+    { "code": "152", "name": "强制完成任务", "type": "1", "abnormal": "0" },
+    { "code": "153", "name": "栈板识别错误", "type": "1", "abnormal": "1" },
+    { "code": "154", "name": "路径规划错误", "type": "1", "abnormal": "1" },
+    { "code": "155", "name": "持续执行无法完成", "type": "1", "abnormal": "1" },
+    {
+      "code": "156",
+      "name": "下放过程检测到物体",
+      "type": "1",
+      "abnormal": "1"
+    },
+    { "code": "160", "name": "激光检测中", "type": "1", "abnormal": "0" },
+    { "code": "161", "name": "激光检测失败", "type": "1", "abnormal": "1" },
+    { "code": "162", "name": "激光检测完成", "type": "1", "abnormal": "0" },
+    { "code": "163", "name": "货架识别中", "type": "1", "abnormal": "0" },
+    {
+      "code": "200",
+      "name": "原地取放料箱动作状态",
+      "type": "1",
+      "abnormal": "0"
+    },
+    { "code": "201", "name": "提前抬叉动作状态", "type": "1", "abnormal": "0" },
+    {
+      "code": "202",
+      "name": "移动与取放料箱联动动作状态",
+      "type": "1",
+      "abnormal": "0"
+    },
+    {
+      "code": "203",
+      "name": "移动取放货任务移动已完成",
+      "type": "1",
+      "abnormal": "0"
+    },
+    { "code": "205", "name": "举升动作执行失败", "type": "1", "abnormal": "1" },
+    {
+      "code": "206",
+      "name": "纵向伸缩动作执行失败",
+      "type": "1",
+      "abnormal": "1"
+    },
+    {
+      "code": "207",
+      "name": "横向伸缩动作执行失败",
+      "type": "1",
+      "abnormal": "1"
+    },
+    { "code": "208", "name": "旋转动作失败", "type": "1", "abnormal": "1" },
+    { "code": "209", "name": "拨叉动作执行失败", "type": "1", "abnormal": "1" },
+    { "code": "210", "name": "找货架码失败", "type": "1", "abnormal": "1" },
+    { "code": "211", "name": "CTU对接微调失败", "type": "1", "abnormal": "1" },
+    {
+      "code": "212",
+      "name": "CTU二次微调移动失败",
+      "type": "1",
+      "abnormal": "1"
+    },
+    { "code": "213", "name": "料箱个数不匹配", "type": "1", "abnormal": "1" },
+    {
+      "code": "214",
+      "name": "夹报机构中已有料箱",
+      "type": "1",
+      "abnormal": "1"
+    },
+    {
+      "code": "215",
+      "name": "夹报机构中没有料箱",
+      "type": "1",
+      "abnormal": "1"
+    },
+    {
+      "code": "216",
+      "name": "小车储位中已有料箱",
+      "type": "1",
+      "abnormal": "1"
+    },
+    {
+      "code": "217",
+      "name": "小车储位中没有料箱",
+      "type": "1",
+      "abnormal": "1"
+    },
+    { "code": "218", "name": "货架中已有料箱", "type": "1", "abnormal": "1" },
+    { "code": "219", "name": "货架中没有料箱", "type": "1", "abnormal": "1" },
+    {
+      "code": "220",
+      "name": "双目识别料箱偏差失败",
+      "type": "1",
+      "abnormal": "1"
+    },
+    {
+      "code": "221",
+      "name": "双目识别料箱偏差过大",
+      "type": "1",
+      "abnormal": "1"
+    },
+    {
+      "code": "222",
+      "name": "双目识别料箱多次调整失败",
+      "type": "1",
+      "abnormal": "1"
+    },
+    { "code": "223", "name": "滚筒动作执行失败", "type": "1", "abnormal": "1" },
+    {
+      "code": "224",
+      "name": "滚筒机构中已有料箱",
+      "type": "1",
+      "abnormal": "1"
+    },
+    {
+      "code": "225",
+      "name": "滚筒机构中没有料箱",
+      "type": "1",
+      "abnormal": "1"
+    },
+    { "code": "226", "name": "找料箱码失败", "type": "1", "abnormal": "1" },
+    { "code": "227", "name": "料箱ID错误", "type": "1", "abnormal": "1" },
+    { "code": "228", "name": "执行机构遇障", "type": "1", "abnormal": "1" },
+    { "code": "229", "name": "拨叉状态异常", "type": "1", "abnormal": "1" },
+    { "code": "230", "name": "小车角度调整失败", "type": "1", "abnormal": "1" },
+    { "code": "231", "name": "举升动作逻辑冲突", "type": "1", "abnormal": "1" },
+    {
+      "code": "232",
+      "name": "双目识别料箱尺寸超限",
+      "type": "1",
+      "abnormal": "1"
+    },
+    {
+      "code": "233",
+      "name": "恢复时小车状态发生改变",
+      "type": "1",
+      "abnormal": "1"
+    },
+    { "code": "234", "name": "储位料箱未知", "type": "1", "abnormal": "1" },
+    { "code": "235", "name": "储位料箱丢失", "type": "1", "abnormal": "1" },
+    { "code": "236", "name": "CTU联动类型错误", "type": "1", "abnormal": "1" },
+    {
+      "code": "240",
+      "name": "取消恢复任务请求中",
+      "type": "1",
+      "abnormal": "0"
+    },
+    {
+      "code": "241",
+      "name": "信标识别动作执行失败",
+      "type": "1",
+      "abnormal": "1"
+    },
+    { "code": "242", "name": "CTU料盘状态异常", "type": "1", "abnormal": "1" },
+    {
+      "code": "243",
+      "name": "平台下发目标料箱信息错误",
+      "type": "1",
+      "abnormal": "1"
+    },
+    {
+      "code": "245",
+      "name": "预留10个状态给能源状态，目前待机、低功耗、休眠",
+      "type": "1",
+      "abnormal": "0"
+    },
+    { "code": "246", "name": "待机模式中", "type": "1", "abnormal": "0" },
+    { "code": "247", "name": "低功耗模式中", "type": "1", "abnormal": "0" },
+    { "code": "248", "name": "休眠模式中", "type": "1", "abnormal": "0" },
+    { "code": "249", "name": "异常休眠模式", "type": "1", "abnormal": "0" },
+    { "code": "250", "name": "电量过低预警", "type": "1", "abnormal": "0" },
+    { "code": "251", "name": "AGV换电中", "type": "1", "abnormal": "0" },
+    { "code": "252", "name": "AGV换电失败", "type": "1", "abnormal": "1" },
+    { "code": "253", "name": "唤醒失败", "type": "1", "abnormal": "1" },
+    { "code": "254", "name": "进入休眠失败", "type": "1", "abnormal": "1" },
+    { "code": "256", "name": "平台不识别状态", "type": "1", "abnormal": "1" },
+    {
+      "code": "260",
+      "name": "弧线移动时前方遇障",
+      "type": "1",
+      "abnormal": "1"
+    },
+    {
+      "code": "261",
+      "name": "弧线移动时后方遇障",
+      "type": "1",
+      "abnormal": "1"
+    },
+    {
+      "code": "262",
+      "name": "弧线移动时左侧遇障",
+      "type": "1",
+      "abnormal": "1"
+    },
+    {
+      "code": "263",
+      "name": "弧线移动时右侧遇障",
+      "type": "1",
+      "abnormal": "1"
+    },
+    { "code": "270", "name": "巡线移动", "type": "1", "abnormal": "0" },
+    { "code": "271", "name": "二次校验失败", "type": "1", "abnormal": "1" },
+    { "code": "272", "name": "决策运行告警", "type": "1", "abnormal": "1" },
+    {
+      "code": "273",
+      "name": "满储位未检测到货物",
+      "type": "1",
+      "abnormal": "1"
+    },
+    { "code": "274", "name": "空储位检测到货物", "type": "1", "abnormal": "1" },
+    { "code": "300", "name": "空车异常识别货物", "type": "1", "abnormal": "1" },
+    { "code": "301", "name": "载货任务货物丢失", "type": "1", "abnormal": "1" },
+    { "code": "302", "name": "栈板识别失败", "type": "1", "abnormal": "1" },
+    {
+      "code": "303",
+      "name": "机器人自主调整失败",
+      "type": "1",
+      "abnormal": "1"
+    },
+    { "code": "400", "name": "设备不在锁定区", "type": "1", "abnormal": "1" },
+    { "code": "1280", "name": "动态进货架", "type": "1", "abnormal": "0" },
+    { "code": "1281", "name": "动态出货架", "type": "1", "abnormal": "0" },
+    { "code": "1282", "name": "动态对接进机台", "type": "1", "abnormal": "0" },
+    { "code": "1283", "name": "动态对接出机台", "type": "1", "abnormal": "0" },
+    {
+      "code": "1284",
+      "name": "动态对接进充电桩",
+      "type": "1",
+      "abnormal": "0"
+    },
+    {
+      "code": "1285",
+      "name": "动态对接出充电桩",
+      "type": "1",
+      "abnormal": "0"
+    },
+    { "code": "0", "name": "设备移动", "type": "2", "abnormal": "0" },
+    { "code": "1", "name": "开始充电", "type": "2", "abnormal": "0" },
+    { "code": "2", "name": "停止充电", "type": "2", "abnormal": "0" },
+    { "code": "3", "name": "后退", "type": "2", "abnormal": "0" },
+    { "code": "4", "name": "搬货架", "type": "2", "abnormal": "0" },
+    { "code": "5", "name": "旋转货架", "type": "2", "abnormal": "0" },
+    { "code": "6", "name": "放货架", "type": "2", "abnormal": "0" },
+    { "code": "16", "name": "预调度移动", "type": "2", "abnormal": "0" },
+    {
+      "code": "17",
+      "name": "一键关机关机指令生成",
+      "type": "2",
+      "abnormal": "0"
+    },
+    {
+      "code": "18",
+      "name": "强制一键关机关机指令生成",
+      "type": "2",
+      "abnormal": "0"
+    },
+    { "code": "19", "name": "区域归巢", "type": "2", "abnormal": "0" },
+    { "code": "32", "name": "举", "type": "2", "abnormal": "0" },
+    { "code": "33", "name": "放", "type": "2", "abnormal": "0" },
+    { "code": "34", "name": "辊筒滚动", "type": "2", "abnormal": "0" },
+    { "code": "35", "name": "IO控制", "type": "2", "abnormal": "0" },
+    { "code": "36", "name": "检测是否有货架", "type": "2", "abnormal": "0" },
+    { "code": "37", "name": "小车自检任务", "type": "2", "abnormal": "0" },
+    {
+      "code": "38",
+      "name": "小车通用底盘增加执行机构后执行机构动作",
+      "type": "2",
+      "abnormal": "0"
+    },
+    {
+      "code": "39",
+      "name": "检测是否有障碍物（电梯）",
+      "type": "2",
+      "abnormal": "0"
+    },
+    { "code": "48", "name": "前往取货点", "type": "2", "abnormal": "0" },
+    { "code": "49", "name": "取货箱", "type": "2", "abnormal": "0" },
+    { "code": "50", "name": "前往放货点", "type": "2", "abnormal": "0" },
+    { "code": "51", "name": "放货箱", "type": "2", "abnormal": "0" },
+    { "code": "52", "name": "货箱码探测", "type": "2", "abnormal": "0" },
+    { "code": "57", "name": "叉车空车移动", "type": "2", "abnormal": "0" },
+    { "code": "58", "name": "叉车背货行走", "type": "2", "abnormal": "0" },
+    { "code": "59", "name": "抬叉", "type": "2", "abnormal": "0" },
+    { "code": "60", "name": "辊筒移动", "type": "2", "abnormal": "0" },
+    { "code": "62", "name": "Tof检测中", "type": "2", "abnormal": "0" },
+    { "code": "65", "name": "切换RCS", "type": "2", "abnormal": "0" },
+    { "code": "67", "name": "锁格", "type": "2", "abnormal": "0" },
+    { "code": "68", "name": "排队数处理", "type": "2", "abnormal": "0" },
+    { "code": "1", "name": "充电完成", "type": "3", "abnormal": "0" },
+    { "code": "2", "name": "充电中", "type": "3", "abnormal": "0" },
+    { "code": "3", "name": "充电站异常", "type": "3", "abnormal": "1" },
+    { "code": "4", "name": "充电站空闲", "type": "3", "abnormal": "0" },
+    {
+      "code": "11",
+      "name": "充电站输出过压故障",
+      "type": "3",
+      "abnormal": "1"
+    },
+    {
+      "code": "12",
+      "name": "充电站输出过流告警",
+      "type": "3",
+      "abnormal": "1"
+    },
+    {
+      "code": "13",
+      "name": "充电站输出过压告警",
+      "type": "3",
+      "abnormal": "1"
+    },
+    {
+      "code": "14",
+      "name": "充电站交流输入异常",
+      "type": "3",
+      "abnormal": "1"
+    },
+    { "code": "15", "name": "充电站过温故障", "type": "3", "abnormal": "1" },
+    { "code": "16", "name": "充电桩信息异常", "type": "3", "abnormal": "1" },
+    { "code": "0", "name": "启用", "type": "4", "abnormal": "0" },
+    {
+      "code": "1",
+      "name": "托盘任务取消待人工处理",
+      "type": "4",
+      "abnormal": "1"
+    },
+    { "code": "2", "name": "等待AMR上报能力集", "type": "4", "abnormal": "1" },
+    {
+      "code": "4",
+      "name": "等待Web上配置AMR能力集参数",
+      "type": "4",
+      "abnormal": "1"
+    },
+    {
+      "code": "8",
+      "name": "潜伏车取消了搬运料箱的任务需要前往异常区",
+      "type": "4",
+      "abnormal": "1"
+    },
+    {
+      "code": "16",
+      "name": "潜伏车取消了搬运料箱的任务且到达异常区，待人工处理",
+      "type": "4",
+      "abnormal": "1"
+    },
+    { "code": "500", "name": "机械臂运行中", "type": "1", "abnormal": "0" },
+    { "code": "501", "name": "机械臂暂停", "type": "1", "abnormal": "0" },
+    { "code": "502", "name": "机械臂异常", "type": "1", "abnormal": "1" },
+    { "code": "3", "name": "机器人异常", "type": "1", "abnormal": "0" }
+  ],
+  "success": true
+}

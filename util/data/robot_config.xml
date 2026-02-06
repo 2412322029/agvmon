@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<RobotTypes>
+    <RobotType Type="0" Offline="offline.png" Online="online.png" Abnormal="alarm.png"/>
+	<RobotType Type="1" Offline="offline.png" Online="online.png" Abnormal="alarm.png"/>
+	<RobotType Type="2" Offline="offline.png" Online="online.png" Abnormal="alarm.png"/>
+	<RobotType Type="3" Offline="offline.png" Online="online.png" Abnormal="alarm.png"/>
+	<RobotType Type="4" Offline="offline.png" Online="online.png" Abnormal="alarm.png"/>
+	<RobotType Type="5" Offline="offline.png" Online="online.png" Abnormal="alarm.png"/>
+	<RobotType Type="30" Offline="fork_offline.png" Online="fork_online.png" Abnormal="fork_alarm.png"/>
+	<RobotType Type="32" Offline="offline.png" Online="online.png" Abnormal="alarm.png"/>
+	<RobotType Type="33" Offline="fork_offline.png" Online="fork_online.png" Abnormal="fork_alarm.png"/>
+	<RobotType Type="34" Offline="fork_offline.png" Online="fork_online.png" Abnormal="fork_alarm.png"/>
+	<RobotType Type="40" Offline="offline.png" Online="online.png" Abnormal="alarm.png"/>
+	<RobotType Type="48" Offline="AMR_offline.png" Online="AMR_normal.png" Abnormal="AMR_alarm.png"/>
+    <RobotType Type="60" Offline="tractor_offline.png" Online="tractor_online.png" Abnormal="tractor_alarm.png"/>
+	<RobotType Type="70" Offline="ClampUnwind_offline.png" Online="ClampUnwind.png" Abnormal="ClampUnwind_alarm.png"/>
+	<RobotType Type="5000" Offline="rcs5000_offline.png" Online="rcs5000_online.png" Abnormal="rcs5000_alarm.png"/>
+</RobotTypes>

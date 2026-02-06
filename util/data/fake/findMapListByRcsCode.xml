@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rows>
+    <row>
+        <code>AA</code>
+        <colCount>500</colCount>
+        <groundTypeCode>AA</groundTypeCode>
+        <height>1000</height>
+        <name>MOD2L30</name>
+        <orgCode>1001</orgCode>
+        <orgTypeCode>1</orgTypeCode>
+        <rowCount>500</rowCount>
+        <slamMapCodes>aa_212</slamMapCodes>
+        <typeCode>2</typeCode>
+        <versionId>5172</versionId>
+        <width>1000</width>
+    </row>
+</rows>
