@@ -5,6 +5,7 @@ import os
 import xmltodict
 from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
+
 from util.config import r
 
 # 导入异常日志数据库
@@ -212,7 +213,9 @@ rcms_router = APIRouter(
 
 
 @rcms_router.get("/remove_agv_status")
-def remove_agv_status(): ...
+def remove_agv_status(robot_id: str):
+    num_deleted = r.hdel(get_redis_and_rdstag() + ":ROBOT_STATUS", robot_id)
+    return {"message": f"AGV状态已删除，共删除 {num_deleted} 条记录"}   
 
 
 @rcms_router.get("/build_from_cache")

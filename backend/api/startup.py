@@ -6,6 +6,7 @@ from backend.api.rcmsapi import rapi
 from backend.api.redis_client import get_rdstag
 from backend.api.websocket import broadcast_robot_status, start_zeromq_management_task
 from util.config import cfg, r
+from backend.api.other import cleanup_expired_files
 
 
 # 应用启动时的事件处理
@@ -14,6 +15,9 @@ def setup_startup_event(app: FastAPI):
     @app.on_event("startup")
     async def startup_event():
         """应用启动时的事件处理"""
+        # Clean up expired files on startup
+        cleanup_expired_files()
+        
         # 启动广播任务
         rdstag = get_rdstag()
         asyncio.create_task(broadcast_robot_status(r, rdstag))

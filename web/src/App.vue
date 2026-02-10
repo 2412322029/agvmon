@@ -1,92 +1,146 @@
 <script setup>
-import { dateZhCN, NButton, NConfigProvider, NDropdown, NMenu, NMessageProvider, NSplit, zhCN } from 'naive-ui';
-import { onMounted, onUnmounted, ref } from 'vue';
+import {
+  HomeOutlined,
+  LinkOutlined,
+  SettingOutlined,
+  ToolOutlined,
+  MenuOutlined
+} from '@vicons/antd';
+import {
+  dateZhCN,
+  NButton,
+  NConfigProvider,
+  NDropdown,
+  NIcon,
+  NMenu,
+  NMessageProvider,
+  NSplit,
+  zhCN
+} from 'naive-ui';
+import { computed, h, onMounted, onUnmounted, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
 const router = useRouter();
 const route = useRoute();
 
-// 导航菜单配置
+// Helper function to render icons
+const renderIcon = (icon) => {
+  return () => h(NIcon, null, { default: () => h(icon) });
+};
+
+// Menu structure for desktop with submenus and icons
 const menuOptions = [
   {
     label: '首页',
     key: '/',
+    icon: renderIcon(HomeOutlined),
     onClick: () => router.push('/')
   },
   {
-    label: '服务管理',
-    key: '/service',
-    onClick: () => router.push('/service'),
-    // children: [
-    //   {
-    //     label: '从缓存构建',
-    //     key: '/service/build_from_cache',
-    //     onClick: () => router.push('/service/build_from_cache')
-    //   },
-    //   {
-    //     label: '从原始数据构建',
-    //     key: '/service/build_from_raw',
-    //     onClick: () => router.push('/service/build_from_raw')
-    //   }
-    // ]
+    label: '系统管理',
+    key: 'system',
+    icon: renderIcon(SettingOutlined),
+    children: [
+      {
+        label: '服务管理',
+        key: '/service',
+        onClick: () => router.push('/service')
+      }
+    ]
   },
   {
-    label: '地图管理',
-    key: '/map',
-    onClick: () => router.push('/map'),
-    // children: [
-    //   {
-    //     label: '共享地图数据',
-    //     key: '/map/sharemapdata',
-    //     onClick: () => router.push('/map/sharemapdata')
-    //   }
-    // ]
+    label: '工具',
+    key: 'tools',
+    icon: renderIcon(ToolOutlined),
+    children: [
+      {
+        label: '异常记录',
+        key: '/exception-records',
+        onClick: () => router.push('/exception-records')
+      },
+      {
+        label: 'AGV-EQ议解析',
+        key: '/agv',
+        onClick: () => router.push('/agv')
+      },
+      {
+        label: 'SSH 文件管理',
+        key: '/ssh',
+        onClick: () => router.push('/ssh')
+      },
+      {
+        label: 'SSH 连接管理',
+        key: '/ssh-connections',
+        onClick: () => router.push('/ssh-connections')
+      },
+      {
+        label: '文件上传管理',
+        key: '/file-upload',
+        onClick: () => router.push('/file-upload')
+      }
+    ]
   },
   {
-    label: '任务查询',
-    key: '/task-query',
-    onClick: () => router.push('/task-query')
-  },
-  {
-    label: 'RCS Web 登录',
-    key: '/rcs-web-login',
-    onClick: () => router.push('/rcs-web-login')
-  },
-  {
-    label: '异常记录',
-    key: '/exception-records',
-    onClick: () => router.push('/exception-records')
-  },
-    {
-    label: 'agveq协议解析',
-    key: '/agv',
-    onClick: () => router.push('/agv')
-  },
-  {
-    label: 'SSH 文件管理',
-    key: '/ssh',
-    onClick: () => router.push('/ssh')
+    label: '外部服务',
+    key: 'external',
+    icon: renderIcon(LinkOutlined),
+    children: [
+      {
+        label: 'RCS Web 登录',
+        key: '/rcs-web-login',
+        onClick: () => router.push('/rcs-web-login')
+      },
+      {
+        label: '任务查询',
+        key: '/task-query',
+        onClick: () => router.push('/task-query')
+      },
+      {
+        label: '地图',
+        key: '/map',
+        onClick: () => router.push('/map')
+      }
+    ]
   }
 ];
 
-// 移动端下拉菜单选项
-const mobileMenuOptions = menuOptions.map(item => ({
-  label: item.label,
-  key: item.key,
-  // 在移动端菜单中，我们只存储key值，实际跳转由handleMobileMenuSelect处理
-}));
+// Mobile menu options without icons to simplify mobile view
+const mobileMenuOptions = JSON.parse(JSON.stringify(menuOptions)).map(item => {
+  const newItem = { ...item };
+  // Remove icons from mobile menu for cleaner appearance
+  delete newItem.icon;
+  if (newItem.children) {
+    newItem.children = newItem.children.map(child => {
+      const newChild = { ...child };
+      delete newChild.icon;
+      return newChild;
+    });
+  }
+  return newItem;
+});
 
 // 处理移动端菜单选择
 const handleMobileMenuSelect = (key) => {
-  router.push(key);
+  // 检查是否是路由路径（以/开头），否则不做任何操作
+  if (key.startsWith('/')) {
+    router.push(key);
+  }
 };
-
+// 处理菜单选择事件
+const handleUpdateValue = (key) => {
+  if (key.startsWith('/')) {
+    router.push(key);
+  }
+};
 // 检测是否为移动端
 const isMobile = ref(false);
 
+// 当前路由路径，用于高亮当前页面
+const currentRoute = computed(() => route.path);
+
 // 更新窗口大小检测函数
 const updateIsMobile = () => {
-  isMobile.value = window.innerWidth < 768;
+  isMobile.value = window.innerWidth < 992; // Changed breakpoint to 992px for better tablet support
 };
 
 // 组件挂载时初始化
@@ -110,17 +164,15 @@ onUnmounted(() => {
           <template #1>
             <!-- 桌面端显示完整菜单 -->
             <div v-if="!isMobile" class="desktop-menu">
-              <NMenu mode="horizontal" :options="menuOptions" style="height: 60px; line-height: 60px;align-items: center;" responsive />
+              <NMenu mode="horizontal" :options="menuOptions" :value="currentRoute" @update:value="handleUpdateValue"
+                style="height: 60px; line-height: 60px;align-items: center;" responsive :indent="18" />
             </div>
             <!-- 移动端显示汉堡菜单 -->
             <div v-else class="mobile-menu">
-              <NDropdown trigger="click" :options="mobileMenuOptions" placement="bottom-start" @select="handleMobileMenuSelect">
+              <NDropdown trigger="click" :options="mobileMenuOptions" placement="bottom-start"
+                @select="handleMobileMenuSelect" :keyboard="true" :show-arrow="true">
                 <NButton quaternary circle>
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-menu">
-                    <line x1="4" x2="20" y1="12" y2="12"></line>
-                    <line x1="4" x2="20" y1="6" y2="6"></line>
-                    <line x1="4" x2="20" y1="18" y2="18"></line>
-                  </svg>
+                  <NIcon :component="MenuOutlined" />
                 </NButton>
               </NDropdown>
             </div>
@@ -141,40 +193,61 @@ onUnmounted(() => {
 :deep(.n-menu) {
   background-color: transparent;
   border-bottom: none;
+  transition: all 0.3s ease;
 }
 
 :deep(.n-menu-item) {
   font-size: 16px;
   font-weight: 500;
+  transition: all 0.2s ease;
+  border-radius: 6px;
+  margin: 0 4px;
+}
+
+:deep(.n-menu-item:hover) {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+:deep(.n-submenu .n-submenu-arrow) {
+  transition: transform 0.2s ease;
+}
+
+/* Active/current route styling */
+:deep(.n-menu-item--selected) {
+  background-color: rgba(0, 100, 255, 0.1) !important;
+  color: #1890ff;
+  font-weight: 600;
 }
 
 /* 移动端适配 */
-@media (max-width: 768px) {
+@media (max-width: 992px) {
   :deep(.n-menu) {
     font-size: 14px;
   }
-  
+
   :deep(.n-menu-item) {
-    font-size: 12px; /* 减小字体大小 */
-    padding: 0 6px !important; /* 减小内边距 */
+    font-size: 13px;
+    /* Slightly larger font for better touch targets */
+    padding: 0 8px !important;
+    /* Better touch target size */
   }
-  
+
   :deep(.n-menu-item-content) {
-    min-height: 40px;
+    min-height: 44px;
     display: flex;
     align-items: center;
   }
-  
-  /* 针对特别小的屏幕 */
-  @media (max-width: 480px) {
+
+  /* 针对小屏幕设备 */
+  @media (max-width: 576px) {
     :deep(.n-menu-item) {
-      font-size: 11px;
-      padding: 0 4px !important;
+      font-size: 12px;
+      padding: 0 6px !important;
     }
-    
+
     :deep(.n-menu) {
-      height: 50px !important;
-      line-height: 50px !important;
+      height: 54px !important;
+      line-height: 54px !important;
     }
   }
 }
@@ -183,12 +256,53 @@ onUnmounted(() => {
 .mobile-menu {
   display: flex;
   align-items: center;
-  justify-content: flex-end; /* 将按钮靠右对齐 */
+  justify-content: flex-end;
+  /* 将按钮靠右对齐 */
   height: 60px;
-  padding-right: 10px; /* 添加右边距 */
+  padding-right: 16px;
+  /* Increased padding for better spacing */
+  transition: all 0.3s ease;
 }
 
 .desktop-menu {
   width: 100%;
+  padding: 0 16px;
+}
+
+/* 优化移动端下拉菜单样式 */
+@media (max-width: 992px) {
+  :deep(.n-dropdown-option) {
+    padding: 10px 16px;
+    border-radius: 4px;
+    margin: 2px 8px;
+    transition: all 0.2s ease;
+  }
+
+  :deep(.n-dropdown-option:hover) {
+    background-color: rgba(0, 0, 0, 0.04);
+  }
+
+  :deep(.n-dropdown-option-body) {
+    font-size: 15px;
+    padding: 8px 16px;
+  }
+
+  :deep(.n-dropdown) {
+    max-height: 70vh;
+    overflow-y: auto;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    border-radius: 8px;
+  }
+}
+
+/* Smooth transitions for menu interactions */
+:deep(.n-menu-item-content .n-base-icon),
+:deep(.n-menu-item .n-icon) {
+  transition: all 0.2s ease;
+}
+
+/* Adjust submenu styling */
+:deep(.n-submenu .n-submenu-trigger) {
+  border-radius: 6px;
 }
 </style>

@@ -2,6 +2,7 @@ from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.api.agvssh import agv_web_router
+from backend.api.other import util_web_router
 from backend.api.rcmsapi import rcms_router
 from backend.api.rcswebapi import rcs_web_router
 from backend.api.redis_client import get_rdstag
@@ -46,6 +47,9 @@ app.include_router(agv_web_router, prefix="/api")
 
 # 包含RcmsApi路由
 app.include_router(rcms_router, prefix="/api")
+
+# 包含UtilWebApi路由
+app.include_router(util_web_router, prefix="/api")
 
 # 设置WebSocket路由
 @app.websocket("/ws/robot-status")

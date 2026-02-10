@@ -59,6 +59,18 @@ const router = createRouter({
       path: '/ssh',
       name: 'ssh',
       component: () => import('../views/SSHView.vue'),
+    },
+    // SSH Connections View Page
+    {
+      path: '/ssh-connections',
+      name: 'ssh-connections',
+      component: () => import('../views/SSHConnectionManagementView.vue'),
+    },
+    // File Upload View Page
+    {
+      path: '/file-upload',
+      name: 'file-upload',
+      component: () => import('../views/FileUploadView.vue'),
     }
   ],
 })

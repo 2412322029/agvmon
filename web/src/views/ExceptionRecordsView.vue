@@ -128,7 +128,7 @@
 </template>
 
 <script setup>
-import { NButton, NCard, NDataTable, NDatePicker, NForm, NFormItem, NInput, NModal, NPopconfirm, NPopover, NSpace, NSwitch, NUpload, useMessage } from 'naive-ui'
+import { NButton, NCard, NDataTable, NText, NDatePicker, NForm, NFormItem, NInput, NModal, NPopconfirm, NPopover, NSpace, NSwitch, NUpload, useMessage } from 'naive-ui'
 import { h, onMounted, ref } from 'vue'
 
 const message = useMessage()

@@ -155,3 +155,4 @@ async def websocket_robot_status_endpoint(websocket: WebSocket, redis_client, rd
             last_websocket_activity = datetime.now()
 
         await websocket.close()
+

@@ -202,7 +202,7 @@ const colored = (row) => {
   if (row.abnormal || row.status_code == 67 || (row.status && row.status.includes('异常'))) {
     s = "red"
   }
-  if (row.status_text.includes('遇障') || row.status_text.includes('对接微调')) {
+  if (row.status_text.includes('遇障') || row.status_text.includes('对接微调中')) {
     s = "#FF9900"
   }
   

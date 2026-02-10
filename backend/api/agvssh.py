@@ -19,7 +19,7 @@ agv_web_router = APIRouter(
 download_path = (
     pathlib.Path(__file__).parent.parent.parent / "util" / "data" / "download"
 )
-print(f"download_path: {download_path}")
+# print(f"download_path: {download_path}")
 if not download_path.exists():
     download_path.mkdir(parents=True)
 
@@ -31,14 +31,13 @@ async def connect_agv(
     username: str = Body(cfg.get("agv.username"), description="ssh用户名"),
     password: str = Body(cfg.get("agv.password"), description="ssh密码"),
 ):
-    print(f"connect_agv: {host}, {port}, {username}, {password}")
     if not username:
         username = cfg.get("agv.username")
     if not password:
         password = cfg.get("agv.password")
     if not port:
         port = 22
-    print(f"connect_agv: {host}, {port}, {username}, {password}")
+    # print(f"connect_agv: {host}, {port}, {username}, {password}")
         
     ssh_manager = SSHManager(host, username, password, port)
     success, error = ssh_manager.connect()
@@ -148,7 +147,6 @@ async def stream_download_file(id: str = Body(...), filepath: str = Body(...)):
         },
     )
 
-@DeprecationWarning
 @agv_web_router.get("/download_progress")
 async def get_download_progress(download_id: str):
     """获取下载进度"""
@@ -158,3 +156,5 @@ async def get_download_progress(download_id: str):
     else:
         progress = "0"
     return {"progress": progress}
+
+
