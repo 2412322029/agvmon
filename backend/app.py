@@ -2,7 +2,7 @@ from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 
 from backend.api.agvssh import agv_web_router
-from backend.api.other import util_web_router
+from backend.api.other import util_web_router, websocket_chat_endpoint
 from backend.api.rcmsapi import rcms_router
 from backend.api.rcswebapi import rcs_web_router
 from backend.api.redis_client import get_rdstag
@@ -58,6 +58,10 @@ async def websocket_robot_status(websocket: WebSocket):
     rdstag = get_rdstag()
     await websocket_robot_status_endpoint(websocket, r, rdstag)
 
+@app.websocket("/ws/chat")
+async def websocket_chat(websocket: WebSocket):
+    """公共聊天WebSocket接口"""
+    await websocket_chat_endpoint(websocket)
 
 def run_api_server():
     """运行FastAPI WebSocket服务器"""

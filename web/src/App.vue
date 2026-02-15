@@ -77,6 +77,11 @@ const menuOptions = [
         label: '文件上传管理',
         key: '/file-upload',
         onClick: () => router.push('/file-upload')
+      },
+      {
+        label: '聊天室',
+        key: '/chat',
+        onClick: () => router.push('/chat')
       }
     ]
   },
@@ -258,7 +263,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: flex-end;
   /* 将按钮靠右对齐 */
-  height: 60px;
+  height: 30px;
   padding-right: 16px;
   /* Increased padding for better spacing */
   transition: all 0.3s ease;

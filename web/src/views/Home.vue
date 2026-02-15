@@ -88,6 +88,8 @@ const showRobotDetail = (robot) => {
       // drawerContent.focus()
     }
   }, 100)
+  sshConfig.username = "root"
+  sshConfig.password = robot.version.includes('V4.') ? 'Hik@1234' : 'hiklinux'
 }
 
 // 关闭机器人详细信息
@@ -650,7 +652,7 @@ const stopagv = async (agvcode = "", stop = false) => {
               <h4>系统信息</h4>
               <div class="detail-item">
                 <span class="label">版本:</span>
-                <span class="value">{{ selectedRobot.version || '未知' }}</span>
+                <span class="value">{{ selectedRobot.version || '未知' }} - {{ sshConfig.password }}</span>
               </div>
               <div class="detail-item">
                 <span class="label">滚筒状态码:</span>

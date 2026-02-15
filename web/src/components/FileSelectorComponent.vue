@@ -1,5 +1,5 @@
 <template>
-  <n-popover trigger="click" :width="400">
+  <n-popover trigger="click" placement="bottom-start" :width="popoverWidth" :overlap="true" :keep-alive-on-hover="false">
     <template #trigger>
       <n-button text>
         <n-icon size="24">
@@ -84,28 +84,28 @@
 
 <script setup>
 import {
-    AttachOutline,
-    DocumentOutline,
-    DocumentTextOutline,
-    ImageOutline,
-    MusicalNotesOutline,
-    VideocamOutline
+  AttachOutline,
+  DocumentOutline,
+  DocumentTextOutline,
+  ImageOutline,
+  MusicalNotesOutline,
+  VideocamOutline
 } from '@vicons/ionicons5'
 import {
-    NButton,
-    NEmpty,
-    NForm,
-    NFormItem,
-    NIcon,
-    NInputNumber,
-    NPopover,
-    NSpin,
-    NTabPane,
-    NTabs,
-    NUpload,
-    useMessage
+  NButton,
+  NEmpty,
+  NForm,
+  NFormItem,
+  NIcon,
+  NInputNumber,
+  NPopover,
+  NSpin,
+  NTabPane,
+  NTabs,
+  NUpload,
+  useMessage
 } from 'naive-ui'
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, onUnmounted } from 'vue'
 
 const emit = defineEmits(['file-selected', 'file-uploaded'])
 
@@ -115,6 +115,26 @@ const uploadLoading = ref(false)
 const listLoading = ref(false)
 const uploadProgress = ref(0)
 const fileList = ref([])
+const popoverWidth = ref(400)
+
+// 更新弹窗宽度以适应屏幕尺寸
+const updatePopoverWidth = () => {
+  const screenWidth = window.innerWidth
+  // 设置最大宽度为屏幕宽度的90%，但不超过400px
+  popoverWidth.value = Math.min(400, screenWidth * 0.9)
+}
+
+// 监听窗口大小变化
+onMounted(() => {
+  updatePopoverWidth()
+  window.addEventListener('resize', updatePopoverWidth)
+  loadFileList()
+})
+
+// 清理事件监听器
+onUnmounted(() => {
+  window.removeEventListener('resize', updatePopoverWidth)
+})
 
 // 上传表单
 const uploadForm = ref({
@@ -244,10 +264,7 @@ const formatFileSize = (bytes) => {
   }
 }
 
-// 页面加载时获取文件列表
-onMounted(() => {
-  loadFileList()
-})
+
 </script>
 
 <style scoped>
