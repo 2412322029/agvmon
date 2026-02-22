@@ -342,3 +342,53 @@ def login_api2():
         return result
     except Exception as e:
         return {"message": f"error {str(e)}", "success": False}
+
+
+@rcs_web_router.post("/check_is_rolling")
+def check_is_rolling_api(
+    trans_task_nums: str = Body("", embed=True, description="传输任务编号，多个任务号用逗号分隔"),
+):
+    try:
+        result = rcs_api.check_is_rolling(trans_task_nums=trans_task_nums)
+        return result
+    except Exception as e:
+        return {"message": "error", "errors": [str(e)]}
+
+
+@rcs_web_router.post("/check_starting_trans_tasks")
+def check_starting_trans_tasks_api(
+    trans_task_nums: str = Body("", embed=True, description="传输任务编号，多个任务号用逗号分隔"),
+):
+    try:
+        result = rcs_api.check_starting_trans_tasks(trans_task_nums=trans_task_nums)
+        return result
+    except Exception as e:
+        return {"message": "error", "errors": [str(e)]}
+
+
+@rcs_web_router.post("/check_soft_cancel")
+def check_soft_cancel_api(
+    trans_task_nums: str = Body("", embed=True, description="传输任务编号，多个任务号用逗号分隔"),
+):
+    try:
+        result = rcs_api.check_soft_cancel(trans_task_nums=trans_task_nums)
+        return result
+    except Exception as e:
+        return {"message": "error", "errors": [str(e)]}
+
+
+@rcs_web_router.post("/cancel_trans_tasks")
+def cancel_trans_tasks_api(
+    trans_task_nums: str = Body("", embed=True, description="传输任务编号，多个任务号用逗号分隔"),
+    cancel_type: str = Body("0", embed=True, description="取消类型"),
+    cancel_reason: str = Body("2", embed=True, description="取消原因"),
+):
+    try:
+        result = rcs_api.cancel_trans_tasks(
+            trans_task_nums=trans_task_nums,
+            cancel_type=cancel_type,
+            cancel_reason=cancel_reason
+        )
+        return result
+    except Exception as e:
+        return {"message": "error", "errors": [str(e)]}

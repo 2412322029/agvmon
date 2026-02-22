@@ -1,8 +1,8 @@
 <script setup>
-import { NBadge, NCard, NH3, NModal, NSpin, NTable, NTag, useMessage } from 'naive-ui';
+import { NBadge, NButton, NCard, NH3, NModal, NSpin, NTable, NTag, useDialog, useMessage } from 'naive-ui';
 import { computed, ref, watch } from 'vue';
 import xmlFormat from 'xml-formatter';
-
+const dialog = useDialog()
 // Safe XML formatter that handles errors gracefully
 const safeXmlFormat = (xmlString) => {
     if (!xmlString) return '';
@@ -55,6 +55,7 @@ const showModal = ref(false)
 const expandedTasks = ref(new Set())
 const subTasksData = ref({})
 const subTasksLoading = ref({})
+const softCancelLoading = ref(false)
 
 // 计算最终显示的任务数据 - 优先使用外部传入的tasks，否则使用内部查询的结果
 const displayTasks = computed(() => {
@@ -98,7 +99,7 @@ const queryTasksByRobotCode = async () => {
         if (data.success || data.code === 0) {
             internalTasks.value = data.data || [];
         } else {
-            error.value = data.message+":"+data?.errors?.join(',') || '查询失败';
+            error.value = data.message + ":" + data?.errors?.join(',') || '查询失败';
             message.error(error.value)
             internalTasks.value = [];
         }
@@ -190,7 +191,7 @@ const loadSubTasks = async (taskId) => {
         if (data.success) {
             subTasksData.value[taskId] = data.data || []
         } else {
-            message.error(data.message+":"+data?.errors?.join(',') || '获取子任务失败')
+            message.error(data.message + ":" + data?.errors?.join(',') || '获取子任务失败')
             subTasksData.value[taskId] = []
         }
     } catch (e) {
@@ -226,6 +227,177 @@ const getSubTaskStatusType = (status) => {
     return typeMap[status] || 'default'
 }
 
+// 检查任务是否可以软取消
+const checkSoftCancel = async (taskId) => {
+    try {
+        const response = await fetch('/api/rcs_web/check_soft_cancel', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                trans_task_nums: taskId
+            })
+        });
+        const data = await response.json();
+        return data;
+    } catch (e) {
+        console.error('检查软取消状态失败：', e);
+        message.error('网络错误：' + e.message);
+        return null;
+    }
+};
+
+// 检查任务是否正在滚动
+const checkIsRolling = async (taskId) => {
+    try {
+        const response = await fetch('/api/rcs_web/check_is_rolling', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                trans_task_nums: taskId
+            })
+        });
+        const data = await response.json();
+        return data;
+    } catch (e) {
+        console.error('检查任务滚动状态失败：', e);
+        message.error('网络错误：' + e.message);
+        return null;
+    }
+};
+
+// 检查开始传输任务
+const checkStartingTransTasks = async (taskId) => {
+    try {
+        const response = await fetch('/api/rcs_web/check_starting_trans_tasks', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                trans_task_nums: taskId
+            })
+        });
+        const data = await response.json();
+        return data;
+    } catch (e) {
+        console.error('检查开始传输任务失败：', e);
+        message.error('网络错误：' + e.message);
+        return null;
+    }
+};
+
+// 取消传输任务
+const cancelTransTasks = async (taskId) => {
+    try {
+        const response = await fetch('/api/rcs_web/cancel_trans_tasks', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                trans_task_nums: taskId,
+                cancel_type: "0",
+                cancel_reason: "2"
+            })
+        });
+        const data = await response.json();
+        return data;
+    } catch (e) {
+        console.error('取消传输任务失败：', e);
+        message.error('网络错误：' + e.message);
+        return null;
+    }
+};
+
+// 执行软取消操作
+const performSoftCancel = async () => {
+    softCancelLoading.value = true
+    if (!selectedTask.value) {
+        message.warning('请选择一个任务');
+        softCancelLoading.value = false
+        return;
+    }
+
+    const taskId = selectedTask.value.tranTaskNum || selectedTask.value.taskId;
+    if (!taskId) {
+        message.warning('任务ID不存在');
+        softCancelLoading.value = false
+        return;
+    }
+    try {
+        // 检查任务是否正在滚动
+        const checkResult = await checkIsRolling(taskId);
+        dialog.info({
+            title: 'checkIsRolling',
+            content: JSON.stringify(checkResult),
+            positiveText: '确定',
+            negativeText: '取消',
+            draggable: true,
+            onPositiveClick: async () => {
+                message.success('确定')
+                // 先检查是否可以软取消
+                const rollingResult = await checkSoftCancel(taskId);
+                dialog.info({
+                    title: 'checkSoftCancel',
+                    content: JSON.stringify(rollingResult),
+                    positiveText: '确定',
+                    negativeText: '取消',
+                    draggable: true,
+                    onPositiveClick: async () => {
+                        message.success('确定')
+                        // 检查是否是开始传输任务
+                        const startingResult = await checkStartingTransTasks(taskId);
+                        dialog.info({
+                            title: 'checkStartingTransTasks',
+                            content: JSON.stringify(startingResult),
+                            positiveText: '确定',
+                            negativeText: '取消',
+                            draggable: true,
+                            onPositiveClick: async () => {
+                                message.success('确定')
+                                // 执行取消操作
+                                const cancelResult = await cancelTransTasks(taskId);
+                                if (cancelResult && cancelResult.success) {
+                                    message.success('任务软取消成功');
+                                    // 关闭模态框
+                                    showModal.value = false;
+                                    // 刷新任务列表
+                                    if (props.robotCode) {
+                                        queryTasksByRobotCode();
+                                    }
+                                } else {
+                                    message.error(cancelResult?.message || '任务取消失败');
+                                }
+                            },
+                            onNegativeClick: () => {
+                                message.error('取消')
+                            }
+                        })
+                    },
+                    onNegativeClick: () => {
+                        message.error('取消')
+                    }
+                })
+            },
+            onNegativeClick: () => {
+                message.error('取消')
+            }
+        })
+    } catch (e) {
+        console.error('执行软取消操作失败：', e);
+        message.error('网络错误：' + e.message);
+        softCancelLoading.value = false
+    } finally {
+        softCancelLoading.value = false
+    }
+
+
+};
+
 </script>
 
 <template>
@@ -243,8 +415,9 @@ const getSubTaskStatusType = (status) => {
                 <tbody>
                     <template v-for="task in displayTasks" :key="task.tranTaskNum || task.taskId || $index">
                         <tr>
-                            <td >
-                                <span @click="toggleExpand(task)" :class="['expand-toggle', isExpanded(task) ? 'expanded' : 'collapsed']"
+                            <td>
+                                <span @click="toggleExpand(task)"
+                                    :class="['expand-toggle', isExpanded(task) ? 'expanded' : 'collapsed']"
                                     style="cursor: pointer; display: inline-block; padding: 4px 8px;">
                                     {{ isExpanded(task) ? '▼' : '▶' }}
                                 </span>
@@ -472,7 +645,16 @@ const getSubTaskStatusType = (status) => {
                             <pre class="xml-pre"><code>{{ safeXmlFormat(selectedTask.taskMsg || '') }}</code></pre>
                         </div>
                     </div>
+                    <!-- 添加软取消按钮 -->
+                    <div v-if="!selectedTask?.subTaskNum && selectedTask" class="soft-cancel-button detail-item">
+                        <n-button type="warning" @click="performSoftCancel"
+                            :disabled="selectedTask?.taskStatus === '3' || selectedTask?.taskStatus === '5' || softCancelLoading"
+                            :loading="softCancelLoading" style="margin: 2px;">
+                            {{ softCancelLoading ? '取消中...' : '软取消任务' }}
+                        </n-button>
+                    </div>
                 </div>
+
             </div>
         </NModal>
     </div>
@@ -682,5 +864,11 @@ const getSubTaskStatusType = (status) => {
 .xml-pre code {
     font-family: 'Monaco', 'Consolas', 'Courier New', monospace;
     line-height: 1.4;
+}
+
+.soft-cancel-button {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
 }
 </style>

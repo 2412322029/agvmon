@@ -2,14 +2,15 @@
 import {
   HomeOutlined,
   LinkOutlined,
+  MenuOutlined,
   SettingOutlined,
-  ToolOutlined,
-  MenuOutlined
+  ToolOutlined
 } from '@vicons/antd';
 import {
   dateZhCN,
   NButton,
   NConfigProvider,
+  NDialogProvider,
   NDropdown,
   NIcon,
   NMenu,
@@ -162,6 +163,7 @@ onUnmounted(() => {
 
 <template>
   <n-message-provider>
+    <n-dialog-provider>
     <n-config-provider :locale="zhCN" :date-locale="dateZhCN">
       <div>
         <!-- 顶部导航 -->
@@ -190,6 +192,7 @@ onUnmounted(() => {
         </main>
       </div>
     </n-config-provider>
+    </n-dialog-provider>
   </n-message-provider>
 </template>
 

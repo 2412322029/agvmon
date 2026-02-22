@@ -254,6 +254,138 @@ class RcsWebApi:
         )
         return response.json()
 
+    def check_is_rolling(self, trans_task_nums):
+        """
+        检查任务是否正在滚动执行
+
+        参数:
+            trans_task_nums: 传输任务编号，多个任务号可以用逗号分隔
+
+        返回:
+            dict: 查询响应的JSON数据
+        """
+        url = self.base_url + "/transTask/checkIsRolling.action"
+        data = {
+            "transTaskNums": trans_task_nums,
+        }
+        self.client.headers.update(
+            {"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"}
+        )
+        response = self.client.post(url, data=data)
+        
+        if not response.text:
+            self.login(username=self.username, password=self.password)
+            response = self.client.post(url, data=data)
+        if response.status_code != 200:
+            raise Exception(
+                f"检查任务滚动状态失败，状态码：{response.status_code}，响应内容：{response.text}"
+            )
+        try:
+            d = response.json()
+        except Exception:
+            return {"success": False, "msg": response.text}
+        return d
+
+    def check_starting_trans_tasks(self, trans_task_nums):
+        """
+        检查开始传输任务
+
+        参数:
+            trans_task_nums: 传输任务编号，多个任务号可以用逗号分隔
+
+        返回:
+            dict: 查询响应的JSON数据
+        """
+        url = self.base_url + "/transTask/checkStartingTransTasks.action"
+        data = {
+            "transTaskNums": trans_task_nums,
+        }
+        self.client.headers.update(
+            {"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"}
+        )
+        response = self.client.post(url, data=data)
+        
+        if not response.text:
+            self.login(username=self.username, password=self.password)
+            response = self.client.post(url, data=data)
+        if response.status_code != 200:
+            raise Exception(
+                f"检查开始传输任务失败，状态码：{response.status_code}，响应内容：{response.text}"
+            )
+        try:
+            d = response.json()
+        except Exception:
+            return {"success": False, "msg": response.text}
+        return d
+
+    def check_soft_cancel(self, trans_task_nums):
+        """
+        检查软取消任务
+
+        参数:
+            trans_task_nums: 传输任务编号，多个任务号可以用逗号分隔
+
+        返回:
+            dict: 查询响应的JSON数据
+        """
+        url = self.base_url + "/transTask/checkSoftCancel.action"
+        data = {
+            "transTaskNums": trans_task_nums,
+        }
+        self.client.headers.update(
+            {"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"}
+        )
+        response = self.client.post(url, data=data)
+        
+        if not response.text:
+            self.login(username=self.username, password=self.password)
+            response = self.client.post(url, data=data)
+        if response.status_code != 200:
+            raise Exception(
+                f"检查软取消任务失败，状态码：{response.status_code}，响应内容：{response.text}"
+            )
+        try:
+            d = response.json()
+        except Exception:
+            return {"success": False, "msg": response.text}
+        return d
+
+    def cancel_trans_tasks(self, trans_task_nums, cancel_type="0", cancel_reason="2"):
+        """
+        取消传输任务
+
+        参数:
+            trans_task_nums: 传输任务编号，多个任务号可以用逗号分隔
+            cancel_type: 取消类型，默认为"0"
+            cancel_reason: 取消原因，默认为"2"
+
+        返回:
+            dict: 查询响应的JSON数据
+        """
+        url = self.base_url + "/transTask/cancelTransTasks.action"
+        data = {
+            "transTaskNums": trans_task_nums,
+            "cancelType": cancel_type,
+            "cancelReason": cancel_reason,
+        }
+        self.client.headers.update(
+            {"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"}
+        )
+        response = self.client.post(url, data=data)
+        
+        if not response.text:
+            self.login(username=self.username, password=self.password)
+            response = self.client.post(url, data=data)
+        if response.status_code != 200:
+            raise Exception(
+                f"取消任务失败，状态码：{response.status_code}，响应内容：{response.text}"
+            )
+        try:
+            d = response.json()
+        except Exception:
+            return {"success": False, "msg": response.text}
+        return d
+
 
 # 示例用法（如果直接运行此文件）
 if __name__ == "__main__":
@@ -272,3 +404,17 @@ if __name__ == "__main__":
     # # 获取AGV状态示例
     # agv_status_response = rcs_web_api.get_agv_status(map_short_name="MOD2L30")
     # print("AGV状态:", agv_status_response)
+
+    # 测试新实现的方法
+    # task_num = "MFAGV3002026021003075913023HS"
+    # print("测试检查任务滚动状态:")
+    # print(rcs_web_api.check_is_rolling(task_num))
+    # 
+    # print("测试检查开始传输任务:")
+    # print(rcs_web_api.check_starting_trans_tasks(task_num))
+    # 
+    # print("测试检查软取消任务:")
+    # print(rcs_web_api.check_soft_cancel(task_num))
+    # 
+    # print("测试取消传输任务:")
+    # print(rcs_web_api.cancel_trans_tasks(task_num))
