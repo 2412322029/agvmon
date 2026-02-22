@@ -45,7 +45,7 @@
         </n-card>
         <n-spin v-if="!connected" style="margin-top: 16px; margin-left: 16px;"></n-spin>
         <!-- 文件详情 -->
-        <n-modal v-model:show="showFileInfo" style="max-width: 400px; overflow: auto;" preset="card" title="文件详情" 
+        <n-modal v-model:show="showFileInfo" style="max-width: 400px; overflow: auto;" preset="card" title="文件详情"
             :bordered="false" size="small" segmented>
             <n-descriptions label-placement="left" bordered :column="1" v-if="selectedFile">
                 <n-descriptions-item label="名称">
@@ -86,7 +86,7 @@
         <n-card v-if="connected" :bordered="false" size="small" segmented style="margin-top: 16px;">
             <n-spin :show="loadingDirectory">
                 <n-data-table :columns="columns" :data="directoryContents" :pagination="false"
-                    :row-key="(row) => row.name" virtual-scroll :max-height="mobileMaxHeight" 
+                    :row-key="(row) => row.name" virtual-scroll :max-height="mobileMaxHeight"
                     :scroll-x="isMobile ? 100 : 800" />
             </n-spin>
         </n-card>
@@ -97,7 +97,7 @@
             <n-progress type="line" :percentage="downloadProgress.percentage" :status="downloadProgress.status">
                 <n-text>{{ downloadProgress.filename }}</n-text>
                 <n-text>{{ formatFileSize(downloadProgress.downloaded) }} / {{ formatFileSize(downloadProgress.total)
-                }}</n-text>
+                    }}</n-text>
             </n-progress>
         </n-modal>
     </div>
@@ -342,11 +342,11 @@ const columns = computed(() => {
             render(row) {
                 if (row.is_directory) {
                     return h('span', {
-                        style: { 
-                            cursor: 'pointer', 
-                            color: '#18a058', 
-                            overflow: 'hidden', 
-                            textOverflow: 'ellipsis', 
+                        style: {
+                            cursor: 'pointer',
+                            color: '#18a058',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap'
                         },
                         onClick: () => {
@@ -359,26 +359,26 @@ const columns = computed(() => {
                         row.name
                     ])
                 } else if (row.is_link) {
-                    return h('span', { 
-                        style: { 
-                            cursor: 'pointer', 
+                    return h('span', {
+                        style: {
+                            cursor: 'pointer',
                             color: '#666',
-                            overflow: 'hidden', 
-                            textOverflow: 'ellipsis', 
-                            whiteSpace: 'nowrap' 
-                        } 
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                        }
                     }, [
                         h('span', { style: { color: '#666' } }, '🔗 '),
                         row.name
                     ])
                 } else {
                     return h('span', {
-                        style: { 
-                            cursor: 'pointer', 
+                        style: {
+                            cursor: 'pointer',
                             color: '#2080f0',
-                            overflow: 'hidden', 
-                            textOverflow: 'ellipsis', 
-                            whiteSpace: 'nowrap' 
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
                         },
                         onClick: () => showFileDetails(row)
                     }, [
@@ -431,7 +431,7 @@ const columns = computed(() => {
                 }
             }
         );
-        
+
         // 桌面端的操作列
         baseColumns.push({
             title: '操作',
@@ -597,7 +597,7 @@ onMounted(() => {
     if (props.autoConnect) {
         handleConnect()
     }
-    
+
     // 监听窗口大小变化
     window.addEventListener('resize', handleWindowResize);
 })
@@ -614,9 +614,12 @@ onUnmounted(async () => {
             const response = await axios.get(`/agv/disconnect?id=${sshId.value}`)
             if (response.data.message === '断开成功') {
                 console.log('SSH连接已自动断开')
+                message.info('SSH连接已自动断开')
+
             }
         } catch (error) {
             console.error('自动断开SSH连接时出错:', error)
+            message.error('自动断开SSH连接时出错')
         }
     }
     // 移除窗口大小变化监听器
