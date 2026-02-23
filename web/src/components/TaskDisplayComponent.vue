@@ -56,6 +56,8 @@ const expandedTasks = ref(new Set())
 const subTasksData = ref({})
 const subTasksLoading = ref({})
 const softCancelLoading = ref(false)
+const fCancelLoading = ref(false)
+const resumeActionLoading = ref(false)
 
 // 计算最终显示的任务数据 - 优先使用外部传入的tasks，否则使用内部查询的结果
 const displayTasks = computed(() => {
@@ -308,11 +310,65 @@ const cancelTransTasks = async (taskId) => {
         return data;
     } catch (e) {
         console.error('取消传输任务失败：', e);
-        message.error('网络错误：' + e.message);
+        message.error('错误：' + e.message);
         return null;
     }
 };
 
+const forceCancelTask = async () => {
+    fCancelLoading.value = true
+    const taskId = selectedTask.value.tranTaskNum || selectedTask.value.taskId
+    try {
+        const response = await fetch('/api/rcs_web/forceCancelTask', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                taskCode: taskId,
+            })
+        });
+        const data = await response.json();
+        fCancelLoading.value = false
+        message.info(JSON.stringify(data));
+
+        return data;
+    } catch (e) {
+        console.error('取消传输任务失败：', e);
+        message.error('错误：' + e.message);
+        fCancelLoading.value = false
+        return null;
+    } finally {
+        fCancelLoading.value = false
+    }
+};
+const resumeAction = async () => {
+    resumeActionLoading.value = true
+    const agvid = props.robotCode
+    try {
+        const response = await fetch('/api/rcs_web/resumeAction', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                agvid: agvid,
+            })
+        });
+        const data = await response.json();
+        resumeActionLoading.value = false
+        message.info(JSON.stringify(data));
+
+        return data;
+    } catch (e) {
+        console.error('失败：', e);
+        message.error('错误：' + e.message);
+        resumeActionLoading.value = false
+        return null;
+    } finally {
+        resumeActionLoading.value = false
+    }
+};
 // 执行软取消操作
 const performSoftCancel = async () => {
     softCancelLoading.value = true
@@ -370,7 +426,7 @@ const performSoftCancel = async () => {
                                         queryTasksByRobotCode();
                                     }
                                 } else {
-                                    message.error(cancelResult?.message || '任务取消失败');
+                                    message.error(JSON.stringify(cancelResult));
                                 }
                             },
                             onNegativeClick: () => {
@@ -389,7 +445,7 @@ const performSoftCancel = async () => {
         })
     } catch (e) {
         console.error('执行软取消操作失败：', e);
-        message.error('网络错误：' + e.message);
+        message.error('错误：' + e.message);
         softCancelLoading.value = false
     } finally {
         softCancelLoading.value = false
@@ -651,6 +707,21 @@ const performSoftCancel = async () => {
                             :disabled="selectedTask?.taskStatus === '3' || selectedTask?.taskStatus === '5' || softCancelLoading"
                             :loading="softCancelLoading" style="margin: 2px;">
                             {{ softCancelLoading ? '取消中...' : '软取消任务' }}
+                        </n-button>
+                    </div>
+                    <div v-if="!selectedTask?.subTaskNum && selectedTask" class="soft-cancel-button detail-item">
+                        <n-button type="error" @click="forceCancelTask"
+                            :disabled="selectedTask?.taskStatus === '3' || selectedTask?.taskStatus === '5'"
+                            :loading="fCancelLoading" style="margin-top: 100px;">
+                            {{ fCancelLoading ? '取消中...' : '硬取消任务' }}
+                        </n-button>
+                    </div>
+
+                     <div class="soft-cancel-button detail-item">
+                        <n-button type="error" @click="resumeAction"
+                            :disabled="selectedTask?.taskStatus === '3' || selectedTask?.taskStatus === '5'"
+                            :loading="fCancelLoading" style="margin-top: 100px;">
+                            {{ fCancelLoading ? '...' : '滚动暂停恢复' }}
                         </n-button>
                     </div>
                 </div>

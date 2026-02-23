@@ -392,3 +392,24 @@ def cancel_trans_tasks_api(
         return result
     except Exception as e:
         return {"message": "error", "errors": [str(e)]}
+
+
+@rcs_web_router.post("/forceCancelTask")
+def fCancelTask(
+    taskCode: str = Body("", embed=True, description="任务编号"),
+):
+    try:
+        result = rcs_api.forceCancelTask(trans_task_nums=taskCode)
+        return result
+    except Exception as e:
+        return {"message": "error", "errors": [str(e)]}
+    
+@rcs_web_router.post("/resumeAction")
+def resume_action(
+    agvid: str = Body("", embed=True, description="agv编号"),
+):
+    try:
+        result = rcs_api.resumeAction(agvcode=agvid)
+        return result
+    except Exception as e:
+        return {"message": "error", "errors": [str(e)]}

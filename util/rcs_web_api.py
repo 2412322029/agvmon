@@ -34,6 +34,7 @@ class RcsWebApi:
             }
         )
         # self.login(username, password)
+        # print(self.client.cookies)
 
     def _dict_to_formdata(self, data_dict: dict) -> str:
         """
@@ -73,7 +74,7 @@ class RcsWebApi:
         )
         if not username or not password:
             raise Exception("用户名和密码不能为空")
-        
+
         url = self.base_url + "/login/login.action"
         data = {
             "ecsUserName": username,
@@ -272,7 +273,7 @@ class RcsWebApi:
             {"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"}
         )
         response = self.client.post(url, data=data)
-        
+
         if not response.text:
             self.login(username=self.username, password=self.password)
             response = self.client.post(url, data=data)
@@ -304,14 +305,15 @@ class RcsWebApi:
             {"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"}
         )
         response = self.client.post(url, data=data)
-        
+
         if not response.text:
             self.login(username=self.username, password=self.password)
             response = self.client.post(url, data=data)
         if response.status_code != 200:
-            raise Exception(
-                f"检查开始传输任务失败，状态码：{response.status_code}，响应内容：{response.text}"
-            )
+            return {
+                "success": False,
+                "msg": f"检查开始传输任务失败，状态码：{response.status_code}，响应内容：{response.text}",
+            }
         try:
             d = response.json()
         except Exception:
@@ -336,14 +338,15 @@ class RcsWebApi:
             {"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"}
         )
         response = self.client.post(url, data=data)
-        
+
         if not response.text:
             self.login(username=self.username, password=self.password)
             response = self.client.post(url, data=data)
         if response.status_code != 200:
-            raise Exception(
-                f"检查软取消任务失败，状态码：{response.status_code}，响应内容：{response.text}"
-            )
+            return {
+                "success": False,
+                "msg": f"检查软取消任务失败，状态码：{response.status_code}，响应内容：{response.text}",
+            }
         try:
             d = response.json()
         except Exception:
@@ -366,22 +369,76 @@ class RcsWebApi:
         data = {
             "transTaskNums": trans_task_nums,
             "cancelType": cancel_type,
+            "forceCancel": 2,
             "cancelReason": cancel_reason,
         }
         self.client.headers.update(
             {"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"}
         )
         response = self.client.post(url, data=data)
-        
+
         if not response.text:
             self.login(username=self.username, password=self.password)
             response = self.client.post(url, data=data)
         if response.status_code != 200:
-            raise Exception(
-                f"取消任务失败，状态码：{response.status_code}，响应内容：{response.text}"
-            )
+            return {
+                "success": False,
+                "msg": f"取消任务失败，状态码：{response.status_code}，响应内容：{response.text}",
+            }
+
         try:
             d = response.json()
+            print(d)
+        except Exception:
+            return {"success": False, "msg": response.text}
+        return d
+
+    def forceCancelTask(self, trans_task_nums: str):
+        url = self.base_url + "/taskDispatch/cancelTask.action"
+        data = {"clientCode": "", "tokenCode": "", "taskCode": trans_task_nums}
+        self.client.headers.update(
+            {
+                "Content-Type": "application/json",
+                "X-Requested-With": "XMLHttpRequest",
+            }
+        )
+        response = self.client.post(url, data=data)
+        if response.status_code != 200:
+            return {
+                "success": False,
+                "msg": f"取消任务失败，状态码：{response.status_code}，响应内容：{response.text}",
+            }
+        d = response.json()
+        # if d["resultCode"] == "redirect":
+        #     response = self.client.post(d["message"], data=data)
+        #     d = response.text
+        self.client.headers.update({"X-Requested-With": ""})
+        print(self.client.cookies)
+        return d
+
+    def resumeAction(self, agvcode: str):
+        url = self.base_url + "/taskDispatch/resumeAction.action"
+        data = {"taskCode": "", "agvCode": agvcode, "subTaskNum": ""}
+        self.client.headers.update(
+            {
+                "Content-Type": "application/json",
+                "X-Requested-With": "XMLHttpRequest",
+            }
+        )
+        response = self.client.post(url, json=data)
+
+        if not response.text:
+            self.login(username=self.username, password=self.password)
+            response = self.client.post(url, json=data)
+        if response.status_code != 200:
+            return {
+                "success": False,
+                "msg": f"取消任务失败，状态码：{response.status_code}，响应内容：{response.text}",
+            }
+
+        try:
+            d = response.json()
+            print(d)
         except Exception:
             return {"success": False, "msg": response.text}
         return d
@@ -409,12 +466,29 @@ if __name__ == "__main__":
     # task_num = "MFAGV3002026021003075913023HS"
     # print("测试检查任务滚动状态:")
     # print(rcs_web_api.check_is_rolling(task_num))
-    # 
+    #
     # print("测试检查开始传输任务:")
     # print(rcs_web_api.check_starting_trans_tasks(task_num))
-    # 
+    #
     # print("测试检查软取消任务:")
     # print(rcs_web_api.check_soft_cancel(task_num))
-    # 
+    #
     # print("测试取消传输任务:")
     # print(rcs_web_api.cancel_trans_tasks(task_num))
+
+
+"""
+curl 'http://172.18.2.72:8182/rcms/web/taskDispatch/cancelTask.action' \
+  -H 'Accept: */*' \
+  -H 'Accept-Language: zh-CN,zh;q=0.9,en;q=0.8,en-US;q=0.7' \
+  -H 'Connection: keep-alive' \
+  -H 'Content-Type: application/json' \
+  -b 'ecsRemeber=1%3Blll; HIK_COOKIE=19C8886B5A6PBHO; JSESSIONID=3E81C23CF3064D3F07AEF508CCDC8D1F' \
+  -H 'DNT: 1' \
+  -H 'Origin: http://172.18.2.72:8182' \
+  -H 'Referer: http://172.18.2.72:8182/rcms/web/taskDispatch/cms_index.action' \
+  -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36' \
+  -H 'X-Requested-With: XMLHttpRequest' \
+  --data-raw '{"clientCode":"","tokenCode":"","taskCode":"MFAGV300换辆车，然后给他封一下这儿突然充上电电着频率电量太低了。 2026022311390041840HS"}' \
+  --insecure
+"""
