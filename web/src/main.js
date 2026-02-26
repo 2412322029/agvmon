@@ -3,6 +3,7 @@ import { create, NLoadingBarProvider } from 'naive-ui'
 import { createApp, h } from 'vue'
 import App from './App.vue'
 import router from './router'
+import './view-json.js'
 
 // 创建Naive UI实例
 const naive = create({

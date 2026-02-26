@@ -207,7 +207,7 @@ const colored = (row) => {
   if (row.status_text.includes('遇障') || row.status_text.includes('对接微调中')) {
     s = "#FF9900"
   }
-  
+
   return s
 }
 // 表格列配置
@@ -682,9 +682,9 @@ const stopagv = async (agvcode = "", stop = false) => {
 
             <div class="detail-section">
               <h4>完整数据</h4>
-              <pre class="pre" style="max-height: 200px; overflow-y: auto;">
-            {{ JSON.stringify(selectedRobot, null, 2) }}
-          </pre>
+              <!-- <pre class="pre" style="max-height: 200px; overflow-y: auto;"> -->
+                <view-json>{{ JSON.stringify(selectedRobot, null, 2) }}</view-json>
+          <!-- </pre> -->
             </div>
           </NTabPane>
           <NTabPane name="tasks" tab="任务查询">

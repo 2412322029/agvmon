@@ -77,6 +77,12 @@ const router = createRouter({
       path: '/chat',
       name: 'chat',
       component: () => import('../views/ChatView.vue'),
+    },
+    // 404 Not Found Page
+    {
+      path: '/:pathMatch(.*)*',
+      name: '404',
+      component: () => import('../views/404.vue'),
     }
   ],
 })

@@ -164,34 +164,34 @@ onUnmounted(() => {
 <template>
   <n-message-provider>
     <n-dialog-provider>
-    <n-config-provider :locale="zhCN" :date-locale="dateZhCN">
-      <div>
-        <!-- 顶部导航 -->
-        <n-split :default-size="1">
-          <template #1>
-            <!-- 桌面端显示完整菜单 -->
-            <div v-if="!isMobile" class="desktop-menu">
-              <NMenu mode="horizontal" :options="menuOptions" :value="currentRoute" @update:value="handleUpdateValue"
-                style="height: 60px; line-height: 60px;align-items: center;" responsive :indent="18" />
-            </div>
-            <!-- 移动端显示汉堡菜单 -->
-            <div v-else class="mobile-menu">
-              <NDropdown trigger="click" :options="mobileMenuOptions" placement="bottom-start"
-                @select="handleMobileMenuSelect" :keyboard="true" :show-arrow="true">
-                <NButton quaternary circle>
-                  <NIcon :component="MenuOutlined" />
-                </NButton>
-              </NDropdown>
-            </div>
-          </template>
-        </n-split>
+      <n-config-provider :locale="zhCN" :date-locale="dateZhCN">
+        <div>
+          <!-- 顶部导航 -->
+          <n-split :default-size="1">
+            <template #1>
+              <!-- 桌面端显示完整菜单 -->
+              <div v-if="!isMobile" class="desktop-menu">
+                <NMenu mode="horizontal" :options="menuOptions" :value="currentRoute" @update:value="handleUpdateValue"
+                  style="height: 60px; line-height: 60px;align-items: center;" responsive :indent="18" />
+              </div>
+              <!-- 移动端显示汉堡菜单 -->
+              <div v-else class="mobile-menu">
+                <NDropdown trigger="click" :options="mobileMenuOptions" placement="bottom-start"
+                  @select="handleMobileMenuSelect" :keyboard="true" :show-arrow="true">
+                  <NButton quaternary circle>
+                    <NIcon :component="MenuOutlined" />
+                  </NButton>
+                </NDropdown>
+              </div>
+            </template>
+          </n-split>
 
-        <!-- 主要内容区域 -->
-        <main style="padding: 3px; max-width: 1200px; margin: 0 auto;">
-          <router-view />
-        </main>
-      </div>
-    </n-config-provider>
+          <!-- 主要内容区域 -->
+          <main style="padding: 3px; max-width: 1200px; margin: 0 auto;">
+            <router-view />
+          </main>
+        </div>
+      </n-config-provider>
     </n-dialog-provider>
   </n-message-provider>
 </template>

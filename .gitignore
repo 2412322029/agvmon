@@ -13,3 +13,4 @@ util/data/download/*
 util/data/exception_log.db
 log/*
 util/data/upload/*
+node_modules/*
