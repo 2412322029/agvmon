@@ -1,7 +1,7 @@
 <script setup>
 import TaskDisplayComponent from '@/components/TaskDisplayComponent.vue'
 import SSHComponent from '@/components/ssh.vue'
-import { NButton, NCard, NDataTable, NDivider, NDrawer, NForm, NFormItem, NInput, NModal, NSwitch, NProgress, NRadioButton, NRadioGroup, NSpace, NTabPane, NTabs, NTag, NText, useLoadingBar, useMessage } from 'naive-ui'
+import { NButton, NCard, NDataTable, NDivider, NDrawer, NForm, NFormItem, NInput, NModal, NProgress, NRadioButton, NRadioGroup, NSpace, NSwitch, NTabPane, NTabs, NTag, NText, useLoadingBar, useMessage } from 'naive-ui'
 import { computed, h, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 const robotImgUrl = computed(() => location.origin + '/api/robot_img/online.png')
 const robot_fullImgUrl = computed(() => location.origin + '/api/robot_img/full.png')
@@ -48,6 +48,7 @@ const activeTab = ref('all') // all, abnormal, removed
 const tabsType = ref(localStorage.getItem('tabs_type') || 'segment')
 // 是否显示平均电量
 const showAvgBattery = ref(localStorage.getItem('show_avg_battery') !== 'false')
+const abnormal_e_offline = ref(localStorage.getItem('abnormal_e_offline') !== 'false')
 // 选中的机器人
 const selectedRobot = ref(null)
 const showDetailDrawer = ref(false)
@@ -169,11 +170,13 @@ const closeSettingsDrawer = () => {
 const saveTabsType = (value) => {
   localStorage.setItem('tabs_type', value)
 }
-
-// 保存显示平均电量设置
 const saveShowAvgBattery = (value) => {
   localStorage.setItem('show_avg_battery', value)
 }
+const saveabnormal_e_offline = (value) => {
+  localStorage.setItem('abnormal_e_offline', value)
+}
+
 
 // 提交异常记录
 const submitExceptionRecord = async () => {
@@ -218,16 +221,16 @@ const timeage = (time) => {
 
   // 定义时间单位
   if (diffSeconds < 60) {
-    return `⬇${diffSeconds}s`
+    return `离线${diffSeconds}s`
   } else if (diffSeconds < 3600) {
     const minutes = Math.floor(diffSeconds / 60)
-    return `⬇${minutes}m`
+    return `离线${minutes}分`
   } else if (diffSeconds < 86400) {
     const hours = Math.floor(diffSeconds / 3600)
-    return `⬇${hours}h`
+    return `离线${hours}小时`
   } else {
     const days = Math.floor(diffSeconds / 86400)
-    return `⬇${days}d`
+    return `离线${days}天`
   }
 }
 
@@ -257,7 +260,7 @@ const columns = [
       return h('div', {
         class: 'robot-id-container',
         style: {
-          color: timeInfo ? "#ff9900" : "#000"
+          color: timeInfo ? "red" : "#000"
         },
       }, { default: () => timeInfo ? `${row.RobotId}\n${timeInfo}` : row.RobotId })
     }
@@ -480,20 +483,20 @@ const tableRef = ref(null)
 // 生命周期钩子
 onMounted(() => {
   connectWebSocket()
-  const savedSort = localStorage.getItem("table_sort")
-  if (savedSort) {
-    try {
-      setTimeout(() => {
-        sortstate.value = JSON.parse(savedSort)
-        console.log(sortstate.value, tableRef.value);
-        if (tableRef.value) {
-          tableRef.value.sort(sortstate.value)
-        }
-      }, 1000);
-    } catch (e) {
-      console.error('解析保存的排序状态失败', e)
-    }
-  }
+  // const savedSort = localStorage.getItem("table_sort")
+  // if (savedSort) {
+  //   try {
+  //     setTimeout(() => {
+  //       sortstate.value = JSON.parse(savedSort)
+  //       // console.log(sortstate.value, tableRef.value);
+  //       if (tableRef.value) {
+  //         tableRef.value.sort(sortstate.value)
+  //       }
+  //     }, 1000);
+  //   } catch (e) {
+  //     console.error('解析保存的排序状态失败', e)
+  //   }
+  // }
 })
 
 onBeforeUnmount(() => {
@@ -502,27 +505,41 @@ onBeforeUnmount(() => {
 const robotcount = reactive({
   all: 0,
   abnormal: 0,
-  removed: 0
+  removed: 0,
+  offline: 0
 })
 
 const tabsConfig = computed(() => [
   { name: 'all', label: `全部(${robotcount.all})`, count: robotcount.all },
   { name: 'abnormal', label: `异常(${robotcount.abnormal})`, count: robotcount.abnormal },
-  { name: 'removed', label: `排除(${robotcount.removed})`, count: robotcount.removed }
+  { name: 'removed', label: `排除(${robotcount.removed})`, count: robotcount.removed },
+  { name: 'offline', label: `离线(${robotcount.offline})`, count: robotcount.offline }
 ])
 
 const getFilteredData = () => {
   let data = robotData.value || []
-  let abnormalrbt = data.filter(item => item.abnormal === true || item.status_code == 67 || item.display_status == "异常")
-  let removedrbt = data.filter(item => item.remove === true)
+  let abnormalrbt, removedrbt = []
+  if (abnormal_e_offline.value) {
+    abnormalrbt = data.filter(item => (item.abnormal === true || item.status_code == 67 || item.display_status == "异常") && timeage(item.time * 1000) == "")
+    removedrbt = data.filter(item => (item.remove === true) && timeage(item.time * 1000) == "")
+  } else {
+    abnormalrbt = data.filter(item => item.abnormal === true || item.status_code == 67 || item.display_status == "异常")
+    removedrbt = data.filter(item => item.remove === true)
+  }
+
+  let offlinerbt = data.filter(item => timeage(item.time * 1000) !== "")
+
   robotcount.abnormal = abnormalrbt.length
   robotcount.removed = removedrbt.length
+  robotcount.offline = offlinerbt.length
   robotcount.all = data.length
   switch (activeTab.value) {
     case 'abnormal':
       return abnormalrbt
     case 'removed':
       return removedrbt
+    case 'offline':
+      return offlinerbt
     default:
       return data
   }
@@ -558,9 +575,12 @@ const stopagv = async (agvcode = "", stop = false) => {
           <NSpace>
             <NButton @click="openSettingsDrawer" :bordered="false">
               <template #icon>
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <circle cx="12" cy="12" r="3"></circle>
-                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                  <path
+                    d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+                  </path>
                 </svg>
               </template>
             </NButton>
@@ -578,8 +598,9 @@ const stopagv = async (agvcode = "", stop = false) => {
             :tab-props="{ style: { color: (tab.name === 'abnormal' && tab.count > 0) ? 'red' : '' } }" />
         </NTabs>
 
-        <n-progress v-if="showAvgBattery" type="line" :percentage="avgbattery" :color="{ stops: ['orange', 'green'] }" :height="6"> {{
-          avgbattery }}%
+        <n-progress v-if="showAvgBattery" type="line" :percentage="avgbattery" :color="{ stops: ['orange', 'green'] }"
+          :height="6"> {{
+            avgbattery }}%
           <span style="font-size: 14px; color: #36ad6a; margin-left: 14px"> {{ timestamp ? new Date(Number(timestamp) *
             1000).toLocaleTimeString('zh-CN') : '' }} </span>
         </n-progress>
@@ -598,9 +619,9 @@ const stopagv = async (agvcode = "", stop = false) => {
     </div>
 
     <!-- 设置抽屉 -->
-    <NDrawer v-model:show="showSettingsDrawer" placement="bottom" :width="drawerWidth" @close="closeSettingsDrawer">
+    <NDrawer v-model:show="showSettingsDrawer" placement="bottom" :width="drawerWidth" @close="closeSettingsDrawer" default-height="50%">
       <div class="settings-drawer-content">
-        <h1 style="font-size: 24px; font-weight: bold; margin-bottom: 20px;">设置</h1>
+        <h1 style="font-size: 24px; font-weight: bold; margin-bottom: 20px;">页面设置</h1>
         <NForm>
           <NFormItem label="Tab类型">
             <NRadioGroup v-model:value="tabsType" @update:value="saveTabsType">
@@ -612,6 +633,9 @@ const stopagv = async (agvcode = "", stop = false) => {
           </NFormItem>
           <NFormItem label="显示平均电量">
             <NSwitch v-model:value="showAvgBattery" @update:value="saveShowAvgBattery" />
+          </NFormItem>
+          <NFormItem label="离线机器人不显示在异常和排除里面">
+            <NSwitch v-model:value="abnormal_e_offline" @update:value="saveabnormal_e_offline" />
           </NFormItem>
         </NForm>
       </div>
@@ -636,6 +660,7 @@ const stopagv = async (agvcode = "", stop = false) => {
             <img v-if="rollerPositions[3]" :src="robot_fullImgUrl"
               style="position: absolute; top: 11px; right: 8px; width: 8px; height: 8px;" alt="">
           </span>
+         <span style="font-size: 14px; margin: 8px"> {{ timeage(selectedRobot.time * 1000) }} </span>
         </h1>
 
         <!-- 标签页 -->
@@ -1076,6 +1101,7 @@ const stopagv = async (agvcode = "", stop = false) => {
 input[aria-hidden="true"] {
   display: none !important;
 }
+
 .settings-drawer-content {
   padding: 12px;
 }
