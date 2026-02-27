@@ -16,7 +16,6 @@ const rollerPositions = computed(() => {
 
   // 取后4位数字，转换为字符串并确保4位（不足补0）
   const last4Digits = String(rollerStatus).slice(-4).padStart(4, '0')
-
   // 分割为数组，转换为布尔值（0为false，1为true）
   return last4Digits.split('').map(digit => digit === '1')
 })
@@ -39,6 +38,7 @@ const isConnected = ref(false)
 const ws = ref(null)
 // 状态管理
 const robotData = ref([])
+const avgbattery = ref(0)
 const loading = ref(true)
 const timestamp = ref('')
 const messageText = ref('正在获取机器人状态数据...')
@@ -107,7 +107,13 @@ const exceptionForm = ref({
   agv_status: '',
   remarks: ''
 })
-
+const moredetail=(agv_status, main_name, sub_name)=>{
+  if (agv_status.includes("机器人异常") || agv_status.includes("任务异常")){
+    return main_name || sub_name
+  }else{
+    return agv_status
+  }
+}
 // 打开添加异常记录模态框
 const openAddExceptionModal = () => {
   if (selectedRobot.value) {
@@ -122,9 +128,9 @@ const openAddExceptionModal = () => {
     exceptionForm.value.problem_description = coordinates
 
     // 使用状态码对应的文字作为小车状态
-    const statusCode = selectedRobot.value.status_code || 0
+    // const statusCode = selectedRobot.value.status_code || 0
     const statusText = selectedRobot.value.status || '未知状态'
-    exceptionForm.value.agv_status = `${statusText}(${statusCode})`
+    exceptionForm.value.agv_status = moredetail(statusText)
 
     exceptionForm.value.remarks = ''
   }
@@ -210,11 +216,16 @@ const colored = (row) => {
 
   return s
 }
+const sortstate = ref(null)
+watch(sortstate, (newVal) => {
+  localStorage.setItem("table_sort", JSON.stringify(newVal))
+}, { deep: true })
 // 表格列配置
 const columns = [
   {
     title: '机器人ID',
     key: 'RobotId',
+    sorter: (A, B) => Number(A.RobotId) - Number(B.RobotId),
     render(row) {
       const timeInfo = timeage(row.time * 1000)
       return h('div', {
@@ -228,6 +239,7 @@ const columns = [
   {
     title: '状态',
     key: 'display_status',
+    sorter: (A, B) => A.display_status.localeCompare(B.display_status, "zh-CN"),
     render(row) {
       return h('div', {
         class: 'status-tag-container',
@@ -246,6 +258,7 @@ const columns = [
   {
     title: '设备任务',
     key: 'device_task',
+    sorter: (A, B) => Number(A.status_code) - Number(B.status_code),
     render(row) {
       return h('div', {
         class: 'device-task-container',
@@ -258,40 +271,19 @@ const columns = [
   {
     title: '电量',
     key: 'battery_text',
+    sorter: (A, B) => Number(A.battery) - Number(B.battery),
     render(row) {
       // 获取电池百分比数值
       const batteryValue = parseInt(row.battery_text) || 0
-
-      // 根据电量范围设置颜色
-      // 根据电量值计算三阶段渐变色
-      // 0-30%: 红(255,0,0) → 橙(255,153,0)
-      // 30-80%: 保持橙色(255,153,0)
-      // 80-100%: 橙(255,153,0) → 绿(0,128,0)
       const batteryPercent = Math.max(0, Math.min(100, batteryValue))
-
-      let red, green, blue
-
+      let color = `black`
       if (batteryPercent <= 30) {
-        // 0-30%: 红 → 橙
-        const t = batteryPercent / 30
-        red = 255
-        green = Math.round(0 + t * 13)
-        blue = 0
+        color = "red"
       } else if (batteryPercent <= 80) {
-        // 30-80%: 保持橙色
-        red = 255
-        green = 153
-        blue = 0
+        color = `black`
       } else {
-        // 80-100%: 橙 → 绿
-        const t = (batteryPercent - 80) / 20
-        red = Math.round(255 - t * 255)
-        green = Math.round(153 - t * 25) // 153 → 128
-        blue = 0
+        color = `green`
       }
-
-      const color = `rgb(${red}, ${green}, ${blue})`
-
       return h('div', {
         class: 'battery-container',
         style: {
@@ -302,10 +294,13 @@ const columns = [
   },
   {
     title: '速度',
-    key: 'speed_text'
+    key: 'speed_text',
+    sorter: (A, B) => Number(A.speed) - Number(B.speed),
+
   },
   {
     title: '报警信息',
+    sorter: (A, B) => A.display_status.localeCompare(B.display_status, "zh-CN"),
     key: 'alarm_text'
   },
   // {
@@ -389,7 +384,7 @@ const connectWebSocket = () => {
           }
         })
         robotData.value = formattedData
-
+        avgbattery.value = Math.round(robotData.value.reduce((sum, b) => sum + Number(b.battery), 10) / robotData.value.length * 100) / 100
         // 如果当前有选中的机器人，更新选中的机器人数据
         if (selectedRobot.value) {
           const updatedRobot = formattedData.find(robot => robot.RobotId === selectedRobot.value.RobotId)
@@ -455,25 +450,43 @@ const refreshData = () => {
   }
 }
 
-
+const tableRef = ref(null)
 // 生命周期钩子
 onMounted(() => {
   connectWebSocket()
+  const savedSort = localStorage.getItem("table_sort")
+  if (savedSort) {
+    try {
+      setTimeout(() => {
+        sortstate.value = JSON.parse(savedSort)
+        console.log(sortstate.value, tableRef.value);
+        if (tableRef.value) {
+          tableRef.value.sort(sortstate.value)
+        }
+      }, 1000);
+    } catch (e) {
+      console.error('解析保存的排序状态失败', e)
+    }
+  }
 })
 
 onBeforeUnmount(() => {
   disconnectWebSocket()
 })
-
+const robotcount = ref([0, 0, 0])
 // 过滤机器人数据
 const getFilteredData = () => {
   let data = robotData.value || []
-
+  robotcount.value[0] = data.length
   switch (activeTab.value) {
     case 'abnormal':
-      return data.filter(item => item.abnormal === true || item.status_code == 67 || item.display_status == "异常")
+      let abnormalrbt = data.filter(item => item.abnormal === true || item.status_code == 67 || item.display_status == "异常")
+      robotcount.value[1] = abnormalrbt.length
+      return abnormalrbt
     case 'removed':
-      return data.filter(item => item.remove === true)
+      let removedrbt = data.filter(item => item.remove === true)
+      robotcount.value[2] = removedrbt.length
+      return removedrbt
     default:
       return data
   }
@@ -518,21 +531,19 @@ const stopagv = async (agvcode = "", stop = false) => {
         </template>
         <!-- 标签页过滤器 -->
         <NTabs v-model:value="activeTab" type="card" style="margin-bottom: 0px;">
-          <NTabPane name="all" tab="全部" />
-          <NTabPane name="abnormal" tab="异常" />
-          <NTabPane name="removed" tab="排除" />
+          <NTabPane name="all" :tab="'全部(' + robotcount[0] + ')'" />
+          <NTabPane name="abnormal" :tab="'异常(' + robotcount[1] + ')'"/>
+          <NTabPane name="removed" :tab="'排除(' + robotcount[2] + ')'" />
         </NTabs>
         <span style="font-size: 14px; color: #36ad6a; margin-left: 14px"> {{ timestamp ? new Date(Number(timestamp) *
-          1000).toLocaleString('zh-CN') : '' }}</span>
-
+          1000).toLocaleString('zh-CN') : '' }} </span>
+        | 平均电量{{ avgbattery }}%
         <NText v-if="loading" type="secondary" style="text-align: center; display: block; margin: 40px 0;">
           {{ messageText }}
         </NText>
 
-        <NDataTable v-else :columns="columns" :data="getFilteredData()" :pagination="false" bordered stripe
-          size="medium" empty-text="暂无机器人数据" />
-
-
+        <NDataTable v-else ref="tableRef" :columns="columns" :data="getFilteredData()" :pagination="false" bordered
+          stripe size="medium" empty-text="暂无机器人数据" v-model:sorter="sortstate" />
         <NDivider />
 
         <NText type="secondary" style="font-size: 12px;">
@@ -683,8 +694,8 @@ const stopagv = async (agvcode = "", stop = false) => {
             <div class="detail-section">
               <h4>完整数据</h4>
               <!-- <pre class="pre" style="max-height: 200px; overflow-y: auto;"> -->
-                <view-json>{{ JSON.stringify(selectedRobot, null, 2) }}</view-json>
-          <!-- </pre> -->
+              <view-json>{{ JSON.stringify(selectedRobot, null, 2) }}</view-json>
+              <!-- </pre> -->
             </div>
           </NTabPane>
           <NTabPane name="tasks" tab="任务查询">

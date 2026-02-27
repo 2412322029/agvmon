@@ -5,7 +5,7 @@ from util.logger import logger
 from util.rabbitmq import run_rabbitmq_server
 from util.rcms_api import RcmsApi
 from util.showrobot import show_robot_status
-from util.zeromq import Map_info_update
+from util.zeromq import Map_info_update, removekey
 
 logger.setLevel('INFO')
 def main():
@@ -27,6 +27,7 @@ def main():
     
     # web api
     group.add_argument('--web', action='store_true', help='运行FastAPI WebSocket服务器')
+    group.add_argument('--rk', action='store_true', help='romve key')
     
     args = parser.parse_args()
     
@@ -61,6 +62,8 @@ def main():
             show_robot_status()
     elif args.web:
         run_api_server()
+    elif args.rk:
+        removekey()
     else:
         parser.print_help()
 

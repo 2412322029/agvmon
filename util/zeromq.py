@@ -131,7 +131,7 @@ class ZeroMQSubscriber:
         except Exception as e:
             logger.error(f"关闭订阅者错误: {e}")
 
-
+rdstag = cfg.get("rcms.host").split("://")[1].replace(":", "-")
 def Map_info_update(
     api: RcmsApi, map_index: int = 0, interval: float = 0.001, show_count: bool = True
 ):
@@ -232,6 +232,11 @@ def Map_info_update(
         logger.error(f"主程序错误: {e}")
         exit(1)
 
+def removekey():
+    keys_to_delete=[]
+    for key in r.scan_iter(match=f"{rdstag}:*"):
+        keys_to_delete.append(key)
+        r.delete(*keys_to_delete)
 
 def show_loading_bar(bar_length=30, slider_width=5, speed=0.08, stop_event=None):
     """显示无线流动加载进度条

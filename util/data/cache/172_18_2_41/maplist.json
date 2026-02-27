@@ -1,0 +1,16 @@
+[
+  {
+    "code": "AA",
+    "colCount": "500",
+    "groundTypeCode": "AA",
+    "height": "1000",
+    "name": "MOD2L30",
+    "orgCode": "1001",
+    "orgTypeCode": "1",
+    "rowCount": "500",
+    "slamMapCodes": "aa_217",
+    "typeCode": "2",
+    "versionId": "5278",
+    "width": "1000"
+  }
+]
