@@ -1,7 +1,7 @@
 <script setup>
 import TaskDisplayComponent from '@/components/TaskDisplayComponent.vue'
 import SSHComponent from '@/components/ssh.vue'
-import { NButton, NCard, NDataTable, NDivider, NDrawer, NForm, NFormItem, NInput, NModal, NSpace, NTabPane, NTabs, NTag, NText, useLoadingBar, useMessage } from 'naive-ui'
+import { NButton, NCard, NDataTable, NDivider, NDrawer, NForm, NFormItem, NInput, NModal, NSwitch, NProgress, NRadioButton, NRadioGroup, NSpace, NTabPane, NTabs, NTag, NText, useLoadingBar, useMessage } from 'naive-ui'
 import { computed, h, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 const robotImgUrl = computed(() => location.origin + '/api/robot_img/online.png')
 const robot_fullImgUrl = computed(() => location.origin + '/api/robot_img/full.png')
@@ -44,6 +44,10 @@ const timestamp = ref('')
 const messageText = ref('正在获取机器人状态数据...')
 // Tab状态
 const activeTab = ref('all') // all, abnormal, removed
+// tabs类型
+const tabsType = ref(localStorage.getItem('tabs_type') || 'segment')
+// 是否显示平均电量
+const showAvgBattery = ref(localStorage.getItem('show_avg_battery') !== 'false')
 // 选中的机器人
 const selectedRobot = ref(null)
 const showDetailDrawer = ref(false)
@@ -51,6 +55,8 @@ const showDetailDrawer = ref(false)
 const detailActiveTab = ref('info')
 // SSH面板状态
 const showSSHPanel = ref(false)
+// 设置抽屉状态
+const showSettingsDrawer = ref(false)
 
 // SSH连接配置
 const sshConfig = reactive({
@@ -107,10 +113,10 @@ const exceptionForm = ref({
   agv_status: '',
   remarks: ''
 })
-const moredetail=(agv_status, main_name, sub_name)=>{
-  if (agv_status.includes("机器人异常") || agv_status.includes("任务异常")){
+const moredetail = (agv_status, main_name, sub_name) => {
+  if (agv_status.includes("机器人异常") || agv_status.includes("任务异常")) {
     return main_name || sub_name
-  }else{
+  } else {
     return agv_status
   }
 }
@@ -147,6 +153,26 @@ const closeAddExceptionModal = () => {
     agv_status: '',
     remarks: ''
   }
+}
+
+// 打开设置抽屉
+const openSettingsDrawer = () => {
+  showSettingsDrawer.value = true
+}
+
+// 关闭设置抽屉
+const closeSettingsDrawer = () => {
+  showSettingsDrawer.value = false
+}
+
+// 保存Tab类型设置
+const saveTabsType = (value) => {
+  localStorage.setItem('tabs_type', value)
+}
+
+// 保存显示平均电量设置
+const saveShowAvgBattery = (value) => {
+  localStorage.setItem('show_avg_battery', value)
 }
 
 // 提交异常记录
@@ -384,7 +410,7 @@ const connectWebSocket = () => {
           }
         })
         robotData.value = formattedData
-        avgbattery.value = Math.round(robotData.value.reduce((sum, b) => sum + Number(b.battery), 10) / robotData.value.length * 100) / 100
+        avgbattery.value = Math.round(robotData.value.reduce((sum, b) => sum + Number(b.battery), 10) / robotData.value.length)
         // 如果当前有选中的机器人，更新选中的机器人数据
         if (selectedRobot.value) {
           const updatedRobot = formattedData.find(robot => robot.RobotId === selectedRobot.value.RobotId)
@@ -473,19 +499,29 @@ onMounted(() => {
 onBeforeUnmount(() => {
   disconnectWebSocket()
 })
-const robotcount = ref([0, 0, 0])
-// 过滤机器人数据
+const robotcount = reactive({
+  all: 0,
+  abnormal: 0,
+  removed: 0
+})
+
+const tabsConfig = computed(() => [
+  { name: 'all', label: `全部(${robotcount.all})`, count: robotcount.all },
+  { name: 'abnormal', label: `异常(${robotcount.abnormal})`, count: robotcount.abnormal },
+  { name: 'removed', label: `排除(${robotcount.removed})`, count: robotcount.removed }
+])
+
 const getFilteredData = () => {
   let data = robotData.value || []
-  robotcount.value[0] = data.length
+  let abnormalrbt = data.filter(item => item.abnormal === true || item.status_code == 67 || item.display_status == "异常")
+  let removedrbt = data.filter(item => item.remove === true)
+  robotcount.abnormal = abnormalrbt.length
+  robotcount.removed = removedrbt.length
+  robotcount.all = data.length
   switch (activeTab.value) {
     case 'abnormal':
-      let abnormalrbt = data.filter(item => item.abnormal === true || item.status_code == 67 || item.display_status == "异常")
-      robotcount.value[1] = abnormalrbt.length
       return abnormalrbt
     case 'removed':
-      let removedrbt = data.filter(item => item.remove === true)
-      robotcount.value[2] = removedrbt.length
       return removedrbt
     default:
       return data
@@ -517,12 +553,19 @@ const stopagv = async (agvcode = "", stop = false) => {
   <div class="main-container">
     <!-- 主内容区域 -->
     <div class="main-content" :inert="showDetailDrawer">
-      <NCard title="AGV状态监控" :bordered="false" style="max-width: 1200px; margin: 0 auto;">
-
+      <NCard title="AGV监控" :bordered="false" style="max-width: 1200px; margin: 0 auto;">
         <template #header-extra>
           <NSpace>
+            <NButton @click="openSettingsDrawer" :bordered="false">
+              <template #icon>
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="3"></circle>
+                  <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                </svg>
+              </template>
+            </NButton>
             <NTag :type="isConnected ? 'success' : 'error'" round style="margin-top: 4px;">
-              {{ isConnected ? 'websocket已连接' : 'websocket未连接' }}
+              {{ isConnected ? '已连接' : '未连接' }}
             </NTag>
             <NButton type="primary" @click="refreshData" :loading="loading">
               重新连接
@@ -530,14 +573,16 @@ const stopagv = async (agvcode = "", stop = false) => {
           </NSpace>
         </template>
         <!-- 标签页过滤器 -->
-        <NTabs v-model:value="activeTab" type="card" style="margin-bottom: 0px;">
-          <NTabPane name="all" :tab="'全部(' + robotcount[0] + ')'" />
-          <NTabPane name="abnormal" :tab="'异常(' + robotcount[1] + ')'"/>
-          <NTabPane name="removed" :tab="'排除(' + robotcount[2] + ')'" />
+        <NTabs v-model:value="activeTab" :type="tabsType" style="margin-bottom: 0px;">
+          <NTabPane v-for="tab in tabsConfig" :key="tab.name" :name="tab.name" :tab="tab.label"
+            :tab-props="{ style: { color: (tab.name === 'abnormal' && tab.count > 0) ? 'red' : '' } }" />
         </NTabs>
-        <span style="font-size: 14px; color: #36ad6a; margin-left: 14px"> {{ timestamp ? new Date(Number(timestamp) *
-          1000).toLocaleString('zh-CN') : '' }} </span>
-        | 平均电量{{ avgbattery }}%
+
+        <n-progress v-if="showAvgBattery" type="line" :percentage="avgbattery" :color="{ stops: ['orange', 'green'] }" :height="6"> {{
+          avgbattery }}%
+          <span style="font-size: 14px; color: #36ad6a; margin-left: 14px"> {{ timestamp ? new Date(Number(timestamp) *
+            1000).toLocaleTimeString('zh-CN') : '' }} </span>
+        </n-progress>
         <NText v-if="loading" type="secondary" style="text-align: center; display: block; margin: 40px 0;">
           {{ messageText }}
         </NText>
@@ -551,6 +596,26 @@ const stopagv = async (agvcode = "", stop = false) => {
         </NText>
       </NCard>
     </div>
+
+    <!-- 设置抽屉 -->
+    <NDrawer v-model:show="showSettingsDrawer" placement="bottom" :width="drawerWidth" @close="closeSettingsDrawer">
+      <div class="settings-drawer-content">
+        <h1 style="font-size: 24px; font-weight: bold; margin-bottom: 20px;">设置</h1>
+        <NForm>
+          <NFormItem label="Tab类型">
+            <NRadioGroup v-model:value="tabsType" @update:value="saveTabsType">
+              <NRadioButton value="bar" type="primary">bar</NRadioButton>
+              <NRadioButton value="line">line</NRadioButton>
+              <NRadioButton value="card">card</NRadioButton>
+              <NRadioButton value="segment">segment</NRadioButton>
+            </NRadioGroup>
+          </NFormItem>
+          <NFormItem label="显示平均电量">
+            <NSwitch v-model:value="showAvgBattery" @update:value="saveShowAvgBattery" />
+          </NFormItem>
+        </NForm>
+      </div>
+    </NDrawer>
 
     <!-- 机器人详情抽屉 -->
     <NDrawer v-model:show="showDetailDrawer" placement="right" :width="drawerWidth" @close="closeDetailModal">
@@ -1010,5 +1075,8 @@ const stopagv = async (agvcode = "", stop = false) => {
 
 input[aria-hidden="true"] {
   display: none !important;
+}
+.settings-drawer-content {
+  padding: 12px;
 }
 </style>

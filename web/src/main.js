@@ -2,8 +2,9 @@ import axios from 'axios'
 import { create, NLoadingBarProvider } from 'naive-ui'
 import { createApp, h } from 'vue'
 import App from './App.vue'
+import './composables/view-json.js'
+
 import router from './router'
-import './view-json.js'
 
 // 创建Naive UI实例
 const naive = create({
