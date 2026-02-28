@@ -388,6 +388,9 @@ const connectWebSocket = () => {
     ws.value.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data)
+        if (data.type == 'heartbeat') {
+          return
+        }
         // 转换数据格式，添加友好的文本显示
         timestamp.value = data.timestamp || ''
         const formattedData = Object.values(data.data || {}).map(item => {
