@@ -568,6 +568,13 @@ const stopagv = async (agvcode = "", stop = false) => {
     message.error(data.message)
   }
 }
+const removeagv = async (agvcode = "") => {
+  const response = await fetch('/api/rcms/remove_agv_status?robot_id=' + agvcode, {
+    method: 'GET',
+  })
+  const data = await response.json()
+  message.error(data.message || JSON.stringify(data))
+}
 const mapinfo = ref([])
 const getmaplist = async () => {
   const response = await fetch('/api/rcms/maplist', {
@@ -673,7 +680,8 @@ const getmaplist = async () => {
                 <!-- 点击多少次切换背景（<0表示关闭背景） -->
                 <div style="display: flex; align-items: center; margin: 10px;">
                   <span style="margin-right: 10px;">点击次数</span>
-                  <NInputNumber v-model:value="clicktimes" style="width: 120px;" @update:value="saveClickTimes" button-placement="both"/>
+                  <NInputNumber v-model:value="clicktimes" style="width: 120px;" @update:value="saveClickTimes"
+                    button-placement="both" />
                   <span style="font-size: 12px; color: #999; margin-left: 8px;">点击切换背景次数< 1关闭</span>
                 </div>
               </NForm>
@@ -694,7 +702,7 @@ const getmaplist = async () => {
     <!-- 机器人详情抽屉 -->
     <NDrawer v-model:show="showDetailDrawer" placement="right" :width="drawerWidth" @close="closeDetailModal">
       <div v-if="selectedRobot" class="detail-drawer-content">
-        <h1 style="font-size: 24px; font-weight: bold; display: flex;">{{ selectedRobot.RobotId }}
+        <h1 style="font-size: 24px; font-weight: bold; display: flex;align-items: center">{{ selectedRobot.RobotId }}
           <span style="margin-left: 10px; position: relative; width: 40px; height: 40px; display: inline-block;">
             <img :src="robotImgUrl" style="width: 40px; height: 40px; transform: rotate(180deg);" alt="">
             <!-- 左下 (第1位) -->
@@ -711,6 +719,9 @@ const getmaplist = async () => {
               style="position: absolute; top: 11px; right: 8px; width: 8px; height: 8px;" alt="">
           </span>
           <span style="font-size: 14px; margin: 8px"> {{ timeage(selectedRobot.time * 1000) }} </span>
+          <NButton v-if="timeage(selectedRobot.time * 1000) !== ''" @click="removeagv(selectedRobot.RobotId)"
+            type="error"  dashed size="medium">移除
+          </NButton>
         </h1>
 
         <!-- 标签页 -->

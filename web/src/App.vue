@@ -15,6 +15,7 @@ import {
   NConfigProvider,
   NDialogProvider,
   NDropdown,
+  NGlobalStyle,
   NIcon,
   NMenu,
   NMessageProvider,
@@ -30,7 +31,6 @@ const darkMode = ref(localStorage.getItem('dark_mode') === 'true');
 
 onMounted(() => {
   document.documentElement.dataset.theme = darkMode.value ? 'dark' : 'light';
-  document.body.style.backgroundColor = darkMode.value ? '#141414' : '#f5f5f5';
   if (clicktimes.value > 0) {
     ribbon(clicktimes.value);
   }
@@ -38,7 +38,6 @@ onMounted(() => {
 
 watch(darkMode, (newVal) => {
   document.documentElement.dataset.theme = newVal ? 'dark' : 'light';
-  document.body.style.backgroundColor = newVal ? '#141414' : '#f5f5f5';
 });
 
 provide('darkMode', darkMode);
@@ -189,39 +188,40 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <n-message-provider>
-    <n-dialog-provider>
-      <n-config-provider :locale="zhCN" :date-locale="dateZhCN" :theme="theme">
-        <div>
-          <!-- 顶部导航 -->
-          <div class="top-nav">
-            <!-- 桌面端显示完整菜单 -->
-            <div v-if="!isMobile" class="desktop-menu">
-              <NMenu mode="horizontal" :options="menuOptions" :value="currentRoute" @update:value="handleUpdateValue"
-                style="height: 60px; line-height: 60px;align-items: center;" responsive :indent="18" />
-            </div>
-            <!-- 移动端显示汉堡菜单 -->
-            <div v-else class="mobile-menu">
-              <NDropdown trigger="click" :options="mobileMenuOptions" placement="bottom-start"
-                @select="handleMobileMenuSelect" :keyboard="true" :show-arrow="true">
-                <NButton quaternary circle>
-                  <NIcon :component="MenuOutlined" />
-                </NButton>
-              </NDropdown>
-            </div>
-          </div>
 
-          <!-- 主要内容区域 -->
-          <main id="main-content">
-            <router-view />
-            <canvas id="cbg" class="rib"
-              style="opacity: 0.6; position: fixed; top: 0px; left: 0px; z-index: -2; width: 100%; height: 70%; pointer-events: none;">
-            </canvas>
-          </main>
+  <n-config-provider :locale="zhCN" :date-locale="dateZhCN" :theme="theme">
+    <n-message-provider>
+      <n-dialog-provider>
+        <!-- 顶部导航 -->
+        <div class="top-nav">
+          <!-- 桌面端显示完整菜单 -->
+          <div v-if="!isMobile" class="desktop-menu">
+            <NMenu mode="horizontal" :options="menuOptions" :value="currentRoute" @update:value="handleUpdateValue"
+              style="height: 60px; line-height: 60px;align-items: center;" responsive :indent="18" />
+          </div>
+          <!-- 移动端显示汉堡菜单 -->
+          <div v-else class="mobile-menu">
+            <NDropdown trigger="click" :options="mobileMenuOptions" placement="bottom-start"
+              @select="handleMobileMenuSelect" :keyboard="true" :show-arrow="true">
+              <NButton quaternary circle>
+                <NIcon :component="MenuOutlined" />
+              </NButton>
+            </NDropdown>
+          </div>
         </div>
-      </n-config-provider>
-    </n-dialog-provider>
-  </n-message-provider>
+
+        <!-- 主要内容区域 -->
+        <main id="main-content">
+          <router-view />
+          <canvas id="cbg" class="rib"
+            style="opacity: 0.6; position: fixed; top: 0px; left: 0px; z-index: -2; width: 100%; height: 70%; pointer-events: none;">
+          </canvas>
+        </main>
+      </n-dialog-provider>
+    </n-message-provider>
+    <n-global-style />
+  </n-config-provider>
+
 
 </template>
 
