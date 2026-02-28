@@ -268,9 +268,13 @@ onMounted(() => {
     font-size: 20px;
     font-weight: 600;
     margin-bottom: 20px;
+}
+[data-theme="dark"] .task-query-title {
+    color: #fff;
+}
+[data-theme="light"] .task-query-title {
     color: #333;
 }
-
 .task-query-form {
     margin-bottom: 20px;
 }
@@ -307,8 +311,6 @@ onMounted(() => {
 }
 
 .error-message {
-    background-color: #fef0f0;
-    border: 1px solid #fbc4c4;
     color: #f56c6c;
     padding: 10px 15px;
     border-radius: 4px;
@@ -327,7 +329,6 @@ onMounted(() => {
     align-items: center;
     margin-bottom: 15px;
     font-size: 14px;
-    color: #606266;
 }
 
 /* 响应式设计 */

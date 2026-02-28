@@ -1,10 +1,11 @@
 <template>
-  <n-layout style="height: calc(100vh - 80px); display: flex; flex-direction: column; margin: 0 auto; max-width: 100%;">
+  <n-layout
+    style="height: calc(100vh - 80px); display: flex; flex-direction: column; margin: 0 auto; max-width: 100%; background-color: transparent;  backdrop-filter: blur(20px) saturate(1.3);">
 
 
     <!-- Scrollable Content Area -->
     <n-layout-content ref="messagesContainer"
-      style="overflow-y: auto; padding: 16px; background-color: #f9f9f9; flex: 1; margin-top: 0; margin-bottom: 0;">
+      style="overflow-y: auto; padding: 16px; flex: 1; margin-top: 0; margin-bottom: 0; background-color: transparent;">
       <div v-for="(group, groupIndex) in groupedMessages" :key="groupIndex" :style="{
         display: 'flex',
         alignItems: 'flex-start',
@@ -42,9 +43,9 @@
             textAlign: group.sender === getStoredNickname() ? 'right' : 'left',
             marginBottom: '4px',
             fontSize: '0.85em',
-            color: '#666'
+            color: 'var(--n-text-2)'
           }">
-            <span style="font-weight: bold; color: #333;">{{ group.sender }}</span>
+            <span style="font-weight: bold; color: var(--n-text-1);">{{ group.sender }}</span>
           </div>
 
           <!-- All messages in the group -->
@@ -56,8 +57,8 @@
             <div :style="{
               padding: '10px 14px',
               borderRadius: group.sender === getStoredNickname() ? '18px 4px 18px 18px' : '4px 18px 18px 18px',
-              backgroundColor: group.sender === getStoredNickname() ? '#9eea6a' : '#ffffff',
-              border: group.sender === getStoredNickname() ? 'none' : '1px solid #e0e0e0',
+              backgroundColor: group.sender === getStoredNickname() ? 'var(--n-success)' : 'var(--n-card)',
+              border: group.sender === getStoredNickname() ? 'none' : '1px solid var(--n-border)',
               boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
               wordWrap: 'break-word',
               wordBreak: 'break-word',
@@ -88,7 +89,7 @@
                 </div>
                 <!-- Other file types -->
                 <div v-else
-                  style="display: flex; flex-direction: column; padding: 12px; background: #f5f5f5; border-radius: 8px; cursor: pointer; max-width: 200px; border: 1px solid #e0e0e0;"
+                  style="display: flex; flex-direction: column; padding: 12px; background: var(--n-card); border-radius: 8px; cursor: pointer; max-width: 200px; border: 1px solid var(--n-border);"
                   @click="showFileDetails(message.file)">
                   <div style="display: flex; align-items: center;">
                     <n-icon size="24" style="margin-right: 8px; color: #1890ff;">
@@ -124,7 +125,7 @@
 
     <!-- Fixed Footer -->
     <n-layout-footer bordered
-      style="background: #fff; padding: 12px; position: sticky; bottom: 0; z-index: 100; flex-shrink: 0;">
+      style="background: var(--n-card); padding: 12px; position: sticky; bottom: 0; z-index: 100; flex-shrink: 0;">
       <n-input v-model:value="messageText" type="textarea" placeholder="输入消息..." :autosize="{ minRows: 2, maxRows: 4 }"
         @keydown.enter.prevent="handleEnterKey" style="margin-bottom: 12px;" />
 
@@ -132,7 +133,7 @@
         <div style="display: flex; align-items: center; gap: 8px;">
           <FileSelectorComponent @file-selected="handleFileSelectedFromSelector" @file-uploaded="handleFileUploaded" />
           <span v-if="selectedFile"
-            style="font-size: 0.9em; color: #666; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
+            style="font-size: 0.9em; color: var(--n-text-2); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">
             {{ selectedFile.name }}
           </span>
           <n-tag :type="connectionStatusColor" size="small">
@@ -540,10 +541,10 @@ function showNotification(data) {
   if (Notification.permission === 'granted') {
     // Create notification
     createNotification(data);
-  } 
+  }
   // If permission hasn't been granted, request it
   else if (Notification.permission !== 'denied') {
-    Notification.requestPermission().then(function(permission) {
+    Notification.requestPermission().then(function (permission) {
       if (permission === 'granted') {
         createNotification(data);
       }
@@ -579,9 +580,9 @@ function createNotification(data) {
 
   try {
     const notification = new Notification(title, notificationOptions);
-    
+
     // Add click handler to focus the window when notification is clicked
-    notification.onclick = function() {
+    notification.onclick = function () {
       window.focus();
       notification.close();
     };
@@ -595,7 +596,7 @@ function scrollToBottom() {
   if (messagesContainer.value?.el) {
     messagesContainer.value.el.scrollTop = messagesContainer.value.el.scrollHeight;
   }
-  document.querySelector(".n-layout-scroll-container").scrollTo(0,100011)
+  document.querySelector(".n-layout-scroll-container").scrollTo(0, 100011)
 }
 
 // Open image in modal

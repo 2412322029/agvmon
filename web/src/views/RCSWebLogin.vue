@@ -200,7 +200,6 @@ const loginWithConfigCredentials = async () => {
 <style scoped>
 .main-container {
   min-height: 100vh;
-  background-color: #f5f5f7;
   padding: 20px;
 }
 
@@ -208,7 +207,9 @@ const loginWithConfigCredentials = async () => {
   text-align: center;
   margin-bottom: 30px;
   font-size: 24px;
-  color: #333;
+}
+[data-theme="dark"] .page-title {
+  color: #fff;
 }
 
 .login-options {

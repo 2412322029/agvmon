@@ -1,11 +1,21 @@
 <script setup>
 import TaskDisplayComponent from '@/components/TaskDisplayComponent.vue'
 import SSHComponent from '@/components/ssh.vue'
-import { NButton, NCard, NDataTable, NDivider, NDrawer, NForm, NFormItem, NInput, NModal, NProgress, NRadioButton, NRadioGroup, NSpace, NSwitch, NTabPane, NTabs, NTag, NText, useLoadingBar, useMessage } from 'naive-ui'
-import { computed, h, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import {
+  NButton, NCard, NDataTable, NDivider, NDrawer, NForm, NFormItem, NInput,
+  NInputNumber,
+  NModal,
+  NProgress, NRadioButton, NRadioGroup,
+  NScrollbar,
+  NSpace, NSwitch, NTabPane, NTabs, NTag, NText, useLoadingBar, useMessage
+} from 'naive-ui'
+import { computed, h, inject, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 const robotImgUrl = computed(() => location.origin + '/api/robot_img/online.png')
 const robot_fullImgUrl = computed(() => location.origin + '/api/robot_img/full.png')
-
+const clicktimes = ref(Number(localStorage.getItem('clicktimes')) || 3);
+function saveClickTimes() {
+  localStorage.setItem('clicktimes', clicktimes.value);
+}
 // 解析滚筒状态码，返回4个位置的状态数组
 // 后4位从左到右：左下(1)、左上(2)、右下(3)、右上(4)
 const rollerPositions = computed(() => {
@@ -49,7 +59,7 @@ const tabsType = ref(localStorage.getItem('tabs_type') || 'segment')
 // 是否显示平均电量
 const showAvgBattery = ref(localStorage.getItem('show_avg_battery') !== 'false')
 const abnormal_e_offline = ref(localStorage.getItem('abnormal_e_offline') !== 'false')
-// 选中的机器人
+const darkMode = inject('darkMode', ref(localStorage.getItem('dark_mode') === 'true'))
 const selectedRobot = ref(null)
 const showDetailDrawer = ref(false)
 // 详情抽屉标签页状态
@@ -176,6 +186,13 @@ const saveShowAvgBattery = (value) => {
 const saveabnormal_e_offline = (value) => {
   localStorage.setItem('abnormal_e_offline', value)
 }
+const savedarkMode = (value) => {
+  localStorage.setItem('dark_mode', value)
+}
+
+watch(darkMode, (newVal) => {
+  document.documentElement.dataset.theme = newVal ? 'dark' : 'light'
+})
 
 
 // 提交异常记录
@@ -235,7 +252,7 @@ const timeage = (time) => {
 }
 
 const colored = (row) => {
-  let s = "black"
+  let s = "var(--n-text-color)"
   if (row.abnormal || row.status_code == 67 || (row.status && row.status.includes('异常'))) {
     s = "red"
   }
@@ -260,7 +277,7 @@ const columns = [
       return h('div', {
         class: 'robot-id-container',
         style: {
-          color: timeInfo ? "red" : "#000"
+          color: timeInfo ? "red" : "var(--n-text-color)"
         },
       }, { default: () => timeInfo ? `${row.RobotId}\n${timeInfo}` : row.RobotId })
     }
@@ -309,7 +326,7 @@ const columns = [
       if (batteryPercent <= 30) {
         color = "red"
       } else if (batteryPercent <= 80) {
-        color = `black`
+        color = `var(--n-text-color)`
       } else {
         color = `green`
       }
@@ -619,26 +636,37 @@ const stopagv = async (agvcode = "", stop = false) => {
     </div>
 
     <!-- 设置抽屉 -->
-    <NDrawer v-model:show="showSettingsDrawer" placement="bottom" :width="drawerWidth" @close="closeSettingsDrawer" default-height="50%">
-      <div class="settings-drawer-content">
-        <h1 style="font-size: 24px; font-weight: bold; margin-bottom: 20px;">页面设置</h1>
-        <NForm>
-          <NFormItem label="Tab类型">
-            <NRadioGroup v-model:value="tabsType" @update:value="saveTabsType">
-              <NRadioButton value="bar" type="primary">bar</NRadioButton>
-              <NRadioButton value="line">line</NRadioButton>
-              <NRadioButton value="card">card</NRadioButton>
-              <NRadioButton value="segment">segment</NRadioButton>
-            </NRadioGroup>
-          </NFormItem>
-          <NFormItem label="显示平均电量">
-            <NSwitch v-model:value="showAvgBattery" @update:value="saveShowAvgBattery" />
-          </NFormItem>
-          <NFormItem label="离线机器人不显示在异常和排除里面">
-            <NSwitch v-model:value="abnormal_e_offline" @update:value="saveabnormal_e_offline" />
-          </NFormItem>
-        </NForm>
-      </div>
+    <NDrawer v-model:show="showSettingsDrawer" placement="bottom" :width="drawerWidth" @close="closeSettingsDrawer"
+      resizable default-height="50%">
+      <n-scrollbar>
+        <div class="settings-drawer-content">
+          <h1 style="font-size: 24px; font-weight: bold; margin-bottom: 20px;">页面设置</h1>
+          <NForm>
+            <NFormItem label="Tab类型">
+              <NRadioGroup v-model:value="tabsType" @update:value="saveTabsType">
+                <NRadioButton value="bar" type="primary">bar</NRadioButton>
+                <NRadioButton value="line">line</NRadioButton>
+                <NRadioButton value="card">card</NRadioButton>
+                <NRadioButton value="segment">segment</NRadioButton>
+              </NRadioGroup>
+            </NFormItem>
+
+            <NFormItem label="显示平均电量">
+              <NSwitch v-model:value="showAvgBattery" @update:value="saveShowAvgBattery" />
+            </NFormItem>
+            <NFormItem label="离线机器人不显示在异常和排除里面">
+              <NSwitch v-model:value="abnormal_e_offline" @update:value="saveabnormal_e_offline" />
+            </NFormItem>
+            <NFormItem label="暗色">
+              <NSwitch v-model:value="darkMode" @update:value="savedarkMode" />
+            </NFormItem>
+            <NFormItem label="点击多少次切换背景（<0表示关闭背景）">
+              <NInputNumber v-model:value="clicktimes" @update:value="saveClickTimes" />
+            </NFormItem>
+          </NForm>
+        </div>
+
+      </n-scrollbar>
     </NDrawer>
 
     <!-- 机器人详情抽屉 -->
@@ -660,7 +688,7 @@ const stopagv = async (agvcode = "", stop = false) => {
             <img v-if="rollerPositions[3]" :src="robot_fullImgUrl"
               style="position: absolute; top: 11px; right: 8px; width: 8px; height: 8px;" alt="">
           </span>
-         <span style="font-size: 14px; margin: 8px"> {{ timeage(selectedRobot.time * 1000) }} </span>
+          <span style="font-size: 14px; margin: 8px"> {{ timeage(selectedRobot.time * 1000) }} </span>
         </h1>
 
         <!-- 标签页 -->
@@ -968,13 +996,13 @@ const stopagv = async (agvcode = "", stop = false) => {
 /* 主内容区域 */
 .main-container {
   min-height: 100vh;
-  background-color: #f5f5f7;
-  padding: 20px;
+  padding: 3px;
+  background-color: transparent !important;
 }
 
 @media (max-width: 768px) {
   .main-container {
-    padding: 10px;
+    padding: 5px;
   }
 
   /* 移动端表格样式优化 */
@@ -1104,5 +1132,82 @@ input[aria-hidden="true"] {
 
 .settings-drawer-content {
   padding: 12px;
+}
+
+/* 暗色模式样式 */
+[data-theme='dark'] .main-container {
+  background-color: #1f1f1f;
+}
+
+[data-theme='dark'] :deep(.n-card) {
+  background-color: #1f1f1f;
+  border: 1px solid #333;
+}
+
+[data-theme='dark'] :deep(.n-tabs__header) {
+  border-color: #333;
+}
+
+[data-theme='dark'] :deep(.n-tabs__tab) {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+[data-theme='dark'] :deep(.n-tabs__tab--active) {
+  color: #1890ff;
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+[data-theme='dark'] :deep(.n-data-table) {
+  background-color: #1f1f1f;
+}
+
+[data-theme='dark'] :deep(.n-table-th) {
+  background-color: #2a2a2a;
+  color: rgba(255, 255, 255, 0.8);
+  border-bottom: 1px solid #333;
+}
+
+[data-theme='dark'] :deep(.n-table-td) {
+  border-bottom: 1px solid #333;
+}
+
+[data-theme='dark'] :deep(.n-table-tr:hover) {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+[data-theme='dark'] .detail-section {
+  border-bottom: 1px solid #333;
+}
+
+[data-theme='dark'] .detail-section h4 {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+[data-theme='dark'] .detail-item .label {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+[data-theme='dark'] .detail-item .value {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+[data-theme='dark'] :deep(.n-drawer) {
+  background-color: #1f1f1f;
+}
+
+[data-theme='dark'] :deep(.n-drawer__header) {
+  border-bottom: 1px solid #333;
+}
+
+[data-theme='dark'] :deep(.n-drawer__title) {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+[data-theme='dark'] :deep(.n-form-item-label) {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+[data-theme='dark'] :deep(.n-drawer-content) {
+  color: rgba(255, 255, 255, 0.8);
 }
 </style>

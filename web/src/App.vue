@@ -1,5 +1,6 @@
 <script setup>
 import {
+  ApiOutlined,
   HomeOutlined,
   LinkOutlined,
   MenuOutlined,
@@ -7,7 +8,9 @@ import {
   ToolOutlined
 } from '@vicons/antd';
 import {
+  darkTheme,
   dateZhCN,
+  lightTheme,
   NButton,
   NConfigProvider,
   NDialogProvider,
@@ -15,14 +18,32 @@ import {
   NIcon,
   NMenu,
   NMessageProvider,
-  NSplit,
   zhCN
 } from 'naive-ui';
-import { computed, h, onMounted, onUnmounted, ref } from 'vue';
+import { computed, h, onMounted, onUnmounted, provide, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-
+import { ribbon } from './composables/ribbon';
 const router = useRouter();
 const route = useRoute();
+const clicktimes = ref(Number(localStorage.getItem('clicktimes')) || 3);
+const darkMode = ref(localStorage.getItem('dark_mode') === 'true');
+
+onMounted(() => {
+  document.documentElement.dataset.theme = darkMode.value ? 'dark' : 'light';
+  document.body.style.backgroundColor = darkMode.value ? '#141414' : '#f5f5f5';
+  if (clicktimes.value > 0) {
+    ribbon(clicktimes.value);
+  }
+});
+
+watch(darkMode, (newVal) => {
+  document.documentElement.dataset.theme = newVal ? 'dark' : 'light';
+  document.body.style.backgroundColor = newVal ? '#141414' : '#f5f5f5';
+});
+
+provide('darkMode', darkMode);
+
+const theme = computed(() => darkMode.value ? darkTheme : lightTheme);
 
 // Helper function to render icons
 const renderIcon = (icon) => {
@@ -40,7 +61,7 @@ const menuOptions = [
   {
     label: '系统管理',
     key: 'system',
-    icon: renderIcon(SettingOutlined),
+    icon: renderIcon(ApiOutlined),
     children: [
       {
         label: '服务管理',
@@ -107,6 +128,12 @@ const menuOptions = [
         onClick: () => router.push('/map')
       }
     ]
+  },
+  {
+    label: "设置",
+    key: "/setting",
+    icon: renderIcon(SettingOutlined),
+    onClick: () => router.push('/setting')
   }
 ];
 
@@ -146,7 +173,7 @@ const currentRoute = computed(() => route.path);
 
 // 更新窗口大小检测函数
 const updateIsMobile = () => {
-  isMobile.value = window.innerWidth < 992; // Changed breakpoint to 992px for better tablet support
+  isMobile.value = window.innerWidth < 992;
 };
 
 // 组件挂载时初始化
@@ -164,40 +191,79 @@ onUnmounted(() => {
 <template>
   <n-message-provider>
     <n-dialog-provider>
-      <n-config-provider :locale="zhCN" :date-locale="dateZhCN">
+      <n-config-provider :locale="zhCN" :date-locale="dateZhCN" :theme="theme">
         <div>
           <!-- 顶部导航 -->
-          <n-split :default-size="1">
-            <template #1>
-              <!-- 桌面端显示完整菜单 -->
-              <div v-if="!isMobile" class="desktop-menu">
-                <NMenu mode="horizontal" :options="menuOptions" :value="currentRoute" @update:value="handleUpdateValue"
-                  style="height: 60px; line-height: 60px;align-items: center;" responsive :indent="18" />
-              </div>
-              <!-- 移动端显示汉堡菜单 -->
-              <div v-else class="mobile-menu">
-                <NDropdown trigger="click" :options="mobileMenuOptions" placement="bottom-start"
-                  @select="handleMobileMenuSelect" :keyboard="true" :show-arrow="true">
-                  <NButton quaternary circle>
-                    <NIcon :component="MenuOutlined" />
-                  </NButton>
-                </NDropdown>
-              </div>
-            </template>
-          </n-split>
+          <div class="top-nav">
+            <!-- 桌面端显示完整菜单 -->
+            <div v-if="!isMobile" class="desktop-menu">
+              <NMenu mode="horizontal" :options="menuOptions" :value="currentRoute" @update:value="handleUpdateValue"
+                style="height: 60px; line-height: 60px;align-items: center;" responsive :indent="18" />
+            </div>
+            <!-- 移动端显示汉堡菜单 -->
+            <div v-else class="mobile-menu">
+              <NDropdown trigger="click" :options="mobileMenuOptions" placement="bottom-start"
+                @select="handleMobileMenuSelect" :keyboard="true" :show-arrow="true">
+                <NButton quaternary circle>
+                  <NIcon :component="MenuOutlined" />
+                </NButton>
+              </NDropdown>
+            </div>
+          </div>
 
           <!-- 主要内容区域 -->
-          <main style="padding: 3px; max-width: 1200px; margin: 0 auto;">
+          <main id="main-content">
             <router-view />
+            <canvas id="cbg" class="rib"
+              style="opacity: 0.6; position: fixed; top: 0px; left: 0px; z-index: -2; width: 100%; height: 70%; pointer-events: none;">
+            </canvas>
           </main>
         </div>
       </n-config-provider>
     </n-dialog-provider>
   </n-message-provider>
+
 </template>
 
 <style scoped>
 /* 全局样式 */
+#main-content {
+  padding: 3px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+@media (max-width: 992px) {
+  #main-content {
+    margin-top: 30px;
+  }
+}
+
+@media (min-width: 992px) {
+  #main-content {
+    margin-top: 60px;
+  }
+}
+
+.top-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  backdrop-filter: blur(20px) saturate(1.3);
+}
+
+[data-theme="dark"] .top-nav {
+  border-bottom: 1px solid #656565;
+  /* background-color: #070606; */
+}
+
+[data-theme="light"] .top-nav {
+  border-bottom: 1px solid #292929;
+  /* background-color: #656262; */
+}
+
 :deep(.n-menu) {
   background-color: transparent;
   border-bottom: none;
@@ -221,11 +287,11 @@ onUnmounted(() => {
 }
 
 /* Active/current route styling */
-:deep(.n-menu-item--selected) {
+/* :deep(.n-menu-item--selected) {
   background-color: rgba(0, 100, 255, 0.1) !important;
   color: #1890ff;
   font-weight: 600;
-}
+} */
 
 /* 移动端适配 */
 @media (max-width: 992px) {
@@ -266,15 +332,14 @@ onUnmounted(() => {
   align-items: center;
   justify-content: flex-end;
   /* 将按钮靠右对齐 */
-  height: 30px;
-  padding-right: 16px;
+  height: 40px;
+  padding-right: 30px;
   /* Increased padding for better spacing */
   transition: all 0.3s ease;
 }
 
 .desktop-menu {
   width: 100%;
-  padding: 0 16px;
 }
 
 /* 优化移动端下拉菜单样式 */

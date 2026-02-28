@@ -150,7 +150,6 @@ onBeforeUnmount(() => {
 <style scoped>
 .main-container {
   min-height: 100vh;
-  background-color: #f5f5f7;
   padding: 20px;
 }
 
