@@ -500,20 +500,7 @@ const tableRef = ref(null)
 // 生命周期钩子
 onMounted(() => {
   connectWebSocket()
-  // const savedSort = localStorage.getItem("table_sort")
-  // if (savedSort) {
-  //   try {
-  //     setTimeout(() => {
-  //       sortstate.value = JSON.parse(savedSort)
-  //       // console.log(sortstate.value, tableRef.value);
-  //       if (tableRef.value) {
-  //         tableRef.value.sort(sortstate.value)
-  //       }
-  //     }, 1000);
-  //   } catch (e) {
-  //     console.error('解析保存的排序状态失败', e)
-  //   }
-  // }
+  getmaplist()
 })
 
 onBeforeUnmount(() => {
@@ -581,16 +568,28 @@ const stopagv = async (agvcode = "", stop = false) => {
     message.error(data.message)
   }
 }
+const mapinfo = ref([])
+const getmaplist = async () => {
+  const response = await fetch('/api/rcms/maplist', {
+    method: 'GET',
+  })
+  const data = await response.json()
+  mapinfo.value = data
+  if (mapinfo.value?.length == 0) {
+    message.error("获取地图列表失败")
+  }
+}
 </script>
 
 <template>
   <div class="main-container">
     <!-- 主内容区域 -->
     <div class="main-content" :inert="showDetailDrawer">
-      <NCard title="AGV监控" :bordered="false" style="max-width: 1200px; margin: 0 auto;">
+      <NCard :title="mapinfo?.[0]?.name || 'AGV监控'" :bordered="false" style="max-width: 1200px; margin: 0 auto;">
         <template #header-extra>
           <NSpace>
             <NButton @click="openSettingsDrawer" :bordered="false">
+
               <template #icon>
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none"
                   stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -640,30 +639,53 @@ const stopagv = async (agvcode = "", stop = false) => {
       resizable default-height="50%">
       <n-scrollbar>
         <div class="settings-drawer-content">
-          <h1 style="font-size: 24px; font-weight: bold; margin-bottom: 20px;">页面设置</h1>
-          <NForm>
-            <NFormItem label="Tab类型">
-              <NRadioGroup v-model:value="tabsType" @update:value="saveTabsType">
-                <NRadioButton value="bar" type="primary">bar</NRadioButton>
-                <NRadioButton value="line">line</NRadioButton>
-                <NRadioButton value="card">card</NRadioButton>
-                <NRadioButton value="segment">segment</NRadioButton>
-              </NRadioGroup>
-            </NFormItem>
-
-            <NFormItem label="显示平均电量">
-              <NSwitch v-model:value="showAvgBattery" @update:value="saveShowAvgBattery" />
-            </NFormItem>
-            <NFormItem label="离线机器人不显示在异常和排除里面">
-              <NSwitch v-model:value="abnormal_e_offline" @update:value="saveabnormal_e_offline" />
-            </NFormItem>
-            <NFormItem label="暗色">
-              <NSwitch v-model:value="darkMode" @update:value="savedarkMode" />
-            </NFormItem>
-            <NFormItem label="点击多少次切换背景（<0表示关闭背景）">
-              <NInputNumber v-model:value="clicktimes" @update:value="saveClickTimes" />
-            </NFormItem>
-          </NForm>
+          <NTabs type="bar" style="margin-bottom: 20px;">
+            <NTabPane name="basic" tab="页面设置">
+              <NForm>
+                <NFormItem label="Tab类型" style="display: flex; align-items: center; margin: 10px;">
+                  <template #label>
+                    <span style="margin-right: 10px;">Tab类型 </span>
+                  </template>
+                  <NRadioGroup v-model:value="tabsType" @update:value="saveTabsType">
+                    <NRadioButton value="bar" type="primary">柱状</NRadioButton>
+                    <NRadioButton value="line">线条</NRadioButton>
+                    <NRadioButton value="card">卡片</NRadioButton>
+                    <NRadioButton value="segment">分段</NRadioButton>
+                  </NRadioGroup>
+                </NFormItem>
+                <!-- 显示平均电量 -->
+                <div style="display: flex; align-items: center; margin: 10px;">
+                  <span style="margin-right: 10px;">平均电量</span>
+                  <NSwitch v-model:value="showAvgBattery" @update:value="saveShowAvgBattery" />
+                  <span style="font-size: 12px; color: #999; margin-left: 8px;">显示所有机器人平均电量进度条</span>
+                </div>
+                <!-- 离线机器人不显示在异常和排除里面 -->
+                <div style="display: flex; align-items: center; margin: 10px;">
+                  <span style="margin-right: 10px;">排除离线</span>
+                  <NSwitch v-model:value="abnormal_e_offline" @update:value="saveabnormal_e_offline" />
+                  <span style="font-size: 12px; color: #999; margin-left: 8px;">离线机器人不显示在异常和排除标签页</span>
+                </div>
+                <div style="display: flex; align-items: center; margin: 10px;">
+                  <span style="margin-right: 10px;">暗色模式</span>
+                  <NSwitch v-model:value="darkMode" @update:value="savedarkMode" />
+                  <span style="font-size: 12px; color: #999; margin-left: 8px;">切换深色/浅色主题</span>
+                </div>
+                <!-- 点击多少次切换背景（<0表示关闭背景） -->
+                <div style="display: flex; align-items: center; margin: 10px;">
+                  <span style="margin-right: 10px;">点击次数</span>
+                  <NInputNumber v-model:value="clicktimes" style="width: 120px;" @update:value="saveClickTimes" button-placement="both"/>
+                  <span style="font-size: 12px; color: #999; margin-left: 8px;">点击切换背景次数< 1关闭</span>
+                </div>
+              </NForm>
+            </NTabPane>
+            <NTabPane name="map" tab="地图信息">
+              <div v-for="map in mapinfo" :key="map.name">
+                <NFormItem :label="map.name">
+                  <view-json>{{ JSON.stringify(map) }}</view-json>
+                </NFormItem>
+              </div>
+            </NTabPane>
+          </NTabs>
         </div>
 
       </n-scrollbar>
