@@ -11,6 +11,7 @@ import {
 } from 'naive-ui'
 import { computed, h, inject, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 const robotImgUrl = computed(() => location.origin + '/api/robot_img/online.png')
+const robotoffImgUrl = computed(() => location.origin + '/api/robot_img/offline.png')
 const robot_fullImgUrl = computed(() => location.origin + '/api/robot_img/full.png')
 const clicktimes = ref(Number(localStorage.getItem('clicktimes')) || 3);
 function saveClickTimes() {
@@ -238,16 +239,16 @@ const timeage = (time) => {
 
   // 定义时间单位
   if (diffSeconds < 60) {
-    return `离线${diffSeconds}s`
+    return `↓${diffSeconds}s`
   } else if (diffSeconds < 3600) {
     const minutes = Math.floor(diffSeconds / 60)
-    return `离线${minutes}分`
+    return `↓${minutes}m`
   } else if (diffSeconds < 86400) {
     const hours = Math.floor(diffSeconds / 3600)
-    return `离线${hours}小时`
+    return `↓${hours}h`
   } else {
     const days = Math.floor(diffSeconds / 86400)
-    return `离线${days}天`
+    return `↓${days}d`
   }
 }
 
@@ -704,7 +705,7 @@ const getmaplist = async () => {
       <div v-if="selectedRobot" class="detail-drawer-content">
         <h1 style="font-size: 24px; font-weight: bold; display: flex;align-items: center">{{ selectedRobot.RobotId }}
           <span style="margin-left: 10px; position: relative; width: 40px; height: 40px; display: inline-block;">
-            <img :src="robotImgUrl" style="width: 40px; height: 40px; transform: rotate(180deg);" alt="">
+            <img :src="timeage(selectedRobot.time * 1000) == '' ? robotImgUrl : robotoffImgUrl" style="width: 40px; height: 40px; transform: rotate(180deg);" alt="">
             <!-- 左下 (第1位) -->
             <img v-if="rollerPositions[0]" :src="robot_fullImgUrl"
               style="position: absolute; bottom: 8px; left:11px; width: 8px; height: 8px;" alt="">
@@ -720,138 +721,143 @@ const getmaplist = async () => {
           </span>
           <span style="font-size: 14px; margin: 8px"> {{ timeage(selectedRobot.time * 1000) }} </span>
           <NButton v-if="timeage(selectedRobot.time * 1000) !== ''" @click="removeagv(selectedRobot.RobotId)"
-            type="error"  dashed size="medium">移除
+            type="error" dashed size="medium">移除
           </NButton>
         </h1>
 
         <!-- 标签页 -->
         <NTabs v-model:value="detailActiveTab" type="card" style="margin: 20px 0;" @update:value="handleTabChange">
+
           <NTabPane name="info" tab="基本信息">
-            <div class="detail-section">
-              <h4>基本信息</h4>
-              <div class="detail-item">
-                <span class="label">IP地址:</span>
-                <span class="value">{{ selectedRobot.ip || '未知' }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="label">状态:</span>
-                <span class="value">{{ selectedRobot.status || '未知' }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="label">状态码:</span>
-                <span class="value">{{ selectedRobot.status_code || 0 }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="label">电量:</span>
-                <span class="value">{{ selectedRobot.battery || 0 }}%</span>
-              </div>
-              <div class="detail-item">
-                <span class="label">速度:</span>
-                <span class="value">{{ selectedRobot.speed || 0 }}mm/s</span>
-              </div>
-              <div class="detail-item">
-                <span class="label">地图代码:</span>
-                <span class="value">{{ selectedRobot.map_code || '未知' }}</span>
-              </div>
-            </div>
-            <div class="detail-section">
-              <h4>异常与报警</h4>
-              <div class="detail-item">
-                <span class="label">状态信息:</span>
-                <div class="value">
-                  <NSpace>
-                    <NTag :type="selectedRobot.abnormal ? 'error' : 'success'" size="small">
-                      异常: {{ selectedRobot.abnormal ? '是' : '否' }}
-                    </NTag>
-                    <NTag :type="selectedRobot.stop ? 'warning' : 'success'" size="small">
-                      停止: {{ selectedRobot.stop ? '是' : '否' }}
-                    </NTag>
-                    <NTag :type="selectedRobot.stay ? 'info' : 'success'" size="small">
-                      停留: {{ selectedRobot.stay ? '是' : '否' }}
-                    </NTag>
-                    <NTag :type="selectedRobot.remove ? 'info' : 'success'" size="small">
-                      排除: {{ selectedRobot.remove ? '是' : '否' }}
-                    </NTag>
-                  </NSpace>
+            <NScrollbar style="max-height: 78vh" trigger="none">
+              <div class="detail-section">
+                <h4>基本信息</h4>
+                <div class="detail-item">
+                  <span class="label">IP地址:</span>
+                  <span class="value">{{ selectedRobot.ip || '未知' }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="label">状态:</span>
+                  <span class="value">{{ selectedRobot.status || '未知' }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="label">状态码:</span>
+                  <span class="value">{{ selectedRobot.status_code || 0 }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="label">电量:</span>
+                  <span class="value">{{ selectedRobot.battery || 0 }}%</span>
+                </div>
+                <div class="detail-item">
+                  <span class="label">速度:</span>
+                  <span class="value">{{ selectedRobot.speed || 0 }}mm/s</span>
+                </div>
+                <div class="detail-item">
+                  <span class="label">地图代码:</span>
+                  <span class="value">{{ selectedRobot.map_code || '未知' }}</span>
                 </div>
               </div>
-              <div class="detail-item">
-                <span class="label">主报警名称:</span>
-                <span class="value">{{ selectedRobot.alarm?.main_name || '无' }}</span>
+              <div class="detail-section">
+                <h4>异常与报警</h4>
+                <div class="detail-item">
+                  <span class="label">状态信息:</span>
+                  <div class="value">
+                    <NSpace>
+                      <NTag :type="selectedRobot.abnormal ? 'error' : 'success'" size="small">
+                        异常: {{ selectedRobot.abnormal ? '是' : '否' }}
+                      </NTag>
+                      <NTag :type="selectedRobot.stop ? 'warning' : 'success'" size="small">
+                        停止: {{ selectedRobot.stop ? '是' : '否' }}
+                      </NTag>
+                      <NTag :type="selectedRobot.stay ? 'info' : 'success'" size="small">
+                        停留: {{ selectedRobot.stay ? '是' : '否' }}
+                      </NTag>
+                      <NTag :type="selectedRobot.remove ? 'info' : 'success'" size="small">
+                        排除: {{ selectedRobot.remove ? '是' : '否' }}
+                      </NTag>
+                    </NSpace>
+                  </div>
+                </div>
+                <div class="detail-item">
+                  <span class="label">主报警名称:</span>
+                  <span class="value">{{ selectedRobot.alarm?.main_name || '无' }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="label">子报警名称:</span>
+                  <span class="value">{{ selectedRobot.alarm?.sub_name || '无' }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="label">解决方案:</span>
+                  <span class="value">{{ selectedRobot.alarm?.solution || '无' }}</span>
+                </div>
+                <NSpace>
+                  <NButton @click="stopagv(selectedRobot.RobotId, stop = true)" type="error">停止</NButton>
+                  <NButton @click="stopagv(selectedRobot.RobotId, stop = false)" type="primary">恢复</NButton>
+                  <NButton @click="openAddExceptionModal" type="warning">添加异常记录</NButton>
+                </NSpace>
               </div>
-              <div class="detail-item">
-                <span class="label">子报警名称:</span>
-                <span class="value">{{ selectedRobot.alarm?.sub_name || '无' }}</span>
+              <div class="detail-section">
+                <h4>位置与方向</h4>
+                <div class="detail-item">
+                  <span class="label">位置:</span>
+                  <span class="value">{{ selectedRobot.position?.x || 0 }}，{{ selectedRobot.position?.y || 0 }}，{{
+                    selectedRobot.position?.h || 0 }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="label">方向:</span>
+                  <span class="value">{{ selectedRobot.direction || 0 }}°</span>
+                </div>
+                <div class="detail-item">
+                  <span class="label">目标距离:</span>
+                  <span class="value">{{ selectedRobot.tgt_distance || 0 }}mm</span>
+                </div>
               </div>
-              <div class="detail-item">
-                <span class="label">解决方案:</span>
-                <span class="value">{{ selectedRobot.alarm?.solution || '无' }}</span>
-              </div>
-              <NSpace>
-                <NButton @click="stopagv(selectedRobot.RobotId, stop = true)" type="error">停止</NButton>
-                <NButton @click="stopagv(selectedRobot.RobotId, stop = false)" type="primary">恢复</NButton>
-                <NButton @click="openAddExceptionModal" type="warning">添加异常记录</NButton>
-              </NSpace>
-            </div>
-            <div class="detail-section">
-              <h4>位置与方向</h4>
-              <div class="detail-item">
-                <span class="label">位置:</span>
-                <span class="value">{{ selectedRobot.position?.x || 0 }}，{{ selectedRobot.position?.y || 0 }}，{{
-                  selectedRobot.position?.h || 0 }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="label">方向:</span>
-                <span class="value">{{ selectedRobot.direction || 0 }}°</span>
-              </div>
-              <div class="detail-item">
-                <span class="label">目标距离:</span>
-                <span class="value">{{ selectedRobot.tgt_distance || 0 }}mm</span>
-              </div>
-            </div>
 
-            <div class="detail-section">
-              <h4>系统信息</h4>
-              <div class="detail-item">
-                <span class="label">版本:</span>
-                <span class="value">{{ selectedRobot.version || '未知' }} - {{ sshConfig.password }}</span>
+              <div class="detail-section">
+                <h4>系统信息</h4>
+                <div class="detail-item">
+                  <span class="label">版本:</span>
+                  <span class="value">{{ selectedRobot.version || '未知' }} - {{ sshConfig.password }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="label">滚筒状态码:</span>
+                  <span class="value">{{ selectedRobot.roller_status_code || 0 }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="label">POD ID:</span>
+                  <span class="value">{{ selectedRobot.pod?.id || '无' }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="label">POD绑定:</span>
+                  <span class="value">{{ selectedRobot.pod?.bind || 0 }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="label">时间:</span>
+                  <span class="value">{{ new Date(selectedRobot.time * 1000).toLocaleString() }}</span>
+                </div>
               </div>
-              <div class="detail-item">
-                <span class="label">滚筒状态码:</span>
-                <span class="value">{{ selectedRobot.roller_status_code || 0 }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="label">POD ID:</span>
-                <span class="value">{{ selectedRobot.pod?.id || '无' }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="label">POD绑定:</span>
-                <span class="value">{{ selectedRobot.pod?.bind || 0 }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="label">时间:</span>
-                <span class="value">{{ new Date(selectedRobot.time * 1000).toLocaleString() }}</span>
-              </div>
-            </div>
 
-            <div class="detail-section">
-              <h4>其他状态</h4>
-              <div class="detail-item">
-                <span class="label">是否变化:</span>
-                <span class="value">{{ selectedRobot.change ? '是' : '否' }}</span>
+              <div class="detail-section">
+                <h4>其他状态</h4>
+                <div class="detail-item">
+                  <span class="label">是否变化:</span>
+                  <span class="value">{{ selectedRobot.change ? '是' : '否' }}</span>
+                </div>
               </div>
-            </div>
 
-            <div class="detail-section">
-              <h4>完整数据</h4>
-              <!-- <pre class="pre" style="max-height: 200px; overflow-y: auto;"> -->
-              <view-json>{{ JSON.stringify(selectedRobot, null, 2) }}</view-json>
-              <!-- </pre> -->
-            </div>
+              <div class="detail-section">
+                <h4>完整数据</h4>
+                <!-- <pre class="pre" style="max-height: 200px; overflow-y: auto;"> -->
+                <view-json>{{ JSON.stringify(selectedRobot, null, 2) }}</view-json>
+                <!-- </pre> -->
+              </div>
+            </NScrollbar>
           </NTabPane>
           <NTabPane name="tasks" tab="任务查询">
-            <TaskDisplayComponent :robot-code="selectedRobot.RobotId" :taskStatus="2" :show-query-params="false"
-              :show-details="false" />
+            <NScrollbar style="max-height: 78vh" trigger="none">
+              <TaskDisplayComponent :robot-code="selectedRobot.RobotId" :taskStatus="2" :show-query-params="false"
+                :show-details="false" />
+            </NScrollbar>
           </NTabPane>
           <NTabPane name="files" tab="文件列表">
             <div class="ssh-panel">
@@ -859,6 +865,7 @@ const getmaplist = async () => {
                 :defaultPassword="sshConfig.password" :showInput="false" :autoConnect="true" />
             </div>
           </NTabPane>
+
         </NTabs>
       </div>
     </NDrawer>

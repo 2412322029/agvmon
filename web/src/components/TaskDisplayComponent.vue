@@ -1,5 +1,5 @@
 <script setup>
-import { NBadge, NButton, NCard, NH3, NModal, NSpin, NTable, NTag, useDialog, useMessage } from 'naive-ui';
+import { NBadge, NButton, NCard, NH3, NModal, NSpin, NTable, NTag, useDialog, useMessage, NScrollbar } from 'naive-ui';
 import { computed, ref, watch } from 'vue';
 import xmlFormat from 'xml-formatter';
 const dialog = useDialog()
@@ -144,7 +144,7 @@ const getStatusType = (status) => {
         '0': 'warning',  // 待分配
         '1': 'info',     // 已分配
         '2': 'success',  // 正在执行
-        '3': 'default',  // 执行完成
+        '3': 'primary',  // 执行完成
         '4': 'error',    // 执行失败
         '5': 'default'   // 已取消
     }
@@ -453,7 +453,24 @@ const performSoftCancel = async () => {
 
 
 };
-
+//2026-01-21 01:20:22
+function timeAgo(timestamp) {
+    if (!timestamp) {
+        return '';
+    }
+    const now = new Date();
+    const taskTime = new Date(timestamp);
+    const diff = now - taskTime;
+    const diffMinutes = Math.floor(diff / (1000 * 60));
+    if (diffMinutes < 1) {
+        return '刚刚';
+    } else if (diffMinutes < 120) {
+        return `${diffMinutes} 分钟前`;
+    } else {
+        const diffHours = Math.floor(diff / (1000 * 60 * 60));
+        return `${diffHours} 小时前`;
+    }
+}
 </script>
 
 <template>
@@ -481,9 +498,10 @@ const performSoftCancel = async () => {
                             </td>
                             <td>{{ task.robotCode || '-' }}</td>
                             <td>
-                                <NBadge :type="getStatusType(task.taskStatus?.toString())"
-                                    :value="task.taskStatusStr || getTaskStatusText(task.taskStatus?.toString())" round
-                                    @click="showTaskDetail(task)" style="cursor: pointer;" />
+                                <NTag :type="getStatusType(task.taskStatus?.toString())" @click="showTaskDetail(task)"
+                                    style="cursor: pointer;" :bordered="false">
+                                    {{ task.taskStatusStr || getTaskStatusText(task.taskStatus?.toString()) }}
+                                </NTag>
                             </td>
                         </tr>
 
@@ -493,7 +511,14 @@ const performSoftCancel = async () => {
                                 <div class="sub-task-expanded">
                                     <NCard size="small" :bordered="false" class="sub-task-card">
                                         <template #header>
-                                            <NH3 prefix="bar" style="margin: 0;">子任务流程</NH3>
+                                            <NH3 prefix="bar" style="margin: 0;">
+                                                <span style="font-size: 12px;">SubTask
+                                                    <n-tag size="small">{{ task.srcEqName.replace('MF', '') }}</n-tag>
+                                                    to <n-tag size="small">{{ task.desEqName.replace('MF', '')
+                                                    }}</n-tag>
+                                                </span>
+
+                                            </NH3>
                                         </template>
 
                                         <NSpin :show="subTasksLoading[task.tranTaskNum || task.taskId || '']">
@@ -513,7 +538,9 @@ const performSoftCancel = async () => {
                                                             </NTag>
                                                         </div>
 
-                                                        <div class="task-num">{{ subTask.subTaskNum || '' }}</div>
+                                                        <div class="task-num">{{ timeAgo(subTask.dateCr) || '' }}~{{
+                                                            timeAgo(subTask.dateChg) || '' }}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </div>
@@ -544,189 +571,190 @@ const performSoftCancel = async () => {
         <NModal v-model:show="showModal" :mask-closable="true" :close-on-esc="true" preset="card"
             :title="selectedTask?.subTaskNum ? '子任务详情' : '任务详情'"
             :style="{ width: '90%', maxWidth: '840px', maxHeight: '80vh' }">
-            <div v-if="selectedTask" class="task-detail-content">
-                <div class="detail-grid">
-                    <!-- 主任务特有字段 -->
-                    <div v-if="!selectedTask.subTaskNum" class="detail-item">
-                        <div class="detail-label">任务ID:</div>
-                        <div class="detail-value">{{ selectedTask.tranTaskNum || selectedTask.taskId || '-' }}</div>
-                    </div>
-                    <div v-if="!selectedTask.subTaskNum" class="detail-item">
-                        <div class="detail-label">任务类型:</div>
-                        <div class="detail-value">{{ selectedTask.taskTyp || '-' }}</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">任务状态:</div>
-                        <div class="detail-value">
-                            <NBadge :type="getStatusType(selectedTask.taskStatus?.toString())"
-                                :value="selectedTask.taskStatusStr || getTaskStatusText(selectedTask.taskStatus?.toString())"
-                                round />
+            <NScrollbar style="height: 60vh;">
+                <div v-if="selectedTask" class="task-detail-content">
+                    <div class="detail-grid">
+                        <!-- 主任务特有字段 -->
+                        <div v-if="!selectedTask.subTaskNum" class="detail-item">
+                            <div class="detail-label">任务ID:</div>
+                            <div class="detail-value">{{ selectedTask.tranTaskNum || selectedTask.taskId || '-' }}</div>
+                        </div>
+                        <div v-if="!selectedTask.subTaskNum" class="detail-item">
+                            <div class="detail-label">任务类型:</div>
+                            <div class="detail-value">{{ selectedTask.taskTyp || '-' }}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">任务状态:</div>
+                            <div class="detail-value">
+                                <NTag :type="getStatusType(selectedTask.taskStatus?.toString())"
+                                    :bordered="false" >{{ selectedTask.taskStatusStr || getTaskStatusText(selectedTask.taskStatus?.toString()) }}</NTag>
+                            </div>
+                        </div>
+
+                        <!-- 主任务特有字段 -->
+                        <div v-if="!selectedTask.subTaskNum" class="detail-item">
+                            <div class="detail-label">载体ID:</div>
+                            <div class="detail-value">{{ selectedTask.carrierId || '-' }}</div>
+                        </div>
+
+                        <div v-if="!selectedTask.subTaskNum" class="detail-item">
+                            <div class="detail-label">源设备名称:</div>
+                            <div class="detail-value">{{ selectedTask.srcEqName || '-' }}</div>
+                        </div>
+                        <div v-if="!selectedTask.subTaskNum" class="detail-item">
+                            <div class="detail-label">目标设备名称:</div>
+                            <div class="detail-value">{{ selectedTask.desEqName || '-' }}</div>
+                        </div>
+                        <div v-if="!selectedTask.subTaskNum" class="detail-item">
+                            <div class="detail-label">用户呼叫码:</div>
+                            <div class="detail-value">{{ selectedTask.userCallCode || '-' }}</div>
+                        </div>
+                        <div v-if="!selectedTask.subTaskNum" class="detail-item">
+                            <div class="detail-label">用户名:</div>
+                            <div class="detail-value">{{ selectedTask.uname || '-' }}</div>
+                        </div>
+                        <div v-if="!selectedTask.subTaskNum" class="detail-item">
+                            <div class="detail-label">upDown:</div>
+                            <div class="detail-value">{{ selectedTask.upDown || '-' }}</div>
+                        </div>
+                        <div v-if="!selectedTask.subTaskNum" class="detail-item">
+                            <div class="detail-label">工作站代码:</div>
+                            <div class="detail-value">{{ selectedTask.wbCode || '-' }}</div>
+                        </div>
+                        <div v-if="!selectedTask.subTaskNum" class="detail-item">
+                            <div class="detail-label">容器代码:</div>
+                            <div class="detail-value">{{ selectedTask.ctnrCode || '-' }}</div>
+                        </div>
+
+                        <div class="detail-item">
+                            <div class="detail-label">机器人代码:</div>
+                            <div class="detail-value">{{ selectedTask.robotCode || '-' }}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">创建时间:</div>
+                            <div class="detail-value">{{ selectedTask.dateCr || '-' }}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">修改时间:</div>
+                            <div class="detail-value">{{ selectedTask.dateChg || '-' }}</div>
+                        </div>
+
+                        <!-- 子任务特有字段 -->
+                        <div v-if="selectedTask.subTaskNum" class="detail-item">
+                            <div class="detail-label">子任务编号:</div>
+                            <div class="detail-value">{{ selectedTask.subTaskNum || '-' }}</div>
+                        </div>
+                        <div v-if="selectedTask.subTaskNum" class="detail-item">
+                            <div class="detail-label">子任务序号:</div>
+                            <div class="detail-value">{{ selectedTask.subTaskSeq || '-' }}</div>
+                        </div>
+                        <div v-if="selectedTask.mainTaskNum" class="detail-item">
+                            <div class="detail-label">主任务编号:</div>
+                            <div class="detail-value">{{ selectedTask.mainTaskNum || '-' }}</div>
+                        </div>
+                        <div v-if="selectedTask.mapCode" class="detail-item">
+                            <div class="detail-label">chgRobDate:</div>
+                            <div class="detail-value">{{ selectedTask.chgRobDate || '-' }}</div>
+                        </div>
+                        <div v-if="selectedTask.startX !== undefined" class="detail-item">
+                            <div class="detail-label">起点X坐标:</div>
+                            <div class="detail-value">{{ selectedTask.startX || '-' }}</div>
+                        </div>
+                        <div v-if="selectedTask.startY !== undefined" class="detail-item">
+                            <div class="detail-label">起点Y坐标:</div>
+                            <div class="detail-value">{{ selectedTask.startY || '-' }}</div>
+                        </div>
+                        <div v-if="selectedTask.endX !== undefined" class="detail-item">
+                            <div class="detail-label">终点X坐标:</div>
+                            <div class="detail-value">{{ selectedTask.endX || '-' }}</div>
+                        </div>
+                        <div v-if="selectedTask.endY !== undefined" class="detail-item">
+                            <div class="detail-label">终点Y坐标:</div>
+                            <div class="detail-value">{{ selectedTask.endY || '-' }}</div>
+                        </div>
+                        <div v-if="selectedTask.podTyp" class="detail-item">
+                            <div class="detail-label">Pod类型:</div>
+                            <div class="detail-value">{{ selectedTask.podTyp || '-' }}</div>
+                        </div>
+                        <div v-if="selectedTask.priority" class="detail-item">
+                            <div class="detail-label">优先级:</div>
+                            <div class="detail-value">{{ selectedTask.priority || '-' }}</div>
+                        </div>
+                        <div v-if="selectedTask.groupFlag !== undefined" class="detail-item">
+                            <div class="detail-label">组标志:</div>
+                            <div class="detail-value">{{ selectedTask.groupFlag || '-' }}</div>
+                        </div>
+                        <div v-if="selectedTask.needConfirm" class="detail-item">
+                            <div class="detail-label">需要确认:</div>
+                            <div class="detail-value">{{ selectedTask.needConfirm || '-' }}</div>
+                        </div>
+                        <div v-if="selectedTask.needTrigger" class="detail-item">
+                            <div class="detail-label">需要触发:</div>
+                            <div class="detail-value">{{ selectedTask.needTrigger || '-' }}</div>
+                        </div>
+                        <div v-if="selectedTask.loopExec" class="detail-item">
+                            <div class="detail-label">循环执行:</div>
+                            <div class="detail-value">{{ selectedTask.loopExec || '-' }}</div>
+                        </div>
+                        <div v-if="selectedTask.thirdTyp" class="detail-item">
+                            <div class="detail-label">第三方类型:</div>
+                            <div class="detail-value">{{ selectedTask.thirdTyp || '-' }}</div>
+                        </div>
+                        <div v-if="selectedTask.thirdMethod" class="detail-item">
+                            <div class="detail-label">第三方方法:</div>
+                            <div class="detail-value">{{ selectedTask.thirdMethod || '-' }}</div>
+                        </div>
+                        <div v-if="selectedTask.thirdUrl" class="detail-item">
+                            <div class="detail-label">第三方URL:</div>
+                            <div class="detail-value">{{ selectedTask.thirdUrl || '-' }}</div>
+                        </div>
+                        <div v-if="selectedTask.wbCodeName" class="detail-item">
+                            <div class="detail-label">工作台名称:</div>
+                            <div class="detail-value">{{ selectedTask.wbCodeName || '-' }}</div>
+                        </div>
+
+                        <div v-if="selectedTask.dstMapCode" class="detail-item">
+                            <div class="detail-label">via:</div>
+                            <div class="detail-value">{{ selectedTask.via || '-' }}</div>
+                        </div>
+                        <div v-if="selectedTask.taskTypCode" class="detail-item">
+                            <div class="detail-label">任务类型代码:</div>
+                            <div class="detail-value">{{ selectedTask.taskTypCode || '-' }}</div>
+                        </div>
+                        <!-- 任务消息字段 -->
+                        <div v-if="selectedTask.taskMsg" class="detail-item full-width">
+                            <div class="detail-label">任务消息:</div>
+                            <div class="detail-value xml-content">
+                                <pre class="xml-pre"><code>{{ safeXmlFormat(selectedTask.taskMsg || '') }}</code></pre>
+                            </div>
+                        </div>
+                        <!-- 添加软取消按钮 -->
+                        <div v-if="!selectedTask?.subTaskNum && selectedTask" class="soft-cancel-button detail-item">
+                            <n-button type="warning" @click="performSoftCancel"
+                                :disabled="selectedTask?.taskStatus === '3' || selectedTask?.taskStatus === '5' || softCancelLoading"
+                                :loading="softCancelLoading" style="margin: 2px;">
+                                {{ softCancelLoading ? '取消中...' : '软取消任务' }}
+                            </n-button>
+                        </div>
+                        <div v-if="!selectedTask?.subTaskNum && selectedTask" class="soft-cancel-button detail-item">
+                            <n-button type="error" @click="forceCancelTask"
+                                :disabled="selectedTask?.taskStatus === '3' || selectedTask?.taskStatus === '5'"
+                                :loading="fCancelLoading" style="margin-top: 50px;">
+                                {{ fCancelLoading ? '取消中...' : '硬取消任务' }}
+                            </n-button>
+                        </div>
+
+                        <div v-if="!selectedTask?.subTaskNum && selectedTask" class="soft-cancel-button detail-item">
+                            <n-button type="error" @click="resumeAction"
+                                :disabled="selectedTask?.taskStatus === '3' || selectedTask?.taskStatus === '5'"
+                                :loading="fCancelLoading" style="margin-top: 50px;">
+                                {{ fCancelLoading ? '...' : '滚动暂停恢复' }}
+                            </n-button>
                         </div>
                     </div>
 
-                    <!-- 主任务特有字段 -->
-                    <div v-if="!selectedTask.subTaskNum" class="detail-item">
-                        <div class="detail-label">载体ID:</div>
-                        <div class="detail-value">{{ selectedTask.carrierId || '-' }}</div>
-                    </div>
-
-                    <div v-if="!selectedTask.subTaskNum" class="detail-item">
-                        <div class="detail-label">源设备名称:</div>
-                        <div class="detail-value">{{ selectedTask.srcEqName || '-' }}</div>
-                    </div>
-                    <div v-if="!selectedTask.subTaskNum" class="detail-item">
-                        <div class="detail-label">目标设备名称:</div>
-                        <div class="detail-value">{{ selectedTask.desEqName || '-' }}</div>
-                    </div>
-                    <div v-if="!selectedTask.subTaskNum" class="detail-item">
-                        <div class="detail-label">用户呼叫码:</div>
-                        <div class="detail-value">{{ selectedTask.userCallCode || '-' }}</div>
-                    </div>
-                    <div v-if="!selectedTask.subTaskNum" class="detail-item">
-                        <div class="detail-label">用户名:</div>
-                        <div class="detail-value">{{ selectedTask.uname || '-' }}</div>
-                    </div>
-                    <div v-if="!selectedTask.subTaskNum" class="detail-item">
-                        <div class="detail-label">upDown:</div>
-                        <div class="detail-value">{{ selectedTask.upDown || '-' }}</div>
-                    </div>
-                    <div v-if="!selectedTask.subTaskNum" class="detail-item">
-                        <div class="detail-label">工作站代码:</div>
-                        <div class="detail-value">{{ selectedTask.wbCode || '-' }}</div>
-                    </div>
-                    <div v-if="!selectedTask.subTaskNum" class="detail-item">
-                        <div class="detail-label">容器代码:</div>
-                        <div class="detail-value">{{ selectedTask.ctnrCode || '-' }}</div>
-                    </div>
-
-                    <div class="detail-item">
-                        <div class="detail-label">机器人代码:</div>
-                        <div class="detail-value">{{ selectedTask.robotCode || '-' }}</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">创建时间:</div>
-                        <div class="detail-value">{{ selectedTask.dateCr || '-' }}</div>
-                    </div>
-                    <div class="detail-item">
-                        <div class="detail-label">修改时间:</div>
-                        <div class="detail-value">{{ selectedTask.dateChg || '-' }}</div>
-                    </div>
-
-                    <!-- 子任务特有字段 -->
-                    <div v-if="selectedTask.subTaskNum" class="detail-item">
-                        <div class="detail-label">子任务编号:</div>
-                        <div class="detail-value">{{ selectedTask.subTaskNum || '-' }}</div>
-                    </div>
-                    <div v-if="selectedTask.subTaskNum" class="detail-item">
-                        <div class="detail-label">子任务序号:</div>
-                        <div class="detail-value">{{ selectedTask.subTaskSeq || '-' }}</div>
-                    </div>
-                    <div v-if="selectedTask.mainTaskNum" class="detail-item">
-                        <div class="detail-label">主任务编号:</div>
-                        <div class="detail-value">{{ selectedTask.mainTaskNum || '-' }}</div>
-                    </div>
-                    <div v-if="selectedTask.mapCode" class="detail-item">
-                        <div class="detail-label">chgRobDate:</div>
-                        <div class="detail-value">{{ selectedTask.chgRobDate || '-' }}</div>
-                    </div>
-                    <div v-if="selectedTask.startX !== undefined" class="detail-item">
-                        <div class="detail-label">起点X坐标:</div>
-                        <div class="detail-value">{{ selectedTask.startX || '-' }}</div>
-                    </div>
-                    <div v-if="selectedTask.startY !== undefined" class="detail-item">
-                        <div class="detail-label">起点Y坐标:</div>
-                        <div class="detail-value">{{ selectedTask.startY || '-' }}</div>
-                    </div>
-                    <div v-if="selectedTask.endX !== undefined" class="detail-item">
-                        <div class="detail-label">终点X坐标:</div>
-                        <div class="detail-value">{{ selectedTask.endX || '-' }}</div>
-                    </div>
-                    <div v-if="selectedTask.endY !== undefined" class="detail-item">
-                        <div class="detail-label">终点Y坐标:</div>
-                        <div class="detail-value">{{ selectedTask.endY || '-' }}</div>
-                    </div>
-                    <div v-if="selectedTask.podTyp" class="detail-item">
-                        <div class="detail-label">Pod类型:</div>
-                        <div class="detail-value">{{ selectedTask.podTyp || '-' }}</div>
-                    </div>
-                    <div v-if="selectedTask.priority" class="detail-item">
-                        <div class="detail-label">优先级:</div>
-                        <div class="detail-value">{{ selectedTask.priority || '-' }}</div>
-                    </div>
-                    <div v-if="selectedTask.groupFlag !== undefined" class="detail-item">
-                        <div class="detail-label">组标志:</div>
-                        <div class="detail-value">{{ selectedTask.groupFlag || '-' }}</div>
-                    </div>
-                    <div v-if="selectedTask.needConfirm" class="detail-item">
-                        <div class="detail-label">需要确认:</div>
-                        <div class="detail-value">{{ selectedTask.needConfirm || '-' }}</div>
-                    </div>
-                    <div v-if="selectedTask.needTrigger" class="detail-item">
-                        <div class="detail-label">需要触发:</div>
-                        <div class="detail-value">{{ selectedTask.needTrigger || '-' }}</div>
-                    </div>
-                    <div v-if="selectedTask.loopExec" class="detail-item">
-                        <div class="detail-label">循环执行:</div>
-                        <div class="detail-value">{{ selectedTask.loopExec || '-' }}</div>
-                    </div>
-                    <div v-if="selectedTask.thirdTyp" class="detail-item">
-                        <div class="detail-label">第三方类型:</div>
-                        <div class="detail-value">{{ selectedTask.thirdTyp || '-' }}</div>
-                    </div>
-                    <div v-if="selectedTask.thirdMethod" class="detail-item">
-                        <div class="detail-label">第三方方法:</div>
-                        <div class="detail-value">{{ selectedTask.thirdMethod || '-' }}</div>
-                    </div>
-                    <div v-if="selectedTask.thirdUrl" class="detail-item">
-                        <div class="detail-label">第三方URL:</div>
-                        <div class="detail-value">{{ selectedTask.thirdUrl || '-' }}</div>
-                    </div>
-                    <div v-if="selectedTask.wbCodeName" class="detail-item">
-                        <div class="detail-label">工作台名称:</div>
-                        <div class="detail-value">{{ selectedTask.wbCodeName || '-' }}</div>
-                    </div>
-
-                    <div v-if="selectedTask.dstMapCode" class="detail-item">
-                        <div class="detail-label">via:</div>
-                        <div class="detail-value">{{ selectedTask.via || '-' }}</div>
-                    </div>
-                    <div v-if="selectedTask.taskTypCode" class="detail-item">
-                        <div class="detail-label">任务类型代码:</div>
-                        <div class="detail-value">{{ selectedTask.taskTypCode || '-' }}</div>
-                    </div>
-                    <!-- 任务消息字段 -->
-                    <div v-if="selectedTask.taskMsg" class="detail-item full-width">
-                        <div class="detail-label">任务消息:</div>
-                        <div class="detail-value xml-content">
-                            <pre class="xml-pre"><code>{{ safeXmlFormat(selectedTask.taskMsg || '') }}</code></pre>
-                        </div>
-                    </div>
-                    <!-- 添加软取消按钮 -->
-                    <div v-if="!selectedTask?.subTaskNum && selectedTask" class="soft-cancel-button detail-item">
-                        <n-button type="warning" @click="performSoftCancel"
-                            :disabled="selectedTask?.taskStatus === '3' || selectedTask?.taskStatus === '5' || softCancelLoading"
-                            :loading="softCancelLoading" style="margin: 2px;">
-                            {{ softCancelLoading ? '取消中...' : '软取消任务' }}
-                        </n-button>
-                    </div>
-                    <div v-if="!selectedTask?.subTaskNum && selectedTask" class="soft-cancel-button detail-item">
-                        <n-button type="error" @click="forceCancelTask"
-                            :disabled="selectedTask?.taskStatus === '3' || selectedTask?.taskStatus === '5'"
-                            :loading="fCancelLoading" style="margin-top: 100px;">
-                            {{ fCancelLoading ? '取消中...' : '硬取消任务' }}
-                        </n-button>
-                    </div>
-
-                     <div class="soft-cancel-button detail-item">
-                        <n-button type="error" @click="resumeAction"
-                            :disabled="selectedTask?.taskStatus === '3' || selectedTask?.taskStatus === '5'"
-                            :loading="fCancelLoading" style="margin-top: 100px;">
-                            {{ fCancelLoading ? '...' : '滚动暂停恢复' }}
-                        </n-button>
-                    </div>
                 </div>
-
-            </div>
+            </NScrollbar>
         </NModal>
     </div>
 </template>
@@ -740,7 +768,6 @@ const performSoftCancel = async () => {
 }
 
 .expand-toggle.collapsed {
-    color: #999;
     /* 灰色表示未展开 */
     transform: rotate(0deg);
     /* 确保箭头向右 */
@@ -796,20 +823,17 @@ const performSoftCancel = async () => {
 
 .detail-label {
     font-weight: 500;
-    color: #606266;
     font-size: 13px;
     margin-bottom: 4px;
 }
 
 .detail-value {
-    color: #303133;
     font-size: 14px;
     word-break: break-all;
 }
 
 .sub-task-cell {
     padding: 0 !important;
-    background-color: #f9f9f9;
 }
 
 .sub-task-expanded {
@@ -827,7 +851,6 @@ const performSoftCancel = async () => {
 
 .no-sub-tasks {
     text-align: center;
-    color: #909399;
     padding: 20px 0;
     font-style: italic;
 }
@@ -836,21 +859,28 @@ const performSoftCancel = async () => {
 .vertical-timeline {
     display: flex;
     flex-direction: column;
-    padding: 10px 0;
+    padding: 5px 0;
     gap: 10px;
 }
 
 .timeline-item-vertical {
     display: flex;
     flex-direction: column;
-    background: #fff;
-    border: 1px solid #e4e7ed;
+    /* border: 1px solid #e4e7ed; */
     border-radius: 4px;
-    padding: 10px;
+    padding: 5px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     cursor: pointer;
     transition: transform 0.2s ease, box-shadow 0.2s ease;
     position: relative;
+}
+
+[data-theme="dark"] .timeline-item-vertical {
+    border: 1px solid #303030;
+}
+
+[data-theme="light"] .timeline-item-vertical {
+    border: 1px solid #e4e7ed;
 }
 
 .timeline-item-vertical:hover {
@@ -873,12 +903,10 @@ const performSoftCancel = async () => {
 .task-type {
     font-weight: 550;
     margin-bottom: 5px;
-    color: #303133;
 }
 
 .task-num {
     font-size: 12px;
-    color: #909399;
     margin-top: 3px;
 }
 
@@ -895,12 +923,10 @@ const performSoftCancel = async () => {
     transform: translateX(-50%);
     width: 2px;
     height: 20px;
-    background-color: #dcdfe6;
 }
 
 .task-detail-content {
     overflow-y: auto;
-    max-height: 70vh;
 }
 
 /* 任务消息XML显示样式 */
@@ -910,11 +936,8 @@ const performSoftCancel = async () => {
 }
 
 .xml-content {
-    background-color: #f8f8f8;
-    border: 1px solid #ddd;
     border-radius: 4px;
     padding: 10px;
-    /* max-height: 300px; */
     overflow: auto;
     width: 90%;
 }
@@ -927,7 +950,6 @@ const performSoftCancel = async () => {
     font-family: 'Monaco', 'Consolas', 'Courier New', monospace;
     font-size: 12px;
     line-height: 1.4;
-    color: #333;
     tab-size: 4;
     /* 确保tab缩进正确显示 */
 }
