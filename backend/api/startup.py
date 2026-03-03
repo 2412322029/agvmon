@@ -22,8 +22,7 @@ def setup_startup_event(app: FastAPI):
         rdstag = get_rdstag()
         asyncio.create_task(broadcast_robot_status(r, rdstag))
         # 启动ZeroMQ管理任务
-        print(f"cfg.get('zmq_auto'): {cfg.get('zmq_auto')}")
+        # print(f"cfg.get('zmq_auto'): {cfg.get('zmq_auto')}")``
         if cfg.get("zmq_auto"):
-            print("启动ZeroMQ自动启停管理任务")
             asyncio.create_task(start_zeromq_management_task())
         rapi.build_from_cache()

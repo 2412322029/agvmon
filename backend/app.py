@@ -51,6 +51,7 @@ app.include_router(rcms_router, prefix="/api")
 # 包含UtilWebApi路由
 app.include_router(util_web_router, prefix="/api")
 
+
 # 设置WebSocket路由
 @app.websocket("/ws/robot-status")
 async def websocket_robot_status(websocket: WebSocket):
@@ -58,12 +59,15 @@ async def websocket_robot_status(websocket: WebSocket):
     rdstag = get_rdstag()
     await websocket_robot_status_endpoint(websocket, r, rdstag)
 
+
 @app.websocket("/ws/chat")
 async def websocket_chat(websocket: WebSocket):
     """公共聊天WebSocket接口"""
     await websocket_chat_endpoint(websocket)
 
+
 def run_api_server():
     """运行FastAPI WebSocket服务器"""
     import uvicorn
+
     uvicorn.run("backend.app:app", **cfg.get("web"))

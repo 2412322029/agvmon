@@ -23,7 +23,7 @@ class ExceptionLogDB:
             self.db_path = data_dir / "exception_log.db"
         else:
             self.db_path = Path(db_path)
-        print(f"数据库路径: {self.db_path}")
+        # print(f"数据库路径: {self.db_path}")
         self.init_db()
     
     def init_db(self):

@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from urllib.parse import quote
 
-#导入弃用警告装饰器DeprecationWarning
+# 导入弃用警告装饰器DeprecationWarning
 from fastapi import APIRouter, Body
 from fastapi.responses import StreamingResponse
 
@@ -38,9 +38,9 @@ async def connect_agv(
     if not port:
         port = 22
     # print(f"connect_agv: {host}, {port}, {username}, {password}")
-        
+
     ssh_manager = SSHManager(host, username, password, port)
-    success, error = ssh_manager.connect()
+    success, error = await ssh_manager.connect()
     if success:
         return {"message": "连接成功", "id": ssh_manager.id}
     else:
@@ -53,7 +53,7 @@ async def disconnect_agv(id: str):
     ssh_manager = SSHManager.get_ssh_manager(id)
     if not ssh_manager:
         return {"success": False, "error": "连接失败, id不存在"}
-    ssh_manager.disconnect()
+    await ssh_manager.disconnect()
     return {"message": "断开成功", "success": True}
 
 
@@ -70,10 +70,11 @@ async def list_dir(id: str = Body(...), path: str = Body(".")):
     if not ssh_manager:
         return {"success": False, "error": "连接失败, id不存在"}
     try:
-        ls_output = ssh_manager.list_directory(path)
+        ls_output = await ssh_manager.list_directory(path)
     except Exception as e:
         return {"success": False, "error": str(e)}
     return {"data": ls_output, "success": True}
+
 
 @DeprecationWarning
 @agv_web_router.get("/download")
@@ -83,7 +84,7 @@ async def download_file(id: str, filepath: str):
     if not ssh_manager:
         return {"success": False, "error": "连接失败, id不存在"}
     try:
-        ssh_manager.download_file(filepath, download_path)
+        await ssh_manager.download_file(filepath, download_path)
     except Exception as e:
         return {"success": False, "error": str(e)}
     return {"message": "下载成功", "success": True}
@@ -106,7 +107,7 @@ async def stream_download_file(id: str = Body(...), filepath: str = Body(...)):
 
     def make_progress(progress, total):
         # 确保进度信息中不包含可能导致问题的特殊字符
-        safe_disc = disc.encode('utf-8', errors='replace').decode('utf-8')
+        safe_disc = disc.encode("utf-8", errors="replace").decode("utf-8")
         return json.dumps(
             {
                 "progress": progress,
@@ -117,27 +118,33 @@ async def stream_download_file(id: str = Body(...), filepath: str = Body(...)):
         )
 
     # 初始化下载进度
-    r.set(f"download_progress:{download_id}", make_progress(0, 0), ex=3600 * 24)
+    # r.set(f"download_progress:{download_id}", make_progress(0, 0), ex=3600 * 24)
 
     # 创建流式响应
-    def iter_stream():
-        def progress_callback(downloaded, total):
-            r.set(f"download_progress:{download_id}", make_progress(downloaded, total), ex=3600 * 24)
+    async def iter_stream():
+        async def progress_callback(downloaded, total):
+            r.set(
+                f"download_progress:{download_id}",
+                make_progress(downloaded, total),
+                ex=3600 * 24,
+            )
 
-        for chunk in ssh_manager.stream_file(filepath, callback=progress_callback):
+        async for chunk in ssh_manager.stream_file(
+            filepath, callback=progress_callback
+        ):
             yield chunk
 
     # 安全处理Content-Disposition头部，避免非ASCII字符导致的编码错误
     # 先尝试使用ASCII兼容的文件名，如果失败则使用通用方法
     try:
         # 尝试直接使用文件名（对于纯ASCII字符）
-        filename.encode('ascii')
+        filename.encode("ascii")
         content_disposition = f'attachment; filename="{filename}"'
     except UnicodeEncodeError:
         # 对于非ASCII字符，使用RFC 5987标准
-        encoded_filename = quote(filename, safe='')
-        content_disposition = f'attachment; filename*=UTF-8\'\'{encoded_filename}'
-    
+        encoded_filename = quote(filename, safe="")
+        content_disposition = f"attachment; filename*=UTF-8''{encoded_filename}"
+
     return StreamingResponse(
         iter_stream(),
         media_type="application/octet-stream",
@@ -147,14 +154,19 @@ async def stream_download_file(id: str = Body(...), filepath: str = Body(...)):
         },
     )
 
-@agv_web_router.get("/download_progress")
-async def get_download_progress(download_id: str):
-    """获取下载进度"""
-    progress = r.get(f"download_progress:{download_id}")
-    if progress:
-        progress = progress.decode("utf-8")
-    else:
-        progress = "0"
-    return {"progress": progress}
 
-
+@agv_web_router.get("/download_info")
+async def get_download_info():
+    """获取全部下载信息"""
+    keys = r.keys("download_progress:*")
+    downloads = {}
+    for key in keys:
+        progress_data = r.get(key)
+        if progress_data:
+            try:
+                progress_info = json.loads(progress_data.decode("utf-8"))
+                download_id = key.decode("utf-8").replace("download_progress:", "")
+                downloads[download_id] = progress_info
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                continue
+    return {"downloads": downloads, "count": len(downloads)}

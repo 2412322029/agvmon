@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import time
 from datetime import datetime, timedelta
 from typing import Set
@@ -7,9 +8,10 @@ from typing import Set
 from fastapi import WebSocket
 from fastapi.websockets import WebSocketDisconnect
 
+from backend.api import rcmsapi
 from util.config import cfg
 
-from backend.api import rcmsapi
+logger = logging.getLogger(__name__)
 
 active_connections: Set[WebSocket] = set()
 
@@ -23,7 +25,7 @@ async def start_zeromq_management_task():
     """启动ZeroMQ进程管理定时任务"""
     global last_websocket_activity, zeromq_stopped_due_to_timeout
     timeout = cfg.get("zmq_auto_kill_timedelta")
-    print(f"ZeroMQ自动关闭超时时间: {timeout} 分钟")
+    # print(f"ZeroMQ自动关闭超时时间: {timeout} 分钟")
     while True:
         try:
             await asyncio.sleep(10)
@@ -73,7 +75,9 @@ async def broadcast_robot_status(redis_client, rdstag):
                     continue
 
             if robots:
-                message = json.dumps({"timestamp": time.time(), "data": robots})
+                message = json.dumps(
+                    {"timestamp": time.time(), "data": robots, "active_connections": len(active_connections)}
+                )
 
                 for connection in list(active_connections):
                     try:
@@ -84,8 +88,8 @@ async def broadcast_robot_status(redis_client, rdstag):
             await asyncio.sleep(1)
 
         except Exception as e:
-            print(f"广播机器人状态时出错: {e}")
-            await asyncio.sleep(1)
+            logger.fatal(f"广播机器人状态时出错: {e}")
+            raise e
 
 
 async def websocket_robot_status_endpoint(websocket: WebSocket, redis_client, rdstag):
@@ -130,9 +134,11 @@ async def websocket_robot_status_endpoint(websocket: WebSocket, redis_client, rd
             except asyncio.TimeoutError:
                 await websocket.send_text(json.dumps({"type": "heartbeat"}))
             except WebSocketDisconnect:
+                logger.info(f"WebSocket连接超时断开，当前连接数: {len(active_connections)}")
+                active_connections.discard(websocket)
+            except Exception as e:
+                logger.error(f"接收WebSocket消息时出错: {e}")
                 raise
-            except Exception:
-                continue
 
     except WebSocketDisconnect:
         active_connections.discard(websocket)
@@ -152,5 +158,8 @@ async def websocket_robot_status_endpoint(websocket: WebSocket, redis_client, rd
         if len(active_connections) > 0:
             last_websocket_activity = datetime.now()
 
-        await websocket.close()
+        try:
+            await websocket.close()
+        except Exception:
+            pass
 

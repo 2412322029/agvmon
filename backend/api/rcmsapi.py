@@ -142,7 +142,21 @@ def ensure_zeromq_stopped():
                 program_info_key = f"{rdstag}:program_info"
                 _, _, _, pid = get_program_info()
                 if pid:
-                    os.kill(pid, 9)
+                    try:
+                        if os.name == "nt":
+                            import ctypes
+
+                            PROCESS_TERMINATE = 1
+                            handle = ctypes.windll.kernel32.OpenProcess(
+                                PROCESS_TERMINATE, False, pid
+                            )
+                            if handle:
+                                ctypes.windll.kernel32.TerminateProcess(handle, 1)
+                                ctypes.windll.kernel32.CloseHandle(handle)
+                        else:
+                            os.kill(pid, 9)
+                    except Exception:
+                        pass
                 r.delete(program_info_key)
 
                 zeromq_process_started = False
@@ -176,7 +190,21 @@ def ensure_zeromq_stopped():
     program_info_key = f"{rdstag}:program_info"
     _, _, _, pid = get_program_info()
     if pid:
-        os.kill(pid, 9)
+        try:
+            if os.name == "nt":
+                import ctypes
+
+                PROCESS_TERMINATE = 1
+                handle = ctypes.windll.kernel32.OpenProcess(
+                    PROCESS_TERMINATE, False, pid
+                )
+                if handle:
+                    ctypes.windll.kernel32.TerminateProcess(handle, 1)
+                    ctypes.windll.kernel32.CloseHandle(handle)
+            else:
+                os.kill(pid, 9)
+        except Exception:
+            pass
     r.delete(program_info_key)
     print("ZeroMQ Map Update进程已停止")
     zeromq_process_started = False
@@ -215,7 +243,7 @@ rcms_router = APIRouter(
 @rcms_router.get("/remove_agv_status")
 def remove_agv_status(robot_id: str):
     num_deleted = r.hdel(get_redis_and_rdstag() + ":ROBOT_STATUS", robot_id)
-    return {"message": f"AGV状态已删除，共删除 {num_deleted} 条记录"}   
+    return {"message": f"AGV状态已删除，共删除 {num_deleted} 条记录"}
 
 
 @rcms_router.get("/build_from_cache")
@@ -284,7 +312,12 @@ def get_zeromq_program_info():
     _, _, info_data, _ = get_program_info()
 
     if info_data:
-        return {"message": "程序信息获取成功", "info": info_data}
+        return {
+            "message": "程序信息获取成功",
+            "info": info_data,
+            "zmq_auto": cfg.get("zmq_auto"),
+            "zmq_auto_kill_timedelta": cfg.get("zmq_auto_kill_timedelta"),
+        }
     else:
         return {"message": "未找到程序信息", "info": None}
 

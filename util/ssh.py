@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import pathlib
@@ -6,12 +7,14 @@ import re
 # import traceback
 import uuid
 from datetime import datetime
-from typing import Dict, List, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
-import paramiko
+import asyncssh
 
 logger = logging.getLogger(__name__)
-# logging.basicConfig(level=logging.INFO)
+
+# 配置 asyncssh 日志级别,只显示关键信息
+asyncssh.set_log_level(logging.WARNING)
 
 
 class SSHManager:
@@ -22,21 +25,19 @@ class SSHManager:
         self.username = username
         self.password = password
         self.port = port
-        self.client = None
+        self.connection: Optional[asyncssh.SSHClientConnection] = None
         self.name = f"{self.username}@{self.host}"
         self.create_time = datetime.now()
 
-    def connect(self) -> tuple[bool, str]:
+    async def connect(self) -> Tuple[bool, Optional[str]]:
         """建立SSH连接"""
         try:
-            self.client = paramiko.SSHClient()
-            self.client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            self.client.connect(
-                hostname=self.host,
+            self.connection = await asyncssh.connect(
+                host=self.host,
                 port=self.port,
                 username=self.username,
                 password=self.password,
-                timeout=5.0
+                connect_timeout=8,
             )
             self.id = uuid.uuid4().hex
             SSHManager.all_ssh_managers.append(
@@ -44,96 +45,95 @@ class SSHManager:
             )
             logger.info(f"SSH连接到 {self.name} 成功")
             return True, None
+        except asyncio.TimeoutError:
+            logger.error(f"SSH连接超时: {self.name}")
+            return False, "连接超时"
         except Exception as e:
-            # traceback.print_exc()
             logger.error(f"SSH连接失败: {e}")
             return False, str(e)
 
-    def disconnect(self):
+    async def disconnect(self):
         """断开SSH连接"""
-        if self.client:
-            self.client.close()
+        if self.connection:
+            self.connection.close()
+            await self.connection.wait_closed()
             logger.info(f"SSH连接 {self.name} 已断开")
-            self.client = None
+            self.connection = None
             for item in SSHManager.all_ssh_managers:
                 if item["id"] == self.id:
                     SSHManager.all_ssh_managers.remove(item)
                     break
-    
-    def get_ssh_manager(id: str) -> "SSHManager":
+
+    @staticmethod
+    def get_ssh_manager(id: str) -> Optional["SSHManager"]:
         """根据id获取SSHManager实例"""
         for item in SSHManager.all_ssh_managers:
             if item["id"] == id:
                 return item["manager"]
         return None
-    
+
+    @staticmethod
     def get_all_ssh_managers() -> List[Dict[str, Union[str, "SSHManager", datetime]]]:
         """获取所有SSHManager实例"""
         return [{"id": item["id"], "name": item["name"], "create_time": item["create_time"]} for item in SSHManager.all_ssh_managers]
-    
-    def execute_command(self, command: str, return_bytes: bool = False) -> tuple:
+
+    async def execute_command(self, command: str, return_bytes: bool = False) -> Tuple[Union[str, bytes], str]:
         """执行SSH命令并返回结果"""
-        if not self.client:
+        if not self.connection:
             raise Exception("SSH连接未建立")
 
         try:
-            stdin, stdout, stderr = self.client.exec_command(command)
-            error = stderr.read().decode("utf-8", errors="ignore")
+            result = await self.connection.run(command, check=False)
+            error = result.stderr
 
             if return_bytes:
-                # 返回原始字节数据，用于二进制文件
-                output = stdout.read()
+                output = result.stdout_bytes
             else:
-                # 返回解码后的文本数据
-                output = stdout.read().decode("utf-8", errors="ignore")
+                output = result.stdout
 
             return output, error
         except Exception as e:
             logger.error(f"执行命令失败: {e}")
             raise
 
-    def execute_interactive_command(self, command: str):
+    async def execute_interactive_command(self, command: str) -> Tuple[Optional[asyncssh.SSHWriter], asyncssh.SSHReader, asyncssh.SSHReader]:
         """执行交互式命令，返回stdin, stdout, stderr"""
-        if not self.client:
+        if not self.connection:
             raise Exception("SSH连接未建立")
 
         try:
-            stdin, stdout, stderr = self.client.exec_command(command)
-            return stdin, stdout, stderr
+            process = await self.connection.run(command, stdin=asyncssh.PIPE, stdout=asyncssh.PIPE, stderr=asyncssh.PIPE)
+            return process.stdin, process.stdout, process.stderr
         except Exception as e:
             logger.error(f"执行命令失败: {e}")
             raise
 
-    def execute_command_text(self, command: str) -> tuple:
+    async def execute_command_text(self, command: str) -> Tuple[str, str]:
         """执行SSH命令并返回文本结果"""
-        return self.execute_command(command, return_bytes=False)
+        output, error = await self.execute_command(command, return_bytes=False)
+        return output, error
 
     def parse_ls_output(self, ls_output: str) -> List[Dict[str, Union[str, int, bool]]]:
         """解析ls -l命令的输出为JSON格式"""
         lines = ls_output.strip().split("\n")
         result = []
 
-        # 跳过第一行（如果是总计信息）并处理每一行
         for line in lines:
-            # 跳过空行和总计行
             if not line.strip() or line.startswith("total"):
                 continue
 
-            # 解析ls -l的输出格式
-            # 例如: -rw-r--r-- 1 user group 1024 Dec 10 12:34 filename
-            # 或者带链接目标的格式: lrwxrwxrwx 1 user group 7 Dec 10 12:34 linkname -> target
             parts = re.split(r"\s+", line.strip(), 8)
 
             if len(parts) >= 9:
                 try:
                     links = int(parts[1])
                 except ValueError:
-                    links = 0  # 如果链接数不是数字，则设为0
+                    links = 0
 
                 try:
                     size = int(parts[4])
                 except ValueError:
-                    size = 0  # 如果大小不是数字，则设为0
+                    size = 0
 
                 file_info = {
                     "permissions": parts[0],
@@ -149,7 +149,6 @@ class SSHManager:
                     "is_file": parts[0].startswith("-"),
                 }
 
-                # 处理符号链接的情况，如果文件名包含 "->" 表示指向目标
                 if " -> " in parts[8]:
                     name_parts = parts[8].split(" -> ")
                     file_info["name"] = name_parts[0]
@@ -159,14 +158,14 @@ class SSHManager:
 
         return result
 
-    def list_directory(
+    async def list_directory(
         self, path: str = ".", parse: bool = True
     ) -> Union[List[Dict], str]:
         """列出目录内容"""
         command = f"ls -l '{path}'"
-        output, error = self.execute_command_text(command)
+        output, error = await self.execute_command_text(command)
 
-        if error and not output:  # 只有在没有输出但有错误时才报错
+        if error and not output:
             raise Exception(f"执行ls命令出错: {error}")
 
         if parse:
@@ -174,123 +173,141 @@ class SSHManager:
         else:
             return output
 
-    def list_directory_json(self, path: str = ".") -> str:
+    async def list_directory_json(self, path: str = ".") -> str:
         """以JSON格式返回目录列表"""
-        file_list = self.list_directory(path)
+        file_list = await self.list_directory(path)
         return json.dumps(file_list, indent=2, ensure_ascii=False)
 
-    def download_file(
-        self, remote_path: str, local_path: str, block_size: int = 8192, callback=None
+    async def download_file(
+        self, remote_path: str, local_path: str, block_size: int = 8192, callback: Optional[Callable[[int, int], None]] = None
     ) -> bool:
-        """下载远程文件到本地（非阻塞方式，支持进度回调）"""
-        # 检查远程文件是否存在
-        if not self.file_exists(remote_path):
-            logger.error(f"错误: 远程文件 '{remote_path}' 不存在")
-            return False
+        """下载远程文件到本地（支持进度回调）"""
         local_file = pathlib.Path(local_path) / pathlib.Path(remote_path).name
+        
         try:
-            file_size = self.get_file_size(remote_path)
+            file_info = await self._get_file_info(remote_path)
+            if not file_info["exists"]:
+                logger.error(f"错误: 远程文件 '{remote_path}' 不存在")
+                return False
+            
+            file_size = file_info["size"]
             if file_size < 0:
-                # 如果无法获取文件大小，仍然可以下载，只是无法显示百分比进度
                 file_size = 0
                 logger.warning(
                     f"警告: 无法获取文件 '{remote_path}' 的大小，将只显示已下载字节"
                 )
 
-            # 使用dd命令读取文件，然后通过SSH传输到本地
             command = f"dd if='{remote_path}' bs={block_size}k 2>/dev/null"
-            stdin, stdout, stderr = self.execute_interactive_command(command)
+            stdin, stdout, stderr = await self.execute_interactive_command(command)
 
-            # 非阻塞方式读取文件内容并写入本地文件
             downloaded_size = 0
             with open(local_file, "wb") as f:
-                # 设置stdout为非阻塞模式
-                import select
-
                 while True:
-                    # 检查是否有数据可读
-                    ready, _, _ = select.select(
-                        [stdout.channel], [], [], 1.0
-                    )  # 1秒超时
-                    if ready:
-                        chunk = stdout.read(8192)  # 每次读取8KB
-                        if not chunk:
-                            break
-                        f.write(chunk)
-                        downloaded_size += len(chunk)
+                    chunk = await stdout.read(block_size * 1024)
+                    if not chunk:
+                        break
+                    f.write(chunk)
+                    downloaded_size += len(chunk)
 
-                        # 更新进度 - 传递已下载大小和总大小
-                        if callback:
+                    if callback:
+                        if asyncio.iscoroutinefunction(callback):
+                            await callback(downloaded_size, file_size)
+                        else:
                             callback(downloaded_size, file_size)
-                    else:
-                        # 如果没有数据可读且通道关闭，则退出循环
-                        if stdout.channel.exit_status_ready():
-                            break
 
             logger.info(f"文件已通过dd命令下载到: {local_file}")
             return True
-        except Exception as e2:
-            logger.error(f"使用dd下载文件失败: {e2}")
+        except Exception as e:
+            logger.error(f"使用dd下载文件失败: {e}")
             return False
 
-    def stream_file(self, remote_path: str, chunk_size: int = 8192, callback=None):
+    async def stream_file(
+        self, remote_path: str, chunk_size: int = 8192, callback: Optional[Callable[[int, int], None]] = None
+    ):
         """流式读取远程文件内容，用于直接传输到HTTP响应"""
-        # 检查远程文件是否存在
-        if not self.file_exists(remote_path):
-            logger.error(f"错误: 远程文件 '{remote_path}' 不存在")
-            return
-            
         try:
-            file_size = self.get_file_size(remote_path)
-            if file_size < 0:
-                file_size = 0  # 无法获取文件大小时设为0
+            file_info = await self._get_file_info(remote_path)
+            if not file_info["exists"]:
+                logger.error(f"错误: 远程文件 '{remote_path}' 不存在")
+                return
             
-            # 使用dd命令读取文件，然后通过SSH传输
+            file_size = file_info["size"]
+            if file_size < 0:
+                file_size = 0
+            
             command = f"dd if='{remote_path}' bs={chunk_size}k 2>/dev/null"
-            stdin, stdout, stderr = self.execute_interactive_command(command)
+            stdin, stdout, stderr = await self.execute_interactive_command(command)
 
-            # 分块读取文件内容并生成返回
             downloaded_size = 0
             while True:
-                chunk = stdout.read(chunk_size)
+                chunk = await stdout.read(chunk_size * 1024)
                 if not chunk:
                     break
                 downloaded_size += len(chunk)
                 
-                # 调用进度回调函数
                 if callback:
-                    callback(downloaded_size, file_size)
-                # import time
-                # time.sleep(1)
+                    if asyncio.iscoroutinefunction(callback):
+                        await callback(downloaded_size, file_size)
+                    else:
+                        callback(downloaded_size, file_size)
+                
                 yield chunk
         except Exception as e:
             logger.error(f"流式读取文件失败: {e}")
 
-    def file_exists(self, remote_path: str) -> bool:
+    async def _get_file_info(self, remote_path: str) -> Dict[str, Union[bool, int]]:
+        """获取文件信息（存在性和大小），单次SSH会话完成"""
+        try:
+            command = f"ls -la '{remote_path}' 2>/dev/null && echo '---SIZE---' && ls -l '{remote_path}' 2>/dev/null"
+            output, error = await self.execute_command(command)
+            
+            if error or not output.strip():
+                return {"exists": False, "size": -1}
+            
+            lines = output.strip().split("\n")
+            
+            if len(lines) < 2:
+                return {"exists": False, "size": -1}
+            
+            ls_la_line = lines[0]
+            ls_l_line = lines[-1]
+            
+            if not ls_l_line or ls_l_line.startswith("total"):
+                return {"exists": False, "size": -1}
+            
+            parts = ls_l_line.split()
+            if len(parts) >= 5:
+                try:
+                    size = int(parts[4])
+                    return {"exists": True, "size": size}
+                except ValueError:
+                    return {"exists": True, "size": -1}
+            
+            return {"exists": True, "size": -1}
+        except Exception:
+            return {"exists": False, "size": -1}
+
+    async def file_exists(self, remote_path: str) -> bool:
         """检查远程文件是否存在，使用ls命令"""
         try:
-            # 使用ls命令检查文件是否存在
             command = f"ls -la '{remote_path}' 2>/dev/null"
-            output, error = self.execute_command(command)
-            # 如果命令执行成功且有输出，说明文件存在
+            output, error = await self.execute_command(command)
             return len(output.strip()) > 0
         except Exception:
-            # 如果出现异常，认为文件不存在
             return False
 
-    def get_file_size(self, remote_path: str) -> int:
+    async def get_file_size(self, remote_path: str) -> int:
         """获取远程文件大小，使用ls -l命令"""
-        if not self.file_exists(remote_path):
+        if not await self.file_exists(remote_path):
             return -1
         try:
             command = f"ls -l '{remote_path}'"
-            output, error = self.execute_command_text(command)
+            output, error = await self.execute_command_text(command)
             if error or not output:
                 raise Exception(f"获取文件大小出错: {error}")
-            # 解析ls -l输出，获取文件大小（第5个字段）
             parts = output.strip().split()
             if len(parts) >= 5:
-                return int(parts[4])  # 第5个字段是文件大小
+                return int(parts[4])
             else:
                 return -1
         except Exception as e:
@@ -298,22 +315,23 @@ class SSHManager:
             return -1
 
 
-def main():
-    # 连接参数
+async def main():
     host = "172.26.126.120"
     username = "lolik"
     password = "123456"
 
-    # 创建SSH管理器实例
     ssh_manager = SSHManager(host, username, password)
 
     try:
-        ssh_manager.connect()
-        file_size = ssh_manager.get_file_size("/home/lolik/22.pcapng")
+        success, error = await ssh_manager.connect()
+        if not success:
+            logger.error(f"连接失败: {error}")
+            return
+        
+        file_size = await ssh_manager.get_file_size("/home/lolik/22.pcapng")
         logger.info(f"文件大小: {file_size} bytes")
         logger.info("尝试下载一个文件...")
 
-        # 测试带进度回调的下载
         def progress_callback(downloaded, total):
             if total and total > 0:
                 percent = (downloaded / total) * 100
@@ -328,7 +346,7 @@ def main():
             else:
                 print(f"\r已下载: {downloaded} bytes", end="", flush=True)
 
-        success = ssh_manager.download_file(
+        success = await ssh_manager.download_file(
             "/home/lolik/22.pcapng",
             "D:\\24123\\code\\py\\agvmon",
             callback=progress_callback,
@@ -338,9 +356,8 @@ def main():
         else:
             logger.error("文件下载失败!")
     finally:
-        # 断开连接
-        ssh_manager.disconnect()
+        await ssh_manager.disconnect()
 
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())

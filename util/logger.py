@@ -60,7 +60,7 @@ file_formatter = logging.Formatter(
 
 # 创建彩色日志格式（用于控制台日志）
 console_formatter = ColoredFormatter(
-    "%(asctime)s - %(name)s - %(funcName)s(line %(lineno)d) - %(levelname)s - %(message)s",
+    "%(asctime)s (%(thread)d) - %(name)s - %(funcName)s(line %(lineno)d) - %(levelname)s - %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S"
 )
 

@@ -80,7 +80,7 @@ const menuOptions = [
         onClick: () => router.push('/exception-records')
       },
       {
-        label: 'AGV-EQ议解析',
+        label: 'AGV-EQ协议解析',
         key: '/agv',
         onClick: () => router.push('/agv')
       },
@@ -90,9 +90,9 @@ const menuOptions = [
         onClick: () => router.push('/ssh')
       },
       {
-        label: 'SSH 连接管理',
-        key: '/ssh-connections',
-        onClick: () => router.push('/ssh-connections')
+        label: 'SSH 管理',
+        key: '/ssh-mgr',
+        onClick: () => router.push('/ssh-mgr')
       },
       {
         label: '文件上传管理',

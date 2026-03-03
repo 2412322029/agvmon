@@ -52,6 +52,7 @@ const robotData = ref([])
 const avgbattery = ref(0)
 const loading = ref(true)
 const timestamp = ref('')
+const active_connections = ref('')
 const messageText = ref('正在获取机器人状态数据...')
 // Tab状态
 const activeTab = ref('all') // all, abnormal, removed
@@ -393,6 +394,7 @@ const connectWebSocket = () => {
         }
         // 转换数据格式，添加友好的文本显示
         timestamp.value = data.timestamp || ''
+        active_connections.value = data.active_connections || 0
         const formattedData = Object.values(data.data || {}).map(item => {
           // 确定显示状态和颜色，基于showrobot.py的逻辑
           let displayStatus = '正常'
@@ -631,7 +633,7 @@ const freeagv = async (agvcode = "", stop = false) => {
               </template>
             </NButton>
             <NTag :type="isConnected ? 'success' : 'error'" round style="margin-top: 4px;">
-              {{ isConnected ? '已连接' : '未连接' }}
+              {{ isConnected ? active_connections + ' 已连接' : '未连接' }}
             </NTag>
             <NButton type="primary" @click="refreshData" :loading="loading">
               重新连接
