@@ -590,6 +590,25 @@ const getmaplist = async () => {
     message.error("获取地图列表失败")
   }
 }
+const freeagv = async (agvcode = "", stop = false) => {
+  // 调用后端API，使用POST方法和JSON body
+  const response = await fetch('/api/rcs_web/freeagv', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      "agvcode": agvcode,
+    })
+  })
+  const data = await response.json()
+
+  if (data.code == 0) {
+    message.info(data.message)
+  } else {
+    message.error(data.message)
+  }
+}
 </script>
 
 <template>
@@ -846,6 +865,9 @@ const getmaplist = async () => {
                   <span class="label">是否变化:</span>
                   <span class="value">{{ selectedRobot.change ? '是' : '否' }}</span>
                 </div>
+                <NSpace>
+                  <NButton @click="freeagv(selectedRobot.RobotId)" type="error">释放</NButton>
+                </NSpace>
               </div>
 
               <div class="detail-section">

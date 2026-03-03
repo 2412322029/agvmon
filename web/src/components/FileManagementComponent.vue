@@ -551,12 +551,12 @@ onMounted(() => {
 }
 
 .file-item {
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--n-border-color);
   border-radius: 8px;
   padding: 12px;
   cursor: pointer;
   transition: all 0.3s ease;
-  background-color: #fff;
+  /* background-color: #fff; */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -578,18 +578,18 @@ onMounted(() => {
   font-weight: 500;
   word-break: break-word;
   margin-bottom: 4px;
-  color: #333;
+  /* color: #333; */
 }
 
 .file-size {
   font-size: 12px;
-  color: #666;
+  /* color: #666; */
   margin-bottom: 4px;
 }
 
 .file-date {
   font-size: 11px;
-  color: #999;
+  /* color: #999; */
 }
 
 .file-expire {
@@ -609,14 +609,14 @@ onMounted(() => {
   max-height: 200px;
   object-fit: contain;
   border-radius: 4px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid #5b5b5b;
 }
 
 .preview-video {
   max-width: 100%;
   max-height: 300px;
   border-radius: 4px;
-  border: 1px solid #e0e0e0;
+  border: 1px solid #706e6e;
 }
 
 .file-detail-content {

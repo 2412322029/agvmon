@@ -413,3 +413,13 @@ def resume_action(
         return result
     except Exception as e:
         return {"message": "error", "errors": [str(e)]}
+    
+@rcs_web_router.post("/freeagv")
+def freeagv_action(
+    agvcode: str = Body("", embed=True, description="agv编号"),
+):
+    try:
+        result = rcs_api.freeagv(agvcode=agvcode)
+        return result
+    except Exception as e:
+        return {"message": "error", "errors": [str(e)]}

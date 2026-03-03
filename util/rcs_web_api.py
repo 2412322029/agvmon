@@ -400,9 +400,11 @@ class RcsWebApi:
             {
                 "Content-Type": "application/json",
                 "X-Requested-With": "XMLHttpRequest",
+                "Referer": self.base_url+"/taskDispatch/cms_index.action",
             }
         )
-        response = self.client.post(url, data=data)
+
+        response = self.client.post(url, json=data)
         if response.status_code != 200:
             return {
                 "success": False,
@@ -443,8 +445,35 @@ class RcsWebApi:
             return {"success": False, "msg": response.text}
         return d
 
+    def freeagv(self, agvcode: str):
+        url = self.base_url + "/agvControl/freeRobot.action"
+        data = {"clientCode": "", "agvCode": agvcode}
+        self.client.headers.update(
+            {
+                "Content-Type": "application/json",
+                # "X-Requested-With": "XMLHttpRequest",
+                "origin": cfg.get("rcms.host"),
+                "referer": self.base_url+"/agvControl/cms_index.action",
+            }
+        )
+        response = self.client.post(url, json=data)
 
-# 示例用法（如果直接运行此文件）
+        if not response.text:
+            self.login(username=self.username, password=self.password)
+            response = self.client.post(url, json=data)
+        if response.status_code != 200:
+            return {
+                "success": False,
+                "msg": f"freeagv失败，状态码：{response.status_code}，响应内容：{response.text}",
+            }
+
+        try:
+            d = response.json()
+        except Exception:
+            return {"success": False, "msg": response.text}
+        return d
+
+
 if __name__ == "__main__":
     # 创建RCS Web API客户端实例
     rcs_web_api = RcsWebApi(

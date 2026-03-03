@@ -458,25 +458,25 @@ onUnmounted(() => {
 }
 
 .status-running {
-  background-color: #f6ffed;
+  /* background-color: #f6ffed; */
   color: #52c41a;
   border: 1px solid #b7eb8f;
 }
 
 .status-stopped {
-  background-color: #f9f9f9;
-  color: #666;
+  /* background-color: #f9f9f9; */
+  /* color: #666; */
   border: 1px solid #ddd;
 }
 
 .status-error {
-  background-color: #fff2f0;
+  /* background-color: #fff2f0; */
   color: #ff4d4f;
   border: 1px solid #ffccc7;
 }
 
 .zeromq-info {
-  background-color: #f9f9f9;
+  /* background-color: #f9f9f9; */
   padding: 15px;
   border-radius: 4px;
   margin: 15px 0;
@@ -486,7 +486,7 @@ onUnmounted(() => {
 .zeromq-info h4 {
   margin-top: 0;
   margin-bottom: 10px;
-  color: #333;
+  /* color: #333; */
 }
 
 .info-item {
@@ -513,12 +513,12 @@ onUnmounted(() => {
 
 .msg-key {
   font-weight: 500;
-  color: #555;
+  /* color: #555; */
   width: 120px;
 }
 
 .msg-value {
-  color: #333;
+  /* color: #333; */
   text-align: right;
   flex-grow: 1;
 }

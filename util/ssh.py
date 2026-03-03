@@ -36,6 +36,7 @@ class SSHManager:
                 port=self.port,
                 username=self.username,
                 password=self.password,
+                timeout=5.0
             )
             self.id = uuid.uuid4().hex
             SSHManager.all_ssh_managers.append(
