@@ -13,7 +13,7 @@ rcs_api = RcsWebApi()
 
 
 @rcs_web_router.post("/find_tasks_detail")
-def find_tasks_detail_api(
+async def find_tasks_detail_api(
     robotCode: str = Body("", description="机器人代码"),
     taskTyp: str = Body("", description="任务类型"),
     taskStatus: int = Body(2, description="任务状态"),
@@ -105,32 +105,33 @@ def find_tasks_detail_api(
         }
 
     try:
-        result = rcs_api.find_tasks_detail(
-            robotCode=robotCode,
-            taskTyp=taskTyp,
-            taskStatus=taskStatus,
-            carrierId=carrierId,
-            podCode=podCode,
-            ctnrCode=ctnrCode,
-            tranTaskNum=tranTaskNum,
-            wbCode=wbCode,
-            uname=uname,
-            dstMapCode=dstMapCode,
-            groupNum=groupNum,
-            liftCode=liftCode,
-            srcEqName=srcEqName,
-            desEqName=desEqName,
-            sdateTo=sdateTo,
-            edateTo=edateTo,
-            limit=limit,
-        )
+        async with rcs_api:
+            result = await rcs_api.find_tasks_detail(
+                robotCode=robotCode,
+                taskTyp=taskTyp,
+                taskStatus=taskStatus,
+                carrierId=carrierId,
+                podCode=podCode,
+                ctnrCode=ctnrCode,
+                tranTaskNum=tranTaskNum,
+                wbCode=wbCode,
+                uname=uname,
+                dstMapCode=dstMapCode,
+                groupNum=groupNum,
+                liftCode=liftCode,
+                srcEqName=srcEqName,
+                desEqName=desEqName,
+                sdateTo=sdateTo,
+                edateTo=edateTo,
+                limit=limit,
+            )
         return result
     except Exception as e:
         return {"message": "error", "errors": [str(e)]}
 
 
 @rcs_web_router.post("/find_sub_tasks_detail")
-def find_sub_tasks_detail_api(
+async def find_sub_tasks_detail_api(
     trans_task_num: str = Body("", description="任务编号"),
     search_year: int = Body(2020, description="搜索年份"),
     show_his_data: str = Body("false", description="是否显示历史数据"),
@@ -274,152 +275,166 @@ def find_sub_tasks_detail_api(
         }
 
     try:
-        result = rcs_api.find_sub_tasks_detail(
-            trans_task_num=trans_task_num,
-            search_year=search_year,
-            show_his_data=show_his_data,
-        )
+        async with rcs_api:
+            result = await rcs_api.find_sub_tasks_detail(
+                trans_task_num=trans_task_num,
+                search_year=search_year,
+                show_his_data=show_his_data,
+            )
         return result
     except Exception as e:
         return {"message": "error", "errors": [str(e)]}
 
 
 @rcs_web_router.post("/stopagv")
-def stopagv(
+async def stopagv(
     agvcode=Body("", description="agv编号"), stop=Body(False, description="是否stop")
 ):
     try:
-        result = rcs_api.stopResumeOffline(
-            agvCodes=agvcode, flag="stop" if stop else "resume"
-        )
+        async with rcs_api:
+            result = await rcs_api.stopResumeOffline(
+                agvCodes=agvcode, flag="stop" if stop else "resume"
+            )
         return result
     except Exception as e:
         return {"message": "error", "errors": [str(e)]}
 
 
 @rcs_web_router.post("/get_agv_status")
-def get_agv_status_api(
+async def get_agv_status_api(
     client_code: str = "",
     robot_count: str = "-1",
     robots: str = "",
     map_short_name: str = "",
 ):
     try:
-        result = rcs_api.get_agv_status(
-            client_code=client_code,
-            robot_count=robot_count,
-            robots=robots,
-            map_short_name=map_short_name,
-        )
+        async with rcs_api:
+            result = await rcs_api.get_agv_status(
+                client_code=client_code,
+                robot_count=robot_count,
+                robots=robots,
+                map_short_name=map_short_name,
+            )
         return result
     except Exception as e:
         return {"message": "error", "errors": [str(e)]}
 
 
 @rcs_web_router.post("/login")
-def login_api(
+async def login_api(
     username: str = Body(..., embed=False),
     password: str = Body(..., embed=False),
     pwd_safe_level: str = Body("3", embed=False),
 ):
     try:
-        result = rcs_api.login(
-            username=username, password=password, pwd_safe_level=pwd_safe_level
-        )
+        async with rcs_api:
+            result = await rcs_api.login(
+                username=username, password=password, pwd_safe_level=pwd_safe_level
+            )
         return result
     except Exception as e:
         return {"message": f"error {str(e)}", "success": False}
 
 
 @rcs_web_router.get("/login2")
-def login_api2():
+async def login_api2():
     try:
-        result = rcs_api.login(
-            username=cfg.get("rcms.username"),
-            password=cfg.get("rcms.password"),
-            pwd_safe_level="3",
-        )
+        async with rcs_api:
+            result = await rcs_api.login(
+                username=cfg.get("rcms.username"),
+                password=cfg.get("rcms.password"),
+                pwd_safe_level="3",
+            )
         return result
     except Exception as e:
         return {"message": f"error {str(e)}", "success": False}
 
 
 @rcs_web_router.post("/check_is_rolling")
-def check_is_rolling_api(
+async def check_is_rolling_api(
     trans_task_nums: str = Body("", embed=True, description="传输任务编号，多个任务号用逗号分隔"),
 ):
     try:
-        result = rcs_api.check_is_rolling(trans_task_nums=trans_task_nums)
+        async with rcs_api:
+            result = await rcs_api.check_is_rolling(trans_task_nums=trans_task_nums)
         return result
     except Exception as e:
         return {"message": "error", "errors": [str(e)]}
 
 
 @rcs_web_router.post("/check_starting_trans_tasks")
-def check_starting_trans_tasks_api(
+async def check_starting_trans_tasks_api(
     trans_task_nums: str = Body("", embed=True, description="传输任务编号，多个任务号用逗号分隔"),
 ):
     try:
-        result = rcs_api.check_starting_trans_tasks(trans_task_nums=trans_task_nums)
+        async with rcs_api:
+            result = await rcs_api.check_starting_trans_tasks(trans_task_nums=trans_task_nums)
         return result
     except Exception as e:
         return {"message": "error", "errors": [str(e)]}
 
 
 @rcs_web_router.post("/check_soft_cancel")
-def check_soft_cancel_api(
+async def check_soft_cancel_api(
     trans_task_nums: str = Body("", embed=True, description="传输任务编号，多个任务号用逗号分隔"),
 ):
     try:
-        result = rcs_api.check_soft_cancel(trans_task_nums=trans_task_nums)
+        async with rcs_api:
+            result = await rcs_api.check_soft_cancel(trans_task_nums=trans_task_nums)
         return result
     except Exception as e:
         return {"message": "error", "errors": [str(e)]}
 
 
 @rcs_web_router.post("/cancel_trans_tasks")
-def cancel_trans_tasks_api(
+async def cancel_trans_tasks_api(
     trans_task_nums: str = Body("", embed=True, description="传输任务编号，多个任务号用逗号分隔"),
     cancel_type: str = Body("0", embed=True, description="取消类型"),
     cancel_reason: str = Body("2", embed=True, description="取消原因"),
 ):
     try:
-        result = rcs_api.cancel_trans_tasks(
-            trans_task_nums=trans_task_nums,
-            cancel_type=cancel_type,
-            cancel_reason=cancel_reason
-        )
+        async with rcs_api:
+            result = await rcs_api.cancel_trans_tasks(
+                trans_task_nums=trans_task_nums,
+                cancel_type=cancel_type,
+                cancel_reason=cancel_reason
+            )
         return result
     except Exception as e:
         return {"message": "error", "errors": [str(e)]}
 
 
 @rcs_web_router.post("/forceCancelTask")
-def fCancelTask(
+async def fCancelTask(
     taskCode: str = Body("", embed=True, description="任务编号"),
 ):
     try:
-        result = rcs_api.forceCancelTask(trans_task_nums=taskCode)
+        async with rcs_api:
+            result = await rcs_api.forceCancelTask(trans_task_nums=taskCode)
         return result
     except Exception as e:
         return {"message": "error", "errors": [str(e)]}
-    
+
+
 @rcs_web_router.post("/resumeAction")
-def resume_action(
+async def resume_action(
     agvid: str = Body("", embed=True, description="agv编号"),
 ):
     try:
-        result = rcs_api.resumeAction(agvcode=agvid)
+        async with rcs_api:
+            result = await rcs_api.resumeAction(agvcode=agvid)
         return result
     except Exception as e:
         return {"message": "error", "errors": [str(e)]}
-    
+
+
 @rcs_web_router.post("/freeagv")
-def freeagv_action(
+async def freeagv_action(
     agvcode: str = Body("", embed=True, description="agv编号"),
 ):
     try:
-        result = rcs_api.freeagv(agvcode=agvcode)
+        async with rcs_api:
+            result = await rcs_api.freeagv(agvcode=agvcode)
         return result
     except Exception as e:
         return {"message": "error", "errors": [str(e)]}

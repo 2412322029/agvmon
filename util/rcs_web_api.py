@@ -27,14 +27,25 @@ class RcsWebApi:
         self.base_url = base_url
         self.username = username
         self.password = password
-        self.client = httpx.Client(
+        self.client = None
+        # self.login(username, password)
+        # print(self.client.cookies)
+
+    async def __aenter__(self):
+        self.client = httpx.AsyncClient(
             headers={
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
                 "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-            }
+            },
+            cookies={
+                "same": "agvmon",
+            },
         )
-        # self.login(username, password)
-        # print(self.client.cookies)
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        if self.client:
+            await self.client.aclose()
 
     def _dict_to_formdata(self, data_dict: dict) -> str:
         """
@@ -52,7 +63,7 @@ class RcsWebApi:
             # temp.append(f"{k}={v}")
         return "&".join(temp)
 
-    def login(self, username, password, pwd_safe_level="3"):
+    async def login(self, username, password, pwd_safe_level="3"):
         """
         登录RCS系统
 
@@ -65,8 +76,7 @@ class RcsWebApi:
         返回:
             dict: 登录响应的JSON数据
         """
-        # 验证用户名和密码不为None
-        self.client = httpx.Client(
+        self.client = httpx.AsyncClient(
             headers={
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
                 "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
@@ -82,7 +92,7 @@ class RcsWebApi:
             "pwdSafeLevelLogin": pwd_safe_level,
         }
 
-        response = self.client.post(
+        response = await self.client.post(
             url,
             data=data,
             cookies={
@@ -99,7 +109,7 @@ class RcsWebApi:
             raise Exception(f"登录失败，响应内容：{response.json()}")
         return response.json()
 
-    def find_tasks_detail(
+    async def find_tasks_detail(
         self,
         robotCode="",
         taskTyp="",
@@ -160,11 +170,11 @@ class RcsWebApi:
             {"accept": "application/json, text/javascript, */*; q=0.01"}
         )
         # data=
-        response = self.client.post(url, data=data)
+        response = await self.client.post(url, data=data)
 
         if not response.text:
-            self.login(username=self.username, password=self.password)
-            response = self.client.post(url, data=data)
+            await self.login(username=self.username, password=self.password)
+            response = await self.client.post(url, data=data)
         if response.status_code != 200:
             raise Exception(
                 f"查询任务详情失败，状态码：{response.status_code}，响应内容：{response.text}"
@@ -179,7 +189,7 @@ class RcsWebApi:
             raise Exception(f"查询任务详情失败，响应内容：{response.json()}")
         return response.json()
 
-    def find_sub_tasks_detail(
+    async def find_sub_tasks_detail(
         self, trans_task_num, search_year=2020, show_his_data="false"
     ):
         """
@@ -200,13 +210,13 @@ class RcsWebApi:
             "showHisData": show_his_data,
         }
 
-        response = self.client.post(
+        response = await self.client.post(
             url,
             data=data,
         )
         return response.json()
 
-    def stopResumeOffline(self, agvCodes="", flag="resume"):  # stop / resume
+    async def stopResumeOffline(self, agvCodes="", flag="resume"):  # stop / resume
         url = self.base_url + "/agvControl/stopResumeOffline.action"
         data = {
             "clientCode": "",
@@ -216,13 +226,13 @@ class RcsWebApi:
             "stopResumeOffline": flag,
         }
         self.client.headers.update({"content-type": "application/json"})
-        response = self.client.post(
+        response = await self.client.post(
             url,
             json=data,
         )
         return response.json()
 
-    def get_agv_status(
+    async def get_agv_status(
         self, client_code="", robot_count="-1", robots="", map_short_name=""
     ):
         """
@@ -249,13 +259,13 @@ class RcsWebApi:
                 "Content-Type": "application/json; charset=UTF-8",
             }
         )
-        response = self.client.post(
+        response = await self.client.post(
             url,
             json=data,
         )
         return response.json()
 
-    def check_is_rolling(self, trans_task_nums):
+    async def check_is_rolling(self, trans_task_nums):
         """
         检查任务是否正在滚动执行
 
@@ -272,11 +282,11 @@ class RcsWebApi:
         self.client.headers.update(
             {"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"}
         )
-        response = self.client.post(url, data=data)
+        response = await self.client.post(url, data=data)
 
         if not response.text:
-            self.login(username=self.username, password=self.password)
-            response = self.client.post(url, data=data)
+            await self.login(username=self.username, password=self.password)
+            response = await self.client.post(url, data=data)
         if response.status_code != 200:
             raise Exception(
                 f"检查任务滚动状态失败，状态码：{response.status_code}，响应内容：{response.text}"
@@ -287,7 +297,7 @@ class RcsWebApi:
             return {"success": False, "msg": response.text}
         return d
 
-    def check_starting_trans_tasks(self, trans_task_nums):
+    async def check_starting_trans_tasks(self, trans_task_nums):
         """
         检查开始传输任务
 
@@ -304,11 +314,11 @@ class RcsWebApi:
         self.client.headers.update(
             {"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"}
         )
-        response = self.client.post(url, data=data)
+        response = await self.client.post(url, data=data)
 
         if not response.text:
-            self.login(username=self.username, password=self.password)
-            response = self.client.post(url, data=data)
+            await self.login(username=self.username, password=self.password)
+            response = await self.client.post(url, data=data)
         if response.status_code != 200:
             return {
                 "success": False,
@@ -320,7 +330,7 @@ class RcsWebApi:
             return {"success": False, "msg": response.text}
         return d
 
-    def check_soft_cancel(self, trans_task_nums):
+    async def check_soft_cancel(self, trans_task_nums):
         """
         检查软取消任务
 
@@ -337,11 +347,11 @@ class RcsWebApi:
         self.client.headers.update(
             {"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"}
         )
-        response = self.client.post(url, data=data)
+        response = await self.client.post(url, data=data)
 
         if not response.text:
-            self.login(username=self.username, password=self.password)
-            response = self.client.post(url, data=data)
+            await self.login(username=self.username, password=self.password)
+            response = await self.client.post(url, data=data)
         if response.status_code != 200:
             return {
                 "success": False,
@@ -353,7 +363,7 @@ class RcsWebApi:
             return {"success": False, "msg": response.text}
         return d
 
-    def cancel_trans_tasks(self, trans_task_nums, cancel_type="0", cancel_reason="2"):
+    async def cancel_trans_tasks(self, trans_task_nums, cancel_type="0", cancel_reason="2"):
         """
         取消传输任务
 
@@ -375,11 +385,11 @@ class RcsWebApi:
         self.client.headers.update(
             {"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"}
         )
-        response = self.client.post(url, data=data)
+        response = await self.client.post(url, data=data)
 
         if not response.text:
-            self.login(username=self.username, password=self.password)
-            response = self.client.post(url, data=data)
+            await self.login(username=self.username, password=self.password)
+            response = await self.client.post(url, data=data)
         if response.status_code != 200:
             return {
                 "success": False,
@@ -393,7 +403,7 @@ class RcsWebApi:
             return {"success": False, "msg": response.text}
         return d
 
-    def forceCancelTask(self, trans_task_nums: str):
+    async def forceCancelTask(self, trans_task_nums: str):
         url = self.base_url + "/taskDispatch/cancelTask.action"
         data = {"clientCode": "", "tokenCode": "", "taskCode": trans_task_nums}
         self.client.headers.update(
@@ -404,7 +414,7 @@ class RcsWebApi:
             }
         )
 
-        response = self.client.post(url, json=data)
+        response = await self.client.post(url, json=data)
         if response.status_code != 200:
             return {
                 "success": False,
@@ -418,7 +428,7 @@ class RcsWebApi:
         print(self.client.cookies)
         return d
 
-    def resumeAction(self, agvcode: str):
+    async def resumeAction(self, agvcode: str):
         url = self.base_url + "/taskDispatch/resumeAction.action"
         data = {"taskCode": "", "agvCode": agvcode, "subTaskNum": ""}
         self.client.headers.update(
@@ -427,11 +437,11 @@ class RcsWebApi:
                 "X-Requested-With": "XMLHttpRequest",
             }
         )
-        response = self.client.post(url, json=data)
+        response = await self.client.post(url, json=data)
 
         if not response.text:
-            self.login(username=self.username, password=self.password)
-            response = self.client.post(url, json=data)
+            await self.login(username=self.username, password=self.password)
+            response = await self.client.post(url, json=data)
         if response.status_code != 200:
             return {
                 "success": False,
@@ -445,7 +455,7 @@ class RcsWebApi:
             return {"success": False, "msg": response.text}
         return d
 
-    def freeagv(self, agvcode: str):
+    async def freeagv(self, agvcode: str):
         url = self.base_url + "/agvControl/freeRobot.action"
         data = {"clientCode": "", "agvCode": agvcode}
         self.client.headers.update(
@@ -456,11 +466,11 @@ class RcsWebApi:
                 "referer": self.base_url+"/agvControl/cms_index.action",
             }
         )
-        response = self.client.post(url, json=data)
+        response = await self.client.post(url, json=data)
 
         if not response.text:
-            self.login(username=self.username, password=self.password)
-            response = self.client.post(url, json=data)
+            await self.login(username=self.username, password=self.password)
+            response = await self.client.post(url, json=data)
         if response.status_code != 200:
             return {
                 "success": False,
@@ -475,49 +485,14 @@ class RcsWebApi:
 
 
 if __name__ == "__main__":
-    # 创建RCS Web API客户端实例
-    rcs_web_api = RcsWebApi(
-        username=cfg.get("rcms.username"),
-        password=cfg.get("rcms.password"),
-    )
-    print(rcs_web_api.find_tasks_detail(robotCode=""))
-    # 查询子任务详情示例
-    # subtask_response = rcs_web_api.find_sub_tasks_detail(
-    #     trans_task_num="MFAGV3002026011608201393195HS"
-    # )
-    # print("子任务详情:", subtask_response)
+    import asyncio
 
-    # # 获取AGV状态示例
-    # agv_status_response = rcs_web_api.get_agv_status(map_short_name="MOD2L30")
-    # print("AGV状态:", agv_status_response)
+    async def main():
+        rcs_web_api = RcsWebApi(
+            username=cfg.get("rcms.username"),
+            password=cfg.get("rcms.password"),
+        )
+        async with rcs_web_api:
+            print(await rcs_web_api.find_tasks_detail(robotCode=""))
 
-    # 测试新实现的方法
-    # task_num = "MFAGV3002026021003075913023HS"
-    # print("测试检查任务滚动状态:")
-    # print(rcs_web_api.check_is_rolling(task_num))
-    #
-    # print("测试检查开始传输任务:")
-    # print(rcs_web_api.check_starting_trans_tasks(task_num))
-    #
-    # print("测试检查软取消任务:")
-    # print(rcs_web_api.check_soft_cancel(task_num))
-    #
-    # print("测试取消传输任务:")
-    # print(rcs_web_api.cancel_trans_tasks(task_num))
-
-
-"""
-curl 'http://172.18.2.72:8182/rcms/web/taskDispatch/cancelTask.action' \
-  -H 'Accept: */*' \
-  -H 'Accept-Language: zh-CN,zh;q=0.9,en;q=0.8,en-US;q=0.7' \
-  -H 'Connection: keep-alive' \
-  -H 'Content-Type: application/json' \
-  -b 'ecsRemeber=1%3Blll; HIK_COOKIE=19C8886B5A6PBHO; JSESSIONID=3E81C23CF3064D3F07AEF508CCDC8D1F' \
-  -H 'DNT: 1' \
-  -H 'Origin: http://172.18.2.72:8182' \
-  -H 'Referer: http://172.18.2.72:8182/rcms/web/taskDispatch/cms_index.action' \
-  -H 'User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36' \
-  -H 'X-Requested-With: XMLHttpRequest' \
-  --data-raw '{"clientCode":"","tokenCode":"","taskCode":"MFAGV300换辆车，然后给他封一下这儿突然充上电电着频率电量太低了。 2026022311390041840HS"}' \
-  --insecure
-"""
+    asyncio.run(main())

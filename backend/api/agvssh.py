@@ -9,7 +9,7 @@ from fastapi import APIRouter, Body
 from fastapi.responses import StreamingResponse
 
 from util.config import cfg, r
-from util.ssh import SSHManager
+from util.ssh import SSHManager, validate_remote_path
 
 agv_web_router = APIRouter(
     prefix="/agv",
@@ -69,6 +69,8 @@ async def list_dir(id: str = Body(...), path: str = Body(".")):
     ssh_manager = SSHManager.get_ssh_manager(id)
     if not ssh_manager:
         return {"success": False, "error": "连接失败, id不存在"}
+    if not validate_remote_path(path):
+        return {"success": False, "error": f"无效的路径: {path}"}
     try:
         ls_output = await ssh_manager.list_directory(path)
     except Exception as e:
@@ -83,6 +85,8 @@ async def download_file(id: str, filepath: str):
     ssh_manager = SSHManager.get_ssh_manager(id)
     if not ssh_manager:
         return {"success": False, "error": "连接失败, id不存在"}
+    if not validate_remote_path(filepath):
+        return {"success": False, "error": f"无效的路径: {filepath}"}
     try:
         await ssh_manager.download_file(filepath, download_path)
     except Exception as e:
@@ -96,6 +100,8 @@ async def stream_download_file(id: str = Body(...), filepath: str = Body(...)):
     ssh_manager = SSHManager.get_ssh_manager(id)
     if not ssh_manager:
         return {"success": False, "error": "连接失败, id不存在"}
+    if not validate_remote_path(filepath):
+        return {"success": False, "error": f"无效的路径: {filepath}"}
 
     # 获取文件名
     filename = pathlib.PurePath(filepath).name

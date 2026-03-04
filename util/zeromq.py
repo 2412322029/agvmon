@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import sys
 import threading
 import time
 from datetime import datetime
@@ -147,7 +148,7 @@ def Map_info_update(
             existing_info = json.loads(existing_info)
             existing_pid = existing_info.get("pid")
             logger.info(f"已存在运行中的实例，PID: {existing_pid}")
-            exit(-1)
+            sys.exit(0)
 
         # Record program start time
         start_time = datetime.now()
@@ -230,7 +231,7 @@ def Map_info_update(
 
         traceback.print_exc()
         logger.error(f"主程序错误: {e}")
-        exit(1)
+        sys.exit(1)
 
 def removekey():
     keys_to_delete=[]

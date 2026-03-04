@@ -672,6 +672,7 @@ onUnmounted(() => {
     min-height: 300px; /* 设置最小高度 */
     touch-action: none; /* 禁用浏览器默认触摸行为 */
     user-select: none; /* 禁用文本选择 */
+    background-color: aliceblue;
 }
 
 /* 搜索框样式 */
@@ -682,7 +683,6 @@ onUnmounted(() => {
     z-index: 1000; /* 确保在地图之上 */
     display: flex;
     gap: 5px;
-    background: rgba(255, 255, 255, 0.9);
     padding: 5px;
     border-radius: 4px;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);

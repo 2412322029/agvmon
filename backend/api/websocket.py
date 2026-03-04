@@ -134,21 +134,13 @@ async def websocket_robot_status_endpoint(websocket: WebSocket, redis_client, rd
             except asyncio.TimeoutError:
                 await websocket.send_text(json.dumps({"type": "heartbeat"}))
             except WebSocketDisconnect:
-                logger.info(f"WebSocket连接超时断开，当前连接数: {len(active_connections)}")
+                logger.info(f"WebSocket连接断开，当前连接数: {len(active_connections)}")
                 active_connections.discard(websocket)
+                break
             except Exception as e:
                 logger.error(f"接收WebSocket消息时出错: {e}")
-                raise
-
-    except WebSocketDisconnect:
-        active_connections.discard(websocket)
-        print(f"WebSocket连接断开，当前连接数: {len(active_connections)}")
-
-        if len(active_connections) > 0:
-            last_websocket_activity = datetime.now()
-        else:
-            # 所有连接都断开了，不需要重置标志，让定时任务处理超时
-            pass
+                active_connections.discard(websocket)
+                break
 
     except Exception as e:
         print(f"WebSocket连接出错: {e}")
