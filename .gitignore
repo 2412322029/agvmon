@@ -15,3 +15,4 @@ log/*
 util/data/upload/*
 node_modules/*
 patches/*
+util/rabbitmq.log

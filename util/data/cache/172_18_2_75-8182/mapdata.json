@@ -55,21 +55,15 @@
   },
   {
     "cooX": "607800.0",
-    "cooY": "430060.0",
-    "dataName": "607800BB430060",
-    "mapDataCode": "607800BB430060"
+    "cooY": "425315.0",
+    "dataName": "607800BB425315",
+    "mapDataCode": "607800BB425315"
   },
   {
     "cooX": "606900.0",
     "cooY": "384400.0",
     "dataName": "606900BB384400",
     "mapDataCode": "606900BB384400"
-  },
-  {
-    "cooX": "607800.0",
-    "cooY": "425315.0",
-    "dataName": "607800BB425315",
-    "mapDataCode": "607800BB425315"
   },
   {
     "cooX": "609100.0",
@@ -82,12 +76,6 @@
     "cooY": "427118.0",
     "dataName": "609100BB427118",
     "mapDataCode": "609100BB427118"
-  },
-  {
-    "cooX": "607800.0",
-    "cooY": "427118.0",
-    "dataName": "607800BB427118",
-    "mapDataCode": "607800BB427118"
   },
   {
     "cooX": "605900.0",
@@ -415,12 +403,6 @@
     "mapDataCode": "666950BB356502"
   },
   {
-    "cooX": "606900.0",
-    "cooY": "424733.0",
-    "dataName": "606900BB424733",
-    "mapDataCode": "606900BB424733"
-  },
-  {
     "cooX": "617118.0",
     "cooY": "478295.0",
     "dataName": "617118BB478295",
@@ -467,6 +449,12 @@
     "cooY": "477396.0",
     "dataName": "610215BB477396",
     "mapDataCode": "610215BB477396"
+  },
+  {
+    "cooX": "606900.0",
+    "cooY": "424733.0",
+    "dataName": "606900BB424733",
+    "mapDataCode": "606900BB424733"
   },
   {
     "cooX": "607800.0",
@@ -889,6 +877,60 @@
     "mapDataCode": "622130BB496450"
   },
   {
+    "cooX": "626130.0",
+    "cooY": "496450.0",
+    "dataName": "626130BB496450",
+    "mapDataCode": "626130BB496450"
+  },
+  {
+    "cooX": "627130.0",
+    "cooY": "496450.0",
+    "dataName": "627130BB496450",
+    "mapDataCode": "627130BB496450"
+  },
+  {
+    "cooX": "628130.0",
+    "cooY": "496450.0",
+    "dataName": "628130BB496450",
+    "mapDataCode": "628130BB496450"
+  },
+  {
+    "cooX": "627130.0",
+    "cooY": "495550.0",
+    "dataName": "627130BB495550",
+    "mapDataCode": "627130BB495550"
+  },
+  {
+    "cooX": "626130.0",
+    "cooY": "495550.0",
+    "dataName": "626130BB495550",
+    "mapDataCode": "626130BB495550"
+  },
+  {
+    "cooX": "628130.0",
+    "cooY": "495550.0",
+    "dataName": "628130BB495550",
+    "mapDataCode": "628130BB495550"
+  },
+  {
+    "cooX": "626902.0",
+    "cooY": "438323.0",
+    "dataName": "626902BB438323",
+    "mapDataCode": "626902BB438323"
+  },
+  {
+    "cooX": "626902.0",
+    "cooY": "439918.0",
+    "dataName": "626902BB439918",
+    "mapDataCode": "626902BB439918"
+  },
+  {
+    "cooX": "607800.0",
+    "cooY": "430060.0",
+    "dataName": "607800BB430060",
+    "mapDataCode": "607800BB430060"
+  },
+  {
     "cooX": "607800.0",
     "cooY": "401900.0",
     "dataName": "607800BB401900",
@@ -917,6 +959,48 @@
     "cooY": "400182.0",
     "dataName": "610399BB400182",
     "mapDataCode": "610399BB400182"
+  },
+  {
+    "cooX": "607800.0",
+    "cooY": "429641.0",
+    "dataName": "607800BB429641",
+    "mapDataCode": "607800BB429641"
+  },
+  {
+    "cooX": "607710.0",
+    "cooY": "476949.0",
+    "dataName": "607710BB476949",
+    "mapDataCode": "607710BB476949"
+  },
+  {
+    "cooX": "606900.0",
+    "cooY": "429641.0",
+    "dataName": "606900BB429641",
+    "mapDataCode": "606900BB429641"
+  },
+  {
+    "cooX": "606810.0",
+    "cooY": "476949.0",
+    "dataName": "606810BB476949",
+    "mapDataCode": "606810BB476949"
+  },
+  {
+    "cooX": "607800.0",
+    "cooY": "427118.0",
+    "dataName": "607800BB427118",
+    "mapDataCode": "607800BB427118"
+  },
+  {
+    "cooX": "606810.0",
+    "cooY": "452264.0",
+    "dataName": "606810BB452264",
+    "mapDataCode": "606810BB452264"
+  },
+  {
+    "cooX": "606810.0",
+    "cooY": "466900.0",
+    "dataName": "606810BB466900",
+    "mapDataCode": "606810BB466900"
   },
   {
     "cooX": "604650.0",
@@ -1045,18 +1129,6 @@
     "mapDataCode": "624991BB496450"
   },
   {
-    "cooX": "625999.0",
-    "cooY": "496450.0",
-    "dataName": "625999BB496450",
-    "mapDataCode": "625999BB496450"
-  },
-  {
-    "cooX": "628015.0",
-    "cooY": "496450.0",
-    "dataName": "628015BB496450",
-    "mapDataCode": "628015BB496450"
-  },
-  {
     "cooX": "629023.0",
     "cooY": "496450.0",
     "dataName": "629023BB496450",
@@ -1127,12 +1199,6 @@
     "cooY": "495550.0",
     "dataName": "633169BB495550",
     "mapDataCode": "633169BB495550"
-  },
-  {
-    "cooX": "627007.0",
-    "cooY": "496450.0",
-    "dataName": "627007BB496450",
-    "mapDataCode": "627007BB496450"
   },
   {
     "cooX": "624583.0",
@@ -1505,15 +1571,15 @@
   },
   {
     "cooX": "607800.0",
-    "cooY": "442464.0",
-    "dataName": "607800BB442464",
-    "mapDataCode": "607800BB442464"
-  },
-  {
-    "cooX": "607800.0",
     "cooY": "441564.0",
     "dataName": "607800BB441564",
     "mapDataCode": "607800BB441564"
+  },
+  {
+    "cooX": "607800.0",
+    "cooY": "442464.0",
+    "dataName": "607800BB442464",
+    "mapDataCode": "607800BB442464"
   },
   {
     "cooX": "606900.0",
@@ -2030,7 +2096,7 @@
     "cooX": "620164.0",
     "cooY": "440269.0",
     "dataName": "620164BB440269",
-    "macName": "MFBUF410T06",
+    "macName": "MFBUF410B06",
     "mapDataCode": "620164BB440269"
   },
   {
@@ -2319,7 +2385,7 @@
     "cooX": "605307.0",
     "cooY": "458523.0",
     "dataName": "605307BB458523",
-    "macName": "MFBUF426T01",
+    "macName": "MFBUF426B01",
     "mapDataCode": "605307BB458523"
   },
   {
@@ -2340,7 +2406,7 @@
     "cooX": "605307.0",
     "cooY": "460761.0",
     "dataName": "605307BB460761",
-    "macName": "MFBUF426T04",
+    "macName": "MFBUF426B04",
     "mapDataCode": "605307BB460761"
   },
   {
@@ -2485,6 +2551,12 @@
     "mapDataCode": "602700BB504900"
   },
   {
+    "cooX": "626902.0",
+    "cooY": "441564.0",
+    "dataName": "626902BB441564",
+    "mapDataCode": "626902BB441564"
+  },
+  {
     "cooX": "602700.0",
     "cooY": "500250.0",
     "dataName": "602700BB500250",
@@ -2555,12 +2627,6 @@
     "cooY": "441564.0",
     "dataName": "626263BB441564",
     "mapDataCode": "626263BB441564"
-  },
-  {
-    "cooX": "626902.0",
-    "cooY": "441564.0",
-    "dataName": "626902BB441564",
-    "mapDataCode": "626902BB441564"
   },
   {
     "cooX": "628500.0",
@@ -2671,22 +2737,22 @@
     "mapDataCode": "605524BB430733"
   },
   {
-    "cooX": "607800.0",
-    "cooY": "430733.0",
-    "dataName": "607800BB430733",
-    "mapDataCode": "607800BB430733"
-  },
-  {
     "cooX": "606600.0",
     "cooY": "430733.0",
     "dataName": "606600BB430733",
     "mapDataCode": "606600BB430733"
   },
   {
+    "cooX": "607800.0",
+    "cooY": "430733.0",
+    "dataName": "607800BB430733",
+    "mapDataCode": "607800BB430733"
+  },
+  {
     "cooX": "604939.0",
     "cooY": "370838.0",
     "dataName": "604939BB370838",
-    "macName": "MFBUF420B12",
+    "macName": "MFBUF420T12",
     "mapDataCode": "604939BB370838"
   },
   {
@@ -3267,6 +3333,12 @@
     "mapDataCode": "605700BB436869"
   },
   {
+    "cooX": "606810.0",
+    "cooY": "464900.0",
+    "dataName": "606810BB464900",
+    "mapDataCode": "606810BB464900"
+  },
+  {
     "cooX": "637915.0",
     "cooY": "375022.0",
     "dataName": "637915BB375022",
@@ -3483,12 +3555,6 @@
     "mapDataCode": "637160BB376522"
   },
   {
-    "cooX": "606810.0",
-    "cooY": "464900.0",
-    "dataName": "606810BB464900",
-    "mapDataCode": "606810BB464900"
-  },
-  {
     "cooX": "607710.0",
     "cooY": "464900.0",
     "dataName": "607710BB464900",
@@ -3573,6 +3639,18 @@
     "mapDataCode": "648745BB376522"
   },
   {
+    "cooX": "606900.0",
+    "cooY": "449264.0",
+    "dataName": "606900BB449264",
+    "mapDataCode": "606900BB449264"
+  },
+  {
+    "cooX": "606810.0",
+    "cooY": "449264.0",
+    "dataName": "606810BB449264",
+    "mapDataCode": "606810BB449264"
+  },
+  {
     "cooX": "606810.0",
     "cooY": "461880.0",
     "dataName": "606810BB461880",
@@ -3621,18 +3699,6 @@
     "mapDataCode": "607800BB450964"
   },
   {
-    "cooX": "606900.0",
-    "cooY": "449264.0",
-    "dataName": "606900BB449264",
-    "mapDataCode": "606900BB449264"
-  },
-  {
-    "cooX": "606810.0",
-    "cooY": "449264.0",
-    "dataName": "606810BB449264",
-    "mapDataCode": "606810BB449264"
-  },
-  {
     "cooX": "607710.0",
     "cooY": "471942.0",
     "dataName": "607710BB471942",
@@ -3645,12 +3711,6 @@
     "mapDataCode": "607710BB479442"
   },
   {
-    "cooX": "607710.0",
-    "cooY": "476496.0",
-    "dataName": "607710BB476496",
-    "mapDataCode": "607710BB476496"
-  },
-  {
     "cooX": "606810.0",
     "cooY": "471192.0",
     "dataName": "606810BB471192",
@@ -3661,12 +3721,6 @@
     "cooY": "469400.0",
     "dataName": "607710BB469400",
     "mapDataCode": "607710BB469400"
-  },
-  {
-    "cooX": "607710.0",
-    "cooY": "478295.0",
-    "dataName": "607710BB478295",
-    "mapDataCode": "607710BB478295"
   },
   {
     "cooX": "606810.0",
@@ -3760,21 +3814,33 @@
   },
   {
     "cooX": "607710.0",
-    "cooY": "474900.0",
-    "dataName": "607710BB474900",
-    "mapDataCode": "607710BB474900"
-  },
-  {
-    "cooX": "607710.0",
     "cooY": "475692.0",
     "dataName": "607710BB475692",
     "mapDataCode": "607710BB475692"
   },
   {
     "cooX": "607710.0",
-    "cooY": "477192.0",
-    "dataName": "607710BB477192",
-    "mapDataCode": "607710BB477192"
+    "cooY": "504900.0",
+    "dataName": "607710BB504900",
+    "mapDataCode": "607710BB504900"
+  },
+  {
+    "cooX": "607710.0",
+    "cooY": "476496.0",
+    "dataName": "607710BB476496",
+    "mapDataCode": "607710BB476496"
+  },
+  {
+    "cooX": "607710.0",
+    "cooY": "478295.0",
+    "dataName": "607710BB478295",
+    "mapDataCode": "607710BB478295"
+  },
+  {
+    "cooX": "607710.0",
+    "cooY": "474900.0",
+    "dataName": "607710BB474900",
+    "mapDataCode": "607710BB474900"
   },
   {
     "cooX": "607710.0",
@@ -3787,12 +3853,6 @@
     "cooY": "469400.0",
     "dataName": "606810BB469400",
     "mapDataCode": "606810BB469400"
-  },
-  {
-    "cooX": "607710.0",
-    "cooY": "504900.0",
-    "dataName": "607710BB504900",
-    "mapDataCode": "607710BB504900"
   },
   {
     "cooX": "645588.0",
@@ -5108,7 +5168,7 @@
     "cooX": "631122.0",
     "cooY": "439827.0",
     "dataName": "631122BB439827",
-    "macName": "MFBUF409T04",
+    "macName": "MFBUF409B04",
     "mapDataCode": "631122BB439827"
   },
   {
@@ -5157,22 +5217,10 @@
     "mapDataCode": "630747BB439827"
   },
   {
-    "cooX": "606810.0",
-    "cooY": "456264.0",
-    "dataName": "606810BB456264",
-    "mapDataCode": "606810BB456264"
-  },
-  {
     "cooX": "607710.0",
     "cooY": "456264.0",
     "dataName": "607710BB456264",
     "mapDataCode": "607710BB456264"
-  },
-  {
-    "cooX": "606810.0",
-    "cooY": "452264.0",
-    "dataName": "606810BB452264",
-    "mapDataCode": "606810BB452264"
   },
   {
     "cooX": "607710.0",
@@ -5193,12 +5241,6 @@
     "mapDataCode": "607710BB466900"
   },
   {
-    "cooX": "606810.0",
-    "cooY": "466900.0",
-    "dataName": "606810BB466900",
-    "mapDataCode": "606810BB466900"
-  },
-  {
     "cooX": "605900.0",
     "cooY": "466900.0",
     "dataName": "605900BB466900",
@@ -5215,6 +5257,12 @@
     "cooY": "456264.0",
     "dataName": "605770BB456264",
     "mapDataCode": "605770BB456264"
+  },
+  {
+    "cooX": "606810.0",
+    "cooY": "456264.0",
+    "dataName": "606810BB456264",
+    "mapDataCode": "606810BB456264"
   },
   {
     "cooX": "607800.0",
@@ -6800,16 +6848,16 @@
     "mapDataCode": "607710BB492149"
   },
   {
-    "cooX": "607800.0",
-    "cooY": "431484.0",
-    "dataName": "607800BB431484",
-    "mapDataCode": "607800BB431484"
-  },
-  {
     "cooX": "608800.0",
     "cooY": "431484.0",
     "dataName": "608800BB431484",
     "mapDataCode": "608800BB431484"
+  },
+  {
+    "cooX": "607800.0",
+    "cooY": "431484.0",
+    "dataName": "607800BB431484",
+    "mapDataCode": "607800BB431484"
   },
   {
     "cooX": "622234.0",
@@ -7678,7 +7726,7 @@
     "cooX": "638515.0",
     "cooY": "497196.0",
     "dataName": "638515BB497196",
-    "macName": "MFBUF405B02",
+    "macName": "MFBUF405T02",
     "mapDataCode": "638515BB497196"
   },
   {
@@ -11581,24 +11629,6 @@
     "mapDataCode": "618405BB382780"
   },
   {
-    "cooX": "627007.0",
-    "cooY": "495550.0",
-    "dataName": "627007BB495550",
-    "mapDataCode": "627007BB495550"
-  },
-  {
-    "cooX": "625999.0",
-    "cooY": "495550.0",
-    "dataName": "625999BB495550",
-    "mapDataCode": "625999BB495550"
-  },
-  {
-    "cooX": "628015.0",
-    "cooY": "495550.0",
-    "dataName": "628015BB495550",
-    "mapDataCode": "628015BB495550"
-  },
-  {
     "cooX": "646390.0",
     "cooY": "494550.0",
     "dataName": "646390BB494550",
@@ -12354,7 +12384,7 @@
     "cooX": "622485.0",
     "cooY": "354061.0",
     "dataName": "622485BB354061",
-    "macName": "MFBUF419T09",
+    "macName": "MFBUF419B09",
     "mapDataCode": "622485BB354061"
   },
   {
@@ -12592,6 +12622,12 @@
   },
   {
     "cooX": "606900.0",
+    "cooY": "444172.0",
+    "dataName": "606900BB444172",
+    "mapDataCode": "606900BB444172"
+  },
+  {
+    "cooX": "606900.0",
     "cooY": "447645.0",
     "dataName": "606900BB447645",
     "mapDataCode": "606900BB447645"
@@ -12601,12 +12637,6 @@
     "cooY": "447645.0",
     "dataName": "607800BB447645",
     "mapDataCode": "607800BB447645"
-  },
-  {
-    "cooX": "606900.0",
-    "cooY": "444172.0",
-    "dataName": "606900BB444172",
-    "mapDataCode": "606900BB444172"
   },
   {
     "cooX": "606900.0",
@@ -12808,14 +12838,14 @@
     "cooX": "605300.0",
     "cooY": "435751.0",
     "dataName": "605300BB435751",
-    "macName": "MFBUF425B02",
+    "macName": "MFBUF425T02",
     "mapDataCode": "605300BB435751"
   },
   {
     "cooX": "605300.0",
     "cooY": "435006.0",
     "dataName": "605300BB435006",
-    "macName": "MFBUF425T01",
+    "macName": "MFBUF425B01",
     "mapDataCode": "605300BB435006"
   },
   {
@@ -13363,7 +13393,7 @@
     "cooX": "611255.0",
     "cooY": "497425.0",
     "dataName": "611255BB497425",
-    "macName": "MFBUF403B02",
+    "macName": "MFBUF403T02",
     "mapDataCode": "611255BB497425"
   },
   {
@@ -13412,7 +13442,7 @@
     "cooX": "616505.0",
     "cooY": "497425.0",
     "dataName": "616505BB497425",
-    "macName": "MFBUF403B09",
+    "macName": "MFBUF403T09",
     "mapDataCode": "616505BB497425"
   },
   {
@@ -13433,7 +13463,7 @@
     "cooX": "618755.0",
     "cooY": "497425.0",
     "dataName": "618755BB497425",
-    "macName": "MFBUF403B12",
+    "macName": "MFBUF403T12",
     "mapDataCode": "618755BB497425"
   },
   {
@@ -13729,6 +13759,12 @@
     "mapDataCode": "612757BB443615"
   },
   {
+    "cooX": "607800.0",
+    "cooY": "429160.0",
+    "dataName": "607800BB429160",
+    "mapDataCode": "607800BB429160"
+  },
+  {
     "cooX": "612007.0",
     "cooY": "444036.0",
     "dataName": "612007BB444036",
@@ -14000,12 +14036,6 @@
     "dataName": "618104BB400882",
     "macName": "MFBOPN00",
     "mapDataCode": "618104BB400882"
-  },
-  {
-    "cooX": "607800.0",
-    "cooY": "429160.0",
-    "dataName": "607800BB429160",
-    "mapDataCode": "607800BB429160"
   },
   {
     "cooX": "607800.0",
@@ -15210,12 +15240,6 @@
     "mapDataCode": "631015BB437435"
   },
   {
-    "cooX": "626600.0",
-    "cooY": "438323.0",
-    "dataName": "626600BB438323",
-    "mapDataCode": "626600BB438323"
-  },
-  {
     "cooX": "623100.0",
     "cooY": "438323.0",
     "dataName": "623100BB438323",
@@ -15579,6 +15603,18 @@
   },
   {
     "cooX": "607800.0",
+    "cooY": "428483.0",
+    "dataName": "607800BB428483",
+    "mapDataCode": "607800BB428483"
+  },
+  {
+    "cooX": "607800.0",
+    "cooY": "427733.0",
+    "dataName": "607800BB427733",
+    "mapDataCode": "607800BB427733"
+  },
+  {
+    "cooX": "607800.0",
     "cooY": "432234.0",
     "dataName": "607800BB432234",
     "mapDataCode": "607800BB432234"
@@ -15692,24 +15728,6 @@
     "mapDataCode": "606400BB431859"
   },
   {
-    "cooX": "607800.0",
-    "cooY": "429983.0",
-    "dataName": "607800BB429983",
-    "mapDataCode": "607800BB429983"
-  },
-  {
-    "cooX": "607800.0",
-    "cooY": "428483.0",
-    "dataName": "607800BB428483",
-    "mapDataCode": "607800BB428483"
-  },
-  {
-    "cooX": "607800.0",
-    "cooY": "427733.0",
-    "dataName": "607800BB427733",
-    "mapDataCode": "607800BB427733"
-  },
-  {
     "cooX": "605524.0",
     "cooY": "431859.0",
     "dataName": "605524BB431859",
@@ -15733,7 +15751,7 @@
     "cooX": "605524.0",
     "cooY": "430330.0",
     "dataName": "605524BB430330",
-    "macName": "MFBUF424B04",
+    "macName": "MFBUF424T04",
     "mapDataCode": "605524BB430330"
   },
   {
@@ -15759,7 +15777,7 @@
     "cooX": "605524.0",
     "cooY": "428858.0",
     "dataName": "605524BB428858",
-    "macName": "MFBUF424B02",
+    "macName": "MFBUF424T02",
     "mapDataCode": "605524BB428858"
   },
   {
@@ -15772,7 +15790,7 @@
     "cooX": "605524.0",
     "cooY": "428136.0",
     "dataName": "605524BB428136",
-    "macName": "MFBUF424B01",
+    "macName": "MFBUF424T01",
     "mapDataCode": "605524BB428136"
   },
   {
@@ -16723,7 +16741,7 @@
     "cooX": "605128.0",
     "cooY": "406355.0",
     "dataName": "605128BB406355",
-    "macName": "MFBUF422B07",
+    "macName": "MFBUF422T07",
     "mapDataCode": "605128BB406355"
   },
   {
@@ -17160,14 +17178,14 @@
     "cooX": "605128.0",
     "cooY": "398290.0",
     "dataName": "605128BB398290",
-    "macName": "MFBUF421T04",
+    "macName": "MFBUF421B04",
     "mapDataCode": "605128BB398290"
   },
   {
     "cooX": "605128.0",
     "cooY": "397540.0",
     "dataName": "605128BB397540",
-    "macName": "MFBUF421T03",
+    "macName": "MFBUF421B03",
     "mapDataCode": "605128BB397540"
   },
   {

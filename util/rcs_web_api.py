@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta
 from hashlib import md5
 from urllib.parse import quote
@@ -6,7 +7,7 @@ import httpx
 
 from util.config import cfg
 
-
+logging.getLogger("httpx").setLevel(logging.WARNING)
 class RcsWebApi:
     """
     RCS Web API客户端类，用于与RCS系统进行交互
