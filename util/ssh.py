@@ -141,7 +141,8 @@ class SSHManager:
                 port=self.port,
                 username=self.username,
                 password=self.password,
-                connect_timeout=8,
+                known_hosts=None,
+                connect_timeout=5,
             )
             self.id = uuid.uuid4().hex
             SSHManager.all_ssh_managers.append(

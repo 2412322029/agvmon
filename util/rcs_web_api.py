@@ -28,6 +28,7 @@ class RcsWebApi:
         self.username = username
         self.password = password
         self.client = None
+        self.cookies = None
         # self.login(username, password)
         # print(self.client.cookies)
 
@@ -101,6 +102,7 @@ class RcsWebApi:
             },
         )
         print(response.text)
+        self.cookies = self.client.cookies
         if response.status_code != 200:
             raise Exception(
                 f"登录失败，状态码：{response.status_code}，响应内容：{response.text}"
@@ -169,7 +171,7 @@ class RcsWebApi:
         self.client.headers.update(
             {"accept": "application/json, text/javascript, */*; q=0.01"}
         )
-        # data=
+        self.client.cookies = self.cookies
         response = await self.client.post(url, data=data)
 
         if not response.text:
@@ -209,11 +211,14 @@ class RcsWebApi:
             "searchYear": search_year,
             "showHisData": show_his_data,
         }
-
+        self.client.cookies = self.cookies
         response = await self.client.post(
             url,
             data=data,
         )
+        if not response.text:
+            await self.login(username=self.username, password=self.password)
+            response = await self.client.post(url, data=data)
         return response.json()
 
     async def stopResumeOffline(self, agvCodes="", flag="resume"):  # stop / resume
@@ -226,6 +231,7 @@ class RcsWebApi:
             "stopResumeOffline": flag,
         }
         self.client.headers.update({"content-type": "application/json"})
+        self.client.cookies = self.cookies
         response = await self.client.post(
             url,
             json=data,
@@ -259,6 +265,7 @@ class RcsWebApi:
                 "Content-Type": "application/json; charset=UTF-8",
             }
         )
+        self.client.cookies = self.cookies
         response = await self.client.post(
             url,
             json=data,
@@ -282,6 +289,7 @@ class RcsWebApi:
         self.client.headers.update(
             {"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"}
         )
+        self.client.cookies = self.cookies
         response = await self.client.post(url, data=data)
 
         if not response.text:
@@ -314,6 +322,7 @@ class RcsWebApi:
         self.client.headers.update(
             {"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"}
         )
+        self.client.cookies = self.cookies
         response = await self.client.post(url, data=data)
 
         if not response.text:
@@ -344,6 +353,7 @@ class RcsWebApi:
         data = {
             "transTaskNums": trans_task_nums,
         }
+        self.client.cookies = self.cookies
         self.client.headers.update(
             {"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"}
         )
@@ -385,6 +395,7 @@ class RcsWebApi:
         self.client.headers.update(
             {"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"}
         )
+        self.client.cookies = self.cookies
         response = await self.client.post(url, data=data)
 
         if not response.text:
@@ -413,7 +424,7 @@ class RcsWebApi:
                 "Referer": self.base_url+"/taskDispatch/cms_index.action",
             }
         )
-
+        self.client.cookies = self.cookies
         response = await self.client.post(url, json=data)
         if response.status_code != 200:
             return {
@@ -436,9 +447,9 @@ class RcsWebApi:
                 "Content-Type": "application/json",
                 "X-Requested-With": "XMLHttpRequest",
             }
-        )
+        )        
+        self.client.cookies = self.cookies
         response = await self.client.post(url, json=data)
-
         if not response.text:
             await self.login(username=self.username, password=self.password)
             response = await self.client.post(url, json=data)
@@ -466,6 +477,7 @@ class RcsWebApi:
                 "referer": self.base_url+"/agvControl/cms_index.action",
             }
         )
+        self.client.cookies = self.cookies
         response = await self.client.post(url, json=data)
 
         if not response.text:
