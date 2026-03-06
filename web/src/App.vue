@@ -5,7 +5,8 @@ import {
   LinkOutlined,
   MenuOutlined,
   SettingOutlined,
-  ToolOutlined
+  ToolOutlined,
+  ControlFilled
 } from '@vicons/antd';
 import {
   darkTheme,
@@ -74,6 +75,12 @@ const menuOptions = [
     key: 'tools',
     icon: renderIcon(ToolOutlined),
     children: [
+      {
+        label: 'WCS设备状态',
+        key: '/wcs-status',
+        icon: renderIcon(ControlFilled),
+        onClick: () => router.push('/wcs-status')
+      },
       {
         label: '异常记录',
         key: '/exception-records',

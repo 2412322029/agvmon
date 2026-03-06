@@ -84,6 +84,12 @@ const router = createRouter({
       name: 'setting',
       component: () => import('../views/setting.vue'),
     },
+    // WCS Device Status Page
+    {
+      path: '/wcs-status',
+      name: 'wcs-status',
+      component: () => import('../views/WCSDeviceStatus.vue'),
+    },
     // 404 Not Found Page
     {
       path: '/:pathMatch(.*)*',

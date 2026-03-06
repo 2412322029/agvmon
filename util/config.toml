@@ -5,9 +5,10 @@ zmq_auto = true
 test = false
 
 [rcms]
-host = "http://172.18.2.72:8182"
+host = "http://172.18.2.75:8182"
 username = "lll"
 password = "Hik@123++"
+wcs_rest_api = "http://172.18.2.86:8090"
 
 [redis]
 host = "127.0.0.1"

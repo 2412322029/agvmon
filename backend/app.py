@@ -12,6 +12,7 @@ from backend.api.static_routes import (
     setup_root_route,
     setup_static_files,
 )
+from backend.api.wcsapi import wcs_web_router
 from backend.api.websocket import websocket_robot_status_endpoint
 from util.config import cfg, r
 
@@ -50,6 +51,9 @@ app.include_router(rcms_router, prefix="/api")
 
 # 包含UtilWebApi路由
 app.include_router(util_web_router, prefix="/api")
+
+# 包含WcsApi路由
+app.include_router(wcs_web_router, prefix="/api")
 
 
 # 设置WebSocket路由
