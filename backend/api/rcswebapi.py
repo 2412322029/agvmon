@@ -480,32 +480,10 @@ async def Port(
         return result
     except Exception as e:
         return {"message": "error", "errors": [str(e)]}
-    
-@rcs_web_router.get("/get_cmsindexmap_cache")
-async def get_cmsindexmap_cache():
-    """
-    获取CMS索引映射表缓存
-    """
-    cmsindexmap = rcs_api.get_cmsindexmap()
-    options = {}
-    for device_type, devices in cmsindexmap.items():
-        options[device_type] = [
-            {"value": cms_index, "label": device_name}
-            for device_name, cms_index in devices.items()
-        ]
-    return {"options": options}
-
 
 @rcs_web_router.get("/get_device_type_options")
 async def get_device_type_options():
     """
-    获取设备类型选项
+    获取设备类型选项 CMS索引映射表缓存
     """
-    cmsindexmap = rcs_api.get_cmsindexmap()
-    options = {}
-    for device_type, devices in cmsindexmap.items():
-        options[device_type] = [
-            {"value": cms_index, "label": device_name}
-            for device_name, cms_index in devices.items()
-        ]
-    return {"options": options}
+    return rcs_api.get_device_type_options()

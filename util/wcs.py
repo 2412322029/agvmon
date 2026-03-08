@@ -13,16 +13,6 @@ class Wcs:
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
             },
         )
-        self.cms_index_map = {
-            "BUFFER": {
-                "202000": {
-                    "name": "BUF403",
-                }
-            },
-            "EQ": {},
-            "STK": {},
-            "CV": {},
-        }
 
     async def search_device_status_info(self, cms_index: str, device_type: str):
         # BUFFER  EQ  STK CV
@@ -38,14 +28,15 @@ class Wcs:
         if cfg.get("test"):
             return test.get(device_type, {})
         try:
-            resp = await self.client.post(url, json=data)
+            resp = await self.client.post(url, json=data, timeout=5)
             data = resp.json()
             if not data or data.get("code") != 0:
-                return{"code":-1,"message":data.get("message","")}
+                return {"code": -1, "message": data.get("message", "data is empty")}
             return data
+        except httpx.ReadTimeout:
+            return {"code": -1, "message": "访问超时"}
         except Exception as e:
-            return{"code":-1,"message":str(e)}
-        
+            return {"code": -1, "message": str(e)}
 
 
 test = {

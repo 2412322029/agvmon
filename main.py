@@ -2,6 +2,7 @@ import argparse
 import asyncio
 
 from backend.app import run_api_server
+from util.config import cfg
 from util.logger import logger
 from util.rabbitmq import run_rabbitmq_server
 from util.rcms_api import RcmsApi
@@ -12,7 +13,7 @@ from util.zeromq import Map_info_update, removekey
 logger.setLevel('INFO')
 def main():
     parser = argparse.ArgumentParser(description='AGV监控系统命令行界面')
-    
+    parser.add_argument('--test', action='store_true', help='测试模式')
     # 添加互斥组用于主要操作
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--zeromq', action='store_true', help='运行ZeroMQ更新以刷新Redis地图信息')
@@ -34,7 +35,9 @@ def main():
     group.add_argument('--rk', action='store_true', help='romve key')
     
     args = parser.parse_args()
-    
+    if args.test:
+        cfg.set('test', True)
+        print(f"测试模式: {cfg.get('test')}")
     # 创建RcmsApi实例
     rapi = RcmsApi()
     rcs_api = RcsWebApi()

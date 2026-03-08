@@ -669,16 +669,14 @@ class RcsWebApi:
         }
         with open(self.current_cache_path / "cmsindexmap.json", "w") as f:
             json.dump(all_dict, f, ensure_ascii=False, indent=2)
-        logger.info(f"cmsindexmap.json缓存成功，路径：{self.current_cache_path / 'cmsindexmap.json'}")
+        logger.info(
+            f"cmsindexmap.json缓存成功，路径：{self.current_cache_path / 'cmsindexmap.json'}"
+        )
 
-    @functools.lru_cache(maxsize=1)
     def get_cmsindexmap(self):
         """
         获取CMS索引映射表
-        
         从缓存文件 cmsindexmap.json 中读取CMS索引映射数据。
-        使用 lru_cache 装饰器缓存结果，避免重复读取文件。
-        
         返回:
             dict: CMS索引映射字典，包含设备类型和对应的CMS索引列表
         """
@@ -686,7 +684,21 @@ class RcsWebApi:
         with open(file_path, "r") as f:
             data = json.load(f)
         return data
-    
+
+    @functools.lru_cache(maxsize=1)
+    def get_device_type_options(self):
+        """
+        获取设备类型选项 使用 lru_cache 装饰器缓存结果
+        """
+        cmsindexmap = self.get_cmsindexmap()
+        options = {}
+        for device_type, devices in cmsindexmap.items():
+            options[device_type] = [
+                {"value": cms_index, "label": device_name}
+                for device_name, cms_index in devices.items()
+            ]
+        return {"options": options}
+
 
 if __name__ == "__main__":
     import asyncio

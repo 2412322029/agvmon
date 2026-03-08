@@ -1,12 +1,12 @@
 <script setup>
 import {
   ApiOutlined,
+  ControlFilled,
   HomeOutlined,
   LinkOutlined,
   MenuOutlined,
   SettingOutlined,
-  ToolOutlined,
-  ControlFilled
+  ToolOutlined
 } from '@vicons/antd';
 import {
   darkTheme,
@@ -30,6 +30,24 @@ const route = useRoute();
 const clicktimes = ref(Number(localStorage.getItem('clicktimes')) || 3);
 const darkMode = ref(localStorage.getItem('dark_mode') === 'true');
 
+const pageTitleMap = {
+  '/': '首页',
+  '/service': '服务管理',
+  '/service/build_from_cache': '从缓存构建',
+  '/service/build_from_raw': '从原始数据构建',
+  '/map': '地图',
+  '/task-query': '任务查询',
+  '/rcs-web-login': 'RCS Web 登录',
+  '/exception-records': '异常记录',
+  '/agv': 'AGV-EQ协议解析',
+  '/ssh': 'SSH 文件管理',
+  '/ssh-mgr': 'SSH 管理',
+  '/file-upload': '文件上传管理',
+  '/chat': '聊天室',
+  '/setting': '设置',
+  '/wcs-status': 'WCS设备状态'
+};
+
 onMounted(() => {
   document.documentElement.dataset.theme = darkMode.value ? 'dark' : 'light';
   if (clicktimes.value > 0) {
@@ -40,6 +58,11 @@ onMounted(() => {
 watch(darkMode, (newVal) => {
   document.documentElement.dataset.theme = newVal ? 'dark' : 'light';
 });
+
+watch(route, (newRoute) => {
+  const title = pageTitleMap[newRoute.path] || 'AGV监控系统';
+  document.title = title;
+}, { immediate: true });
 
 provide('darkMode', darkMode);
 

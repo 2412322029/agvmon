@@ -259,11 +259,14 @@ onBeforeUnmount(() => {
         <div class="controls">
           <NSpace align="center">
             <span>设备类型：</span>
-            <NButton v-for="deviceType in deviceTypeOptions" :key="deviceType.value"
+            <!-- <NButton v-for="deviceType in deviceTypeOptions" :key="deviceType.value"
               :type="selectedDeviceType === deviceType.value ? 'primary' : 'default'"
               @click="selectedDeviceType = deviceType.value" :bordered="false">
               {{ deviceType.label }}
-            </NButton>
+            </NButton> -->
+            <NSelect v-if='deviceTypeOptions' :options='deviceTypeOptions'
+              v-model:value="selectedDeviceType" style="width: 120px;">
+            </NSelect>
             <NSelect v-if='options[selectedDeviceType]' :options='options[selectedDeviceType]'
               v-model:value="selectname" style="width: 160px;">
             </NSelect>
