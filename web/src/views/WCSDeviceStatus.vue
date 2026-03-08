@@ -143,16 +143,21 @@ const cmsSearchText = ref('')
 // watch(cmsSearchText, (newVal) => {
 //   fetchStatusData()
 // })
-
+watch(loading, (newVal) => {
+    console.log(loading.value);
+})
 
 const fetchStatusData = async ({ index, deviceType } = {}) => {
   if (!deviceType) deviceType = selectedDeviceType.value
   if (!index) index = cmsSearchText.value
   if (!index) {
     message.error('请输入CMS索引')
+    loading.value = false
     return
   }
+  console.log('[fetchStatusData] called with index:', index, 'deviceType:', deviceType)
   loading.value = true
+
   try {
     const response = await fetch(`/api/wcs/searchDeviceStatusInfo?cms_index=${index}&device_type=${deviceType}`)
     const data = await response.json()
@@ -170,7 +175,11 @@ const fetchStatusData = async ({ index, deviceType } = {}) => {
         statusData.value = []
       }
     }
-    message.success(`${deviceType} ${index} 数据刷新成功`)
+    if (data.code === 0) {
+      message.success(`${deviceType} ${index} 数据刷新成功`)
+    } else {
+      message.error(`${deviceType} ${index} 数据刷新失败: ${data.message}`)
+    }
   } catch (error) {
     console.error('获取状态数据失败:', error)
     message.error('获取数据失败')
@@ -185,6 +194,7 @@ const fetchStatusData = async ({ index, deviceType } = {}) => {
 }
 
 const onPinClick = () => {
+  console.log('[onPinClick] called, cmsSearchText:', cmsSearchText.value, 'selectlable:', selectlable.value)
   if (cmsSearchText.value) {
     const label = selectlable.value
     addPinnedItem(cmsSearchText.value, selectedDeviceType.value, label)
@@ -220,7 +230,8 @@ onMounted(() => {
   getmaplist()
   setTimeout(() => {
     loadPinnedItems()
-  }, 500)
+  }, 50)
+  loading.value = false
 })
 
 onBeforeUnmount(() => {
@@ -254,17 +265,15 @@ onBeforeUnmount(() => {
               {{ deviceType.label }}
             </NButton>
             <NSelect v-if='options[selectedDeviceType]' :options='options[selectedDeviceType]'
-              v-model:value="selectname" style="width: 140px;">
+              v-model:value="selectname" style="width: 160px;">
             </NSelect>
             <span v-else>加载中...</span>
             <span>CMS索引：</span>
-            <NInput v-model:value="cmsSearchText" placeholder="输入CMS索引" style="width: 150px" />
-            <NButton type="primary" @click="fetchStatusData" :loading="loading">
+            <NInput v-model:value="cmsSearchText" placeholder="输入CMS索引" style="width: 100px" />
+            <NButton type="primary" @click="fetchStatusData" :loading="loading" :disabled="!cmsSearchText">
               刷新
             </NButton>
-            <NButton type="warning" @click="onPinClick" :disabled="!cmsSearchText">
-              固定
-            </NButton>
+            
 
             <!-- <NButton type="success" @click="startAutoRefresh" :type="refreshInterval ? 'success' : 'default'">
             自动刷新
@@ -274,7 +283,7 @@ onBeforeUnmount(() => {
         <div style="margin-top: 20px;">
           <WCSDeviceGrid :device-type="selectedDeviceType" :d-name="selectlable" :cms-index="cmsSearchText"
             :status-data="pinnedStatusData[`${cmsSearchText}_${selectedDeviceType}`] || statusData"
-            :is-pinned="false" />
+            :is-pinned="false" @pin="onPinClick" />
         </div>
         <div style="border: 1px solid green;">
           <div v-for="item in pinnedItems" :key="`${item.cmsIndex}_${item.deviceType}`" style="margin-top: 20px;"

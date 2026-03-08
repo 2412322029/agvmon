@@ -27,7 +27,7 @@ const props = defineProps({
   }
 })
 
-const emit = defineEmits(['refresh', 'unpin'])
+const emit = defineEmits(['refresh', 'unpin', 'pin'])
 
 const lastUpdateTime = ref(null)
 const currentTime = ref(new Date())
@@ -35,7 +35,7 @@ let interval = null
 
 onMounted(() => {
   lastUpdateTime.value = new Date()
-  if (props.isPinned ) {
+  if (props.isPinned) {
     interval = setInterval(() => {
       currentTime.value = new Date()
     }, 1000)
@@ -85,7 +85,7 @@ const getpresentColor = (status) => {
     return '#52c41a'
   } else if ((present === 'ON' && !trayId) || (present === 'OFF' && trayId)) {
     return '#ff4d4f'
-  } 
+  }
   return '#999'
 }
 const getArrowDirection = (portPos, trayId) => {
@@ -94,6 +94,10 @@ const getArrowDirection = (portPos, trayId) => {
 
 const onUnpin = () => {
   emit('unpin')
+}
+
+const onPin = () => {
+  emit('pin')
 }
 
 
@@ -116,13 +120,14 @@ const groupedData = computed(() => {
     <NCard :bordered="false" size="small">
       <template #header>
         <div class="header-content">
-          <span class="title-text">{{ dName||"设备状态" }}  </span>
+          <span class="title-text">{{ dName || "设备状态" }} </span>
           <span class="time-diff" v-if="isPinned && statusData.length > 0">{{ timeDifference }}</span>
         </div>
       </template>
       <template #header-extra>
         <span class="header-extra">{{ deviceType }} - {{ cmsIndex }} </span>
-        <NButton v-if="isPinned" type="default" size="small" @click="onRefresh" :loading="false" circle style="margin: 0 5px;">
+        <NButton v-if="isPinned" type="default" size="small" @click="onRefresh" :loading="false" circle
+          style="margin: 0 5px;">
           <template #icon>
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -139,6 +144,16 @@ const groupedData = computed(() => {
               stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M18 6 6 18" />
               <path d="m6 6 12 12" />
+            </svg>
+          </template>
+        </NButton>
+        <NButton v-if="!isPinned" type="default" size="small" @click="onPin" circle style="margin: 0 5px;">
+          <template #icon>
+            <svg t="1772969854733" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg"
+              p-id="2076" width="200" height="200">
+              <path
+                d="M648.728381 130.779429a73.142857 73.142857 0 0 1 22.674286 15.433142l191.561143 191.756191a73.142857 73.142857 0 0 1-22.137905 118.564571l-67.876572 30.061715-127.341714 127.488-10.093714 140.239238a73.142857 73.142857 0 0 1-124.684191 46.445714l-123.66019-123.782095-210.724572 211.699809-51.833904-51.614476 210.846476-211.821714-127.926857-128.024381a73.142857 73.142857 0 0 1 46.299428-124.635429l144.237715-10.776381 125.074285-125.220571 29.379048-67.779048a73.142857 73.142857 0 0 1 96.207238-38.034285z m-29.086476 67.120761l-34.913524 80.530286-154.087619 154.331429-171.398095 12.751238 303.323428 303.542857 12.044191-167.399619 156.233143-156.428191 80.384-35.59619-191.585524-191.73181z"
+                p-id="2077" fill="#7EE8C5"></path>
             </svg>
           </template>
         </NButton>
