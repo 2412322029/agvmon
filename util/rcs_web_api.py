@@ -25,9 +25,9 @@ class RcsWebApi:
 
     def __init__(
         self,
-        base_url=cfg.get("rcms.host") + "/rcms/web",
-        username=cfg.get("rcms.username"),
-        password=cfg.get("rcms.password"),
+        base_url=cfg.get_with_reload("rcms.host") + "/rcms/web",
+        username=cfg.get_with_reload("rcms.username"),
+        password=cfg.get_with_reload("rcms.password"),
     ):
         """
         初始化RCS Web API客户端

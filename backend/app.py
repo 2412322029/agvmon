@@ -1,3 +1,4 @@
+import uvicorn
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -5,7 +6,6 @@ from backend.api.agvssh import agv_web_router
 from backend.api.other import util_web_router, websocket_chat_endpoint
 from backend.api.rcmsapi import rcms_router
 from backend.api.rcswebapi import rcs_web_router
-from backend.api.redis_client import get_rdstag
 from backend.api.startup import setup_startup_event
 from backend.api.static_routes import (
     setup_404_handler,
@@ -60,7 +60,7 @@ app.include_router(wcs_web_router, prefix="/api")
 @app.websocket("/ws/robot-status")
 async def websocket_robot_status(websocket: WebSocket):
     """机器人状态WebSocket接口"""
-    rdstag = get_rdstag()
+    rdstag = cfg.get_with_reload("rcms.host").split("://")[1].replace(":", "-")
     await websocket_robot_status_endpoint(websocket, r, rdstag)
 
 
@@ -72,6 +72,4 @@ async def websocket_chat(websocket: WebSocket):
 
 def run_api_server():
     """运行FastAPI WebSocket服务器"""
-    import uvicorn
-
     uvicorn.run("backend.app:app", **cfg.get("web"))

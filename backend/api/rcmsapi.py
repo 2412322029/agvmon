@@ -7,6 +7,7 @@ import xmltodict
 from fastapi import APIRouter, Body, Request
 from pydantic import BaseModel, Field
 
+# from backend.api.rcswebapi import refresh_rcs_api
 from util.config import cfg, r
 
 # 导入异常日志数据库
@@ -521,7 +522,12 @@ def update_config(config_data: Dict[str, Any] = Body([], description="配置项�
         for key, value in config_data.items():
             cfg.set(key, value)
         cfg.save()
-        cfg.reload()    
+        cfg.reload()
+        # global rapi
+        # rapi = RcmsApi(host=cfg.get_with_reload("rcms.host"))
+        # rapi.build_from_cache()    
+        # refresh_rcs_api()
+        
         return {"message": "success"}
     except Exception as e:
         return {"message": "error", "errors": [str(e)]}

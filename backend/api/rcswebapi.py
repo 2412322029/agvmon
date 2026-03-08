@@ -487,3 +487,14 @@ async def get_device_type_options():
     获取设备类型选项 CMS索引映射表缓存
     """
     return rcs_api.get_device_type_options()
+
+def refresh_rcs_api():
+    """
+    刷新RCS Web API客户端
+    """
+    try:
+        global rcs_api
+        rcs_api = RcsWebApi()
+    except Exception as e:
+        return {"message": "error", "errors": [str(e)]}
+    return {"message": "success", "base_url": rcs_api.base_url}

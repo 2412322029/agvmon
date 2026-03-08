@@ -10,7 +10,7 @@ from .config import cfg
 from .dataparse import generate_map_image, parse_ShareMapInfo
 from .helper import sharemap2json
 
-logger = logging.getLogger(__name__)   
+logger = logging.getLogger(__name__)
 
 
 fake_path = pathlib.Path(os.path.join(os.path.dirname(__file__), "data/fake"))
@@ -22,7 +22,11 @@ if not cache_path.exists():
 
 
 class RcmsApi:
-    def __init__(self, host: str = cfg.get("rcms.host"), fake: bool = cfg.get("fake")):
+    def __init__(
+        self,
+        host: str = cfg.get("rcms.host"),
+        fake: bool = cfg.get("fake"),
+    ):
         self.host = host
         self.base_url = f"{self.host}/rcms/services/rest/clientService"
         self.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"
@@ -35,17 +39,21 @@ class RcmsApi:
         self.mapdata = {}
         self.sharemapdata = ""
         self.sharemapdata_dict = {}
-        self.maplinedata ={}
+        self.maplinedata = {}
         self.maplist = None
         self.alarmtype = {}
         self.devicelist = {}
         self.displaytype = {}
-        self.current_cache_path = cache_path / self.host.split("://")[1].replace(
+        self.current_cache_path = self._get_current_cache_path()
+
+    def _get_current_cache_path(self):
+        current_cache_path = cache_path / self.host.split("://")[1].replace(
             ".", "_"
         ).replace(":", "-")
-        if not self.current_cache_path.exists():
-            logger.info(f"创建缓存目录 {self.current_cache_path}")
-            self.current_cache_path.mkdir()
+        if not current_cache_path.exists():
+            logger.info(f"创建缓存目录 {current_cache_path}")
+            current_cache_path.mkdir()
+        return current_cache_path
 
     def cache_data(self):
         """
@@ -205,7 +213,7 @@ class RcmsApi:
         self.mapdata = c["rows"]["row"]
         return method, c
 
-    def get_line_info(self,map_code: str):
+    def get_line_info(self, map_code: str):
         method = "findByElcMapCode"
         c = ""
         if self.fake:
@@ -214,7 +222,7 @@ class RcmsApi:
         else:
             url = f"{self.base_url}/{method}"
             payload = {"mapCode": map_code}
-            response = self.client.post(url,data=payload)
+            response = self.client.post(url, data=payload)
             response.raise_for_status()
             c = sharemap2json(response.json())
         self.maplinedata = c
@@ -330,6 +338,7 @@ class RcmsApi:
         从缓存数据构建API对象
         """
         retmsg = []
+        logger.info(f"从缓存目录 {self.current_cache_path} 加载数据...")
         for d in [
             "rcsdata",
             "maplist",

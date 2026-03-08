@@ -1,10 +1,6 @@
-from util.config import cfg, r
+from util.config import r
 
 
-# 从配置中获取rdstag
-def get_rdstag():
-    """从配置中获取rdstag"""
-    return cfg.get("rcms.host").split("://")[1].replace(":", "-")
 
 
 # 获取所有机器人状态

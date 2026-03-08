@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import time
 
 from backend.app import run_api_server
 from util.config import cfg
@@ -81,6 +82,9 @@ def main():
         rcs_api.transport()
     else:
         parser.print_help()
+        print("3秒后启动FastAPI服务器")
+        time.sleep(3)
+        run_api_server()
 
 if __name__ == '__main__':
     main()
