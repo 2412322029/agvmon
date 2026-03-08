@@ -1,12 +1,13 @@
 import json
 import multiprocessing
 import os
+from typing import Any, Dict
 
 import xmltodict
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Body, Request
 from pydantic import BaseModel, Field
 
-from util.config import r
+from util.config import cfg, r
 
 # 导入异常日志数据库
 from .exception_log import ExceptionLogDB
@@ -17,7 +18,6 @@ try:
 except RuntimeError:
     pass  # 如果已经设置过则跳过
 
-from util.config import cfg
 from util.rcms_api import RcmsApi
 from util.zeromq import Map_info_update
 
@@ -505,5 +505,44 @@ def query_exception_logs_post(log_data: ExceptionLogQuery):
                 page_size=log_data.page_size if log_data.page_size else 10,
             )
             return {"message": "success", "data": logs}
+    except Exception as e:
+        return {"message": "error", "errors": [str(e)]}
+
+
+class ConfigUpdate(BaseModel):
+    key: str = Field(..., description="配置项键")
+    value: Any = Field(..., description="配置项值")
+
+
+@rcms_router.post("/update_config")
+def update_config(config_data: Dict[str, Any] = Body([], description="配置项键值对")):
+    """动态更新配置项"""
+    try:
+        for key, value in config_data.items():
+            cfg.set(key, value)
+        cfg.save()
+        cfg.reload()    
+        return {"message": "success"}
+    except Exception as e:
+        return {"message": "error", "errors": [str(e)]}
+
+
+@rcms_router.get("/get_config")
+def get_config(key: str | None = None, keys: str | None = None):
+    """获取配置项"""
+    try:
+        if keys:
+            key_list = [k.strip() for k in keys.split(",") if k.strip()]
+            config_data = {}
+            for k in key_list:
+                value = cfg.get(k)
+                config_data[k] = value
+            return {"message": "success", "data": config_data}
+        
+        if key:
+            value = cfg.get(key)
+            return {"message": "success", "data": {key: value}}
+        
+        return {"message": "error", "errors": ["No key provided"]}
     except Exception as e:
         return {"message": "error", "errors": [str(e)]}

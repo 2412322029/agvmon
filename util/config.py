@@ -10,8 +10,16 @@ if not pathlib.Path(CFG_PATH).exists():
 
 class Config:
     def __init__(self):
+        self._load_config()
+
+    def _load_config(self):
+        """加载配置文件"""
         with open(CFG_PATH, "r", encoding="utf-8") as f:
             self.data = toml.load(f)
+
+    def reload(self):
+        """重新加载配置文件"""
+        self._load_config()
 
     def get(self, key: str):
         """
@@ -80,6 +88,15 @@ class Config:
         """
         with open(CFG_PATH, "w", encoding="utf-8") as f:
             toml.dump(self.data, f)
+
+    def get_with_reload(self, key: str):
+        """
+        获取配置项（每次从文件重新加载）
+        :param key: 配置项键 .访问嵌套项
+        :return: 配置项值
+        """
+        self.reload()
+        return self.get(key)
 
 
 cfg = Config()

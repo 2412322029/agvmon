@@ -242,7 +242,7 @@ onBeforeUnmount(() => {
 <template>
   <div class="main-container">
     <div style="">
-      <h1 class="page-title">WCS设备状态监控</h1>
+      <h1 class="page-title">{{ mapname }} WCS设备状态监控</h1>
       <div class="sidebar">
         固定项:
         <div v-for="item in pinnedItems" :key="`${item.cmsIndex}_${item.deviceType}`" class="sidebar-item"
