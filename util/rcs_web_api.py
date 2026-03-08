@@ -1,4 +1,8 @@
+import functools
+import json
 import logging
+import os
+import pathlib
 from datetime import datetime, timedelta
 from hashlib import md5
 from urllib.parse import quote
@@ -8,6 +12,12 @@ import httpx
 from util.config import cfg
 
 logging.getLogger("httpx").setLevel(logging.WARNING)
+logger = logging.getLogger()
+cache_path = pathlib.Path(os.path.join(os.path.dirname(__file__), "data/cache"))
+if not cache_path.exists():
+    cache_path.mkdir()
+
+
 class RcsWebApi:
     """
     RCS Web API客户端类，用于与RCS系统进行交互
@@ -30,6 +40,9 @@ class RcsWebApi:
         self.password = password
         self.client = None
         self.cookies = None
+        self.current_cache_path = cache_path / cfg.get("rcms.host").split("://")[
+            1
+        ].replace(".", "_").replace(":", "-")
         # self.login(username, password)
         # print(self.client.cookies)
 
@@ -374,7 +387,9 @@ class RcsWebApi:
             return {"success": False, "msg": response.text}
         return d
 
-    async def cancel_trans_tasks(self, trans_task_nums, cancel_type="0", cancel_reason="2"):
+    async def cancel_trans_tasks(
+        self, trans_task_nums, cancel_type="0", cancel_reason="2"
+    ):
         """
         取消传输任务
 
@@ -422,7 +437,7 @@ class RcsWebApi:
             {
                 "Content-Type": "application/json",
                 "X-Requested-With": "XMLHttpRequest",
-                "Referer": self.base_url+"/taskDispatch/cms_index.action",
+                "Referer": self.base_url + "/taskDispatch/cms_index.action",
             }
         )
         self.client.cookies = self.cookies
@@ -448,7 +463,7 @@ class RcsWebApi:
                 "Content-Type": "application/json",
                 "X-Requested-With": "XMLHttpRequest",
             }
-        )        
+        )
         self.client.cookies = self.cookies
         response = await self.client.post(url, json=data)
         if not response.text:
@@ -475,7 +490,7 @@ class RcsWebApi:
                 "Content-Type": "application/json",
                 # "X-Requested-With": "XMLHttpRequest",
                 "origin": cfg.get("rcms.host"),
-                "referer": self.base_url+"/agvControl/cms_index.action",
+                "referer": self.base_url + "/agvControl/cms_index.action",
             }
         )
         self.client.cookies = self.cookies
@@ -496,6 +511,182 @@ class RcsWebApi:
             return {"success": False, "msg": response.text}
         return d
 
+    async def getPort(
+        self,
+        start=1,
+        limit=20,
+        port="",
+        mapDataCode="",
+        cmsIndex="",
+        carrierId="",
+        carrierLoc="",
+        type=-1,
+        upDown=-1,
+        buforeq="bufferPort",  # bufferPort / machinePort
+        cache=False,
+    ):
+        if buforeq != "bufferPort" and buforeq != "machinePort":
+            return {
+                "success": False,
+                "msg": "未知类型bufferPort / machinePort",
+            }
+        if cache:
+            start = 1
+            limit = 1000
+            port = ""
+            mapDataCode = ""
+            cmsIndex = ""
+            carrierId = ""
+            carrierLoc = ""
+            type = -1
+            upDown = -1
+            logger.info(f"limit={limit}, other args ignored")
+        url = self.base_url + f"/{buforeq}/findListWithPages.action"
+        data = {
+            "start": start,
+            "limit": limit,
+            "port": port,
+            "mapDataCode": mapDataCode,
+            "cmsIndex": cmsIndex,
+            "carrierId": carrierId,
+            "carrierLoc": carrierLoc,
+            "type": type,
+        }
+        if buforeq == "bufferPort":
+            data.update({"upDown": upDown})
+        self.client.headers.update(
+            {
+                "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+            }
+        )
+        self.client.cookies = self.cookies
+        response = await self.client.post(url, data=data)
+
+        if not response.text:
+            await self.login(username=self.username, password=self.password)
+            response = await self.client.post(url, data=data)
+        if response.status_code != 200:
+            return {
+                "success": False,
+                "msg": f"getPort失败，状态码：{response.status_code}，响应内容：{response.text}",
+            }
+
+        try:
+            d = response.json()
+            if cache:
+                file_path = self.current_cache_path / f"{buforeq}.json"
+                file_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(file_path, "w") as f:
+                    json.dump(d, f, ensure_ascii=False, indent=2)
+                    logger.info(f"{buforeq}缓存成功，路径：{file_path}")
+            return d
+        except Exception:
+            return {"success": False, "msg": response.text}
+        return d
+
+    async def saveallport(self):
+        import traceback
+
+        try:
+            logger.info("开始缓存bufferPort")
+            data = await self.getPort(limit=1000, buforeq="bufferPort", cache=True)
+            if data.get("success"):
+                logger.info(f"{data.get('success')}|{data.get('total')}")
+            else:
+                print(data)
+        except Exception as e:
+            traceback.print_exc()
+            logger.error(f"缓存bufferPort失败: {e}")
+        try:
+            logger.info("开始缓存machinePort")
+            data2 = await self.getPort(limit=1000, buforeq="machinePort", cache=True)
+            if data2.get("success"):
+                logger.info(f"{data2.get('success')}|{data2.get('total')}")
+            else:
+                print(data2)
+        except Exception as e:
+            traceback.print_exc()
+            logger.error(f"缓存machinePort失败: {e}")
+
+    def transport(self):
+        file_path = self.current_cache_path / "bufferPort.json"
+        with open(file_path, "r") as f:
+            data = json.load(f)
+        buffer_dict = {}
+        for one in data.get("data", []):
+            if one.get("type") == "1":
+                name = one.get("port")[:8]
+                if name in buffer_dict:
+                    continue
+                cmsIndex = one.get("cmsIndex")[:4] + "00"
+                buffer_dict[name] = cmsIndex
+        # print(f"buffer_dict: {json.dumps(buffer_dict, ensure_ascii=False, indent=2)}")
+        cv_dict = {}
+        for one in data.get("data", []):
+            if one.get("type") == "2":
+                name = one.get("port")[:8]
+                if name in cv_dict:
+                    continue
+                cmsIndex = one.get("cmsIndex")[:4] + "00"
+                cv_dict[name] = cmsIndex
+        # print(f"cv_dict: {json.dumps(cv_dict, ensure_ascii=False, indent=2)}")
+        file_path = self.current_cache_path / "machinePort.json"
+        with open(file_path, "r") as f:
+            data = json.load(f)
+        eq_dict = {}
+        for one in data.get("data", []):
+            if one.get("type") == "1":
+                name = one.get("eqName")[:8] + one.get("carrierLoc")[-1:]
+                if name in eq_dict:
+                    continue
+                cmsIndex = one.get("cmsIndex") or "000000"
+                eq_dict[name] = cmsIndex
+        # print(f"eq_dict: {json.dumps(eq_dict, ensure_ascii=False, indent=2)}")
+        ksp_dict = {}
+        for one in data.get("data", []):
+            if one.get("type") == "3":
+                name = one.get("eqName")
+                if name in ksp_dict:
+                    continue
+                cmsIndex = one.get("cmsIndex")[:4] + "00"
+                ksp_dict[name] = cmsIndex
+        # print(f"ksp_dict: {json.dumps(ksp_dict, ensure_ascii=False, indent=2)}")
+        stk_dict = {}
+        for one in data.get("data", []):
+            if one.get("type") == "4":
+                name = one.get("port")
+                if name in stk_dict:
+                    continue
+                cmsIndex = one.get("cmsIndex")[:4] + "00"
+                stk_dict[name] = cmsIndex
+        # print(f"stk_dict: {json.dumps(stk_dict, ensure_ascii=False, indent=2)}")
+        all_dict = {
+            "BUFFER": buffer_dict,
+            "CV": cv_dict,
+            "EQ": eq_dict,
+            "KSP": ksp_dict,
+            "STK": stk_dict,
+        }
+        with open(self.current_cache_path / "cmsindexmap.json", "w") as f:
+            json.dump(all_dict, f, ensure_ascii=False, indent=2)
+        logger.info(f"cmsindexmap.json缓存成功，路径：{self.current_cache_path / 'cmsindexmap.json'}")
+
+    @functools.lru_cache(maxsize=1)
+    def get_cmsindexmap(self):
+        """
+        获取CMS索引映射表
+        
+        从缓存文件 cmsindexmap.json 中读取CMS索引映射数据。
+        使用 lru_cache 装饰器缓存结果，避免重复读取文件。
+        
+        返回:
+            dict: CMS索引映射字典，包含设备类型和对应的CMS索引列表
+        """
+        file_path = self.current_cache_path / "cmsindexmap.json"
+        with open(file_path, "r") as f:
+            data = json.load(f)
+        return data
+    
 
 if __name__ == "__main__":
     import asyncio

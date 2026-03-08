@@ -1,9 +1,11 @@
 import argparse
+import asyncio
 
 from backend.app import run_api_server
 from util.logger import logger
 from util.rabbitmq import run_rabbitmq_server
 from util.rcms_api import RcmsApi
+from util.rcs_web_api import RcsWebApi
 from util.showrobot import show_robot_status
 from util.zeromq import Map_info_update, removekey
 
@@ -19,6 +21,8 @@ def main():
     # 添加单个操作选项
     group.add_argument('--build-raw', action='store_true', help='从原始数据构建模型并创建缓存')
     group.add_argument('--build-cache', action='store_true', help='从缓存构建模型')
+    group.add_argument('--saveport', action='store_true', help='保存bufferPort和machinePort到缓存')
+    group.add_argument('--transport', action='store_true', help='从缓存中读取bufferPort和machinePort并转换')
     group.add_argument('--genmap', action='store_true', help='从模型生成地图图片')
     group.add_argument('--show-robot', action='store_true', help='显示机器人状态')
     
@@ -33,6 +37,7 @@ def main():
     
     # 创建RcmsApi实例
     rapi = RcmsApi()
+    rcs_api = RcsWebApi()
     
     # 执行请求的操作
     if args.build_raw:
@@ -64,6 +69,13 @@ def main():
         run_api_server()
     elif args.rk:
         removekey()
+    elif args.saveport:
+        async def inner():
+            async with rcs_api:
+                await rcs_api.saveallport()
+        asyncio.run(inner())
+    elif args.transport:
+        rcs_api.transport()
     else:
         parser.print_help()
 

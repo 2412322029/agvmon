@@ -352,7 +352,9 @@ async def login_api2():
 
 @rcs_web_router.post("/check_is_rolling")
 async def check_is_rolling_api(
-    trans_task_nums: str = Body("", embed=True, description="传输任务编号，多个任务号用逗号分隔"),
+    trans_task_nums: str = Body(
+        "", embed=True, description="传输任务编号，多个任务号用逗号分隔"
+    ),
 ):
     try:
         async with rcs_api:
@@ -364,11 +366,15 @@ async def check_is_rolling_api(
 
 @rcs_web_router.post("/check_starting_trans_tasks")
 async def check_starting_trans_tasks_api(
-    trans_task_nums: str = Body("", embed=True, description="传输任务编号，多个任务号用逗号分隔"),
+    trans_task_nums: str = Body(
+        "", embed=True, description="传输任务编号，多个任务号用逗号分隔"
+    ),
 ):
     try:
         async with rcs_api:
-            result = await rcs_api.check_starting_trans_tasks(trans_task_nums=trans_task_nums)
+            result = await rcs_api.check_starting_trans_tasks(
+                trans_task_nums=trans_task_nums
+            )
         return result
     except Exception as e:
         return {"message": "error", "errors": [str(e)]}
@@ -376,7 +382,9 @@ async def check_starting_trans_tasks_api(
 
 @rcs_web_router.post("/check_soft_cancel")
 async def check_soft_cancel_api(
-    trans_task_nums: str = Body("", embed=True, description="传输任务编号，多个任务号用逗号分隔"),
+    trans_task_nums: str = Body(
+        "", embed=True, description="传输任务编号，多个任务号用逗号分隔"
+    ),
 ):
     try:
         async with rcs_api:
@@ -388,7 +396,9 @@ async def check_soft_cancel_api(
 
 @rcs_web_router.post("/cancel_trans_tasks")
 async def cancel_trans_tasks_api(
-    trans_task_nums: str = Body("", embed=True, description="传输任务编号，多个任务号用逗号分隔"),
+    trans_task_nums: str = Body(
+        "", embed=True, description="传输任务编号，多个任务号用逗号分隔"
+    ),
     cancel_type: str = Body("0", embed=True, description="取消类型"),
     cancel_reason: str = Body("2", embed=True, description="取消原因"),
 ):
@@ -397,7 +407,7 @@ async def cancel_trans_tasks_api(
             result = await rcs_api.cancel_trans_tasks(
                 trans_task_nums=trans_task_nums,
                 cancel_type=cancel_type,
-                cancel_reason=cancel_reason
+                cancel_reason=cancel_reason,
             )
         return result
     except Exception as e:
@@ -438,3 +448,64 @@ async def freeagv_action(
         return result
     except Exception as e:
         return {"message": "error", "errors": [str(e)]}
+
+
+@rcs_web_router.post("/getPort")
+async def Port(
+    start: int = Body(1, embed=True),
+    limit: int = Body(20, embed=True),
+    port: str = Body("", embed=True),
+    mapDataCode: str = Body("", embed=True),
+    cmsIndex: str = Body("", embed=True),
+    carrierId: str = Body("", embed=True),
+    carrierLoc: str = Body("", embed=True),
+    type: str = Body("-1", embed=True),
+    upDown: str = Body("-1", embed=True),
+    buforeq: str = Body("machinePort", embed=True),
+):
+    try:
+        async with rcs_api:
+            result = await rcs_api.getPort(
+                start,
+                limit,
+                port,
+                mapDataCode,
+                cmsIndex,
+                carrierId,
+                carrierLoc,
+                type,
+                upDown,
+                buforeq,
+            )
+        return result
+    except Exception as e:
+        return {"message": "error", "errors": [str(e)]}
+    
+@rcs_web_router.get("/get_cmsindexmap_cache")
+async def get_cmsindexmap_cache():
+    """
+    获取CMS索引映射表缓存
+    """
+    cmsindexmap = rcs_api.get_cmsindexmap()
+    options = {}
+    for device_type, devices in cmsindexmap.items():
+        options[device_type] = [
+            {"value": cms_index, "label": device_name}
+            for device_name, cms_index in devices.items()
+        ]
+    return {"options": options}
+
+
+@rcs_web_router.get("/get_device_type_options")
+async def get_device_type_options():
+    """
+    获取设备类型选项
+    """
+    cmsindexmap = rcs_api.get_cmsindexmap()
+    options = {}
+    for device_type, devices in cmsindexmap.items():
+        options[device_type] = [
+            {"value": cms_index, "label": device_name}
+            for device_name, cms_index in devices.items()
+        ]
+    return {"options": options}

@@ -1,11 +1,17 @@
 <script setup>
-import { NCard } from 'naive-ui'
-import { computed } from 'vue'
+import { NButton, NCard, useMessage } from 'naive-ui'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+
+const message = useMessage()
 
 const props = defineProps({
   deviceType: {
     type: String,
     default: 'BUFFER'
+  },
+  dName: {
+    type: String,
+    default: ''
   },
   cmsIndex: {
     type: String,
@@ -14,44 +20,82 @@ const props = defineProps({
   statusData: {
     type: Array,
     default: () => []
+  },
+  isPinned: {
+    type: Boolean,
+    default: false
   }
 })
+
+const emit = defineEmits(['refresh', 'unpin'])
+
+const lastUpdateTime = ref(null)
+const currentTime = ref(new Date())
+let interval = null
+
+onMounted(() => {
+  lastUpdateTime.value = new Date()
+  if (props.isPinned ) {
+    interval = setInterval(() => {
+      currentTime.value = new Date()
+    }, 1000)
+  }
+
+})
+
+onBeforeUnmount(() => {
+  if (interval) {
+    clearInterval(interval)
+    interval = null
+  }
+})
+
+const timeDifference = computed(() => {
+  if (!lastUpdateTime.value) return ''
+  const diff = currentTime.value - lastUpdateTime.value
+  const seconds = Math.floor(diff / 1000)
+  if (seconds < 60) return `（${seconds}秒前）`
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = seconds % 60
+  return `（${minutes}分${remainingSeconds}秒前）`
+})
+
+const onRefresh = () => {
+  lastUpdateTime.value = new Date()
+  emit('refresh')
+}
 
 const getStatusColor = (status) => {
   if (!status) return '#999'
   const service = status.service || ''
-  const present = status.present || ''
 
   if (service === 'IN') {
-    if (present === 'ON') return '#52c41a'
-    if (present === 'OFF') return '#faad14'
+    return '#52c41a'
   } else if (service === 'OUT') {
-    if (present === 'ON') return '#ff4d4f'
-    if (present === 'OFF') return '#1890ff'
+    return '#ff4d4f'
   }
   return '#999'
 }
-
-const getStatusText = (status) => {
-  if (!status) return '未知'
-  const service = status.service || ''
+const getpresentColor = (status) => {
+  if (!status) return '#999'
   const present = status.present || ''
+  const trayId = status.trayId || ''
 
-  if (service === 'IN') {
-    return present === 'ON' ? '在库' : '离库'
-  } else if (service === 'OUT') {
-    return present === 'ON' ? '出库' : '空闲'
-  }
-  return '未知'
+  if ((present === 'ON' && trayId) || (present === 'OFF' && !trayId)) {
+    return '#52c41a'
+  } else if ((present === 'ON' && !trayId) || (present === 'OFF' && trayId)) {
+    return '#ff4d4f'
+  } 
+  return '#999'
 }
-
 const getArrowDirection = (portPos, trayId) => {
   return trayId ? '📦' : ''
 }
 
-const getPortLayerText = (portPos) => {
-  return portPos === 'UP' ? '上层' : portPos === 'DOWN' ? '下层' : '未知'
+const onUnpin = () => {
+  emit('unpin')
 }
+
 
 const groupedData = computed(() => {
   const groups = {}
@@ -69,15 +113,45 @@ const groupedData = computed(() => {
 
 <template>
   <div class="device-grid-wrapper">
-    <NCard :title="`${deviceType} 设备状态`" :bordered="false" size="small">
+    <NCard :bordered="false" size="small">
+      <template #header>
+        <div class="header-content">
+          <span class="title-text">{{ dName||"设备状态" }}  </span>
+          <span class="time-diff" v-if="isPinned && statusData.length > 0">{{ timeDifference }}</span>
+        </div>
+      </template>
+      <template #header-extra>
+        <span class="header-extra">{{ deviceType }} - {{ cmsIndex }} </span>
+        <NButton v-if="isPinned" type="default" size="small" @click="onRefresh" :loading="false" circle style="margin: 0 5px;">
+          <template #icon>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+              <path d="M3 3v5h5" />
+              <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+              <path d="M16 21h5v-5" />
+            </svg>
+          </template>
+        </NButton>
+        <NButton v-if="isPinned" type="default" size="small" @click="onUnpin" circle>
+          <template #icon>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
+          </template>
+        </NButton>
+      </template>
       <div v-if="statusData.length > 0" class="grid-wrapper">
-        
+
         <div v-if="groupedData.UP && groupedData.UP.length > 0" class="grid-section">
           <div class="grid-content">
-            
+
             <div v-for="item in groupedData.UP" :key="item.cmsIndex + item.portPos" class="device-cell">
-              <div class="device-icon" :style="{ backgroundColor: getStatusColor(item) }">
-                <span class="arrow">{{ getArrowDirection(item.portPos, item.trayId) }}</span>
+              <div class="device-icon"
+                :style="{ backgroundColor: getStatusColor(item), border: '4px solid ' + getpresentColor(item) + '' }">
+                <span class="arrow">{{ item.present === 'ON' && item.trayId ? '📦' : '' }}</span>
               </div>
               <div class="device-number">{{ item.cmsIndex }}</div>
               <div class="device-hover-info">
@@ -95,7 +169,7 @@ const groupedData = computed(() => {
                 </div>
                 <div v-if="item.manualOp" class="hover-info-item">
                   <span class="hover-label">manualOp:</span>
-                  <span class="hover-value">{{ item.manualOp }}({{ item.manualOp === '00' ? '自动' : '手动' }})</span>
+                  <span class="hover-value">{{ item.manualOp }}</span>
                 </div>
                 <div v-if="item.eqRequest" class="hover-info-item">
                   <span class="hover-label">eq请求:</span>
@@ -110,7 +184,8 @@ const groupedData = computed(() => {
           <div class="grid-content">
 
             <div v-for="item in groupedData.DOWN" :key="item.cmsIndex + item.portPos" class="device-cell">
-              <div class="device-icon" :style="{ backgroundColor: getStatusColor(item) }">
+              <div class="device-icon"
+                :style="{ backgroundColor: getStatusColor(item), border: '4px solid ' + getpresentColor(item) + '' }">
                 <span class="arrow">{{ getArrowDirection(item.portPos, item.trayId) }}</span>
               </div>
               <div class="device-number">{{ item.cmsIndex }}</div>
@@ -161,7 +236,7 @@ const groupedData = computed(() => {
 .grid-section {
   background: var(--n-card-color);
   border-radius: 8px;
-  padding: 15px;
+  padding: 5px;
 }
 
 .section-title {
@@ -193,7 +268,7 @@ const groupedData = computed(() => {
 .device-icon {
   width: 40px;
   height: 40px;
-  border-radius: 6px;
+  /* border-radius: 6px; */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -253,12 +328,13 @@ const groupedData = computed(() => {
 .device-hover-info::before {
   content: '';
   position: absolute;
-  top: -6px;
+  top: -8px;
   left: 50%;
   transform: translateX(-50%);
   border-width: 6px 6px 0;
   border-style: solid;
-  border-color: var(--n-divider-color);
+  border-color: var(--n-text-color);
+
 }
 
 .device-cell:hover .device-hover-info {
@@ -399,6 +475,167 @@ const groupedData = computed(() => {
 
   .device-hover-info::before {
     border-width: 4px 4px 0;
+  }
+}
+
+.present-icon {
+  position: absolute;
+  bottom: 2px;
+  right: 2px;
+  width: 12px;
+  height: 12px;
+}
+
+.present-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+@media (max-width: 768px) {
+  .device-grid-wrapper {
+    margin-bottom: 10px;
+  }
+
+  .grid-wrapper {
+    gap: 12px;
+  }
+
+  .grid-section {
+    padding: 8px;
+  }
+
+  .section-title {
+    font-size: 13px;
+    margin-bottom: 8px;
+  }
+
+  .grid-content {
+    gap: 5px;
+  }
+
+  .device-cell {
+    flex: 0 0 36px;
+    max-width: 36px;
+  }
+
+  .device-icon {
+    width: 28px;
+    height: 28px;
+    border-width: 3px;
+  }
+
+  .device-icon .arrow {
+    font-size: 14px;
+  }
+
+  .present-icon {
+    width: 10px;
+    height: 10px;
+    bottom: 1px;
+    right: 1px;
+  }
+
+  .device-number {
+    font-size: 9px;
+    margin-top: 2px;
+  }
+
+  .device-hover-info {
+    width: 150px;
+    padding: 5px;
+    margin-top: 3px;
+    font-size: 11px;
+  }
+
+  .hover-info-item {
+    margin-bottom: 2px;
+  }
+
+  .hover-label {
+    width: 45px;
+    font-size: 10px;
+  }
+
+  .hover-value {
+    font-size: 10px;
+  }
+
+  .device-hover-info::before {
+    border-width: 4px 4px 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .device-grid-wrapper {
+    margin-bottom: 8px;
+  }
+
+  .grid-wrapper {
+    gap: 10px;
+  }
+
+  .grid-section {
+    padding: 6px;
+  }
+
+  .section-title {
+    font-size: 12px;
+    margin-bottom: 6px;
+  }
+
+  .grid-content {
+    gap: 4px;
+  }
+
+  .device-cell {
+    flex: 0 0 32px;
+    max-width: 32px;
+  }
+
+  .device-icon {
+    width: 24px;
+    height: 24px;
+    border-width: 2px;
+  }
+
+  .device-icon .arrow {
+    font-size: 12px;
+  }
+
+  .present-icon {
+    width: 8px;
+    height: 8px;
+    bottom: 0;
+    right: 0;
+  }
+
+  .device-number {
+    font-size: 8px;
+    margin-top: 1px;
+  }
+
+  .device-hover-info {
+    width: 130px;
+    padding: 4px;
+    margin-top: 2px;
+    font-size: 10px;
+  }
+
+  .hover-info-item {
+    margin-bottom: 1px;
+  }
+
+  .hover-label {
+    width: 40px;
+    font-size: 9px;
+  }
+
+  .hover-value {
+    font-size: 9px;
+  }
+
+  .device-hover-info::before {
+    border-width: 3px 3px 0;
   }
 }
 </style>

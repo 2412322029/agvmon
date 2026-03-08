@@ -35,9 +35,17 @@ class Wcs:
             "portLayer": 1,
             "startPage": 0,
         }
-        return test.get(device_type, {})
-        resp = await self.client.post(url, json=data)
-        return resp.json()
+        if cfg.get("test"):
+            return test.get(device_type, {})
+        try:
+            resp = await self.client.post(url, json=data)
+            data = resp.json()
+            if not data or data.get("code") != 0:
+                return{"code":-1,"message":data.get("message","")}
+            return data
+        except Exception as e:
+            return{"code":-1,"message":str(e)}
+        
 
 
 test = {
@@ -84,7 +92,7 @@ test = {
                     "cmsIndex": "203001",
                     "manualOp": "00",
                     "portPos": "DOWN",
-                    "present": "ON",
+                    "present": "OFF",
                     "service": "IN",
                     "trayId": "P8000118A2MH080108532",
                 },
