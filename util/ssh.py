@@ -207,7 +207,7 @@ class SSHManager:
             raise Exception("SSH连接未建立")
 
         try:
-            process = await self.connection.run(command, stdin=asyncssh.PIPE, stdout=asyncssh.PIPE, stderr=asyncssh.PIPE)
+            process = await self.connection.create_process(command, stdin=asyncssh.PIPE, stdout=asyncssh.PIPE, stderr=asyncssh.PIPE,encoding=None)
             return process.stdin, process.stdout, process.stderr
         except Exception as e:
             logger.error(f"执行命令失败: {e}")

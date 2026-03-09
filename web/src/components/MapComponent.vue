@@ -17,7 +17,7 @@ const props = defineProps({
     },
     height: {
         type: [Number, String],
-        default: 600
+        default: 800
     },
     // 搜索参数，用于定位特定机器人
     searchRobotId: {
@@ -36,6 +36,8 @@ const offsetX = ref(0)
 const offsetY = ref(0)
 const isDragging = ref(false)
 const lastMousePos = ref({ x: 0, y: 0 })
+const pendingDraw = ref(false)
+const selectedRobot = ref(null)
 
 // 触摸事件状态
 const isTouching = ref(false)
@@ -107,6 +109,78 @@ const loadImage = (url) => {
         img.src = url
         img.onload = () => resolve(img)
         img.onerror = () => resolve(null)
+    })
+}
+
+// 内部地图渲染函数
+const renderMapLayerInternal = (ctx, width, height) => {
+    // 获取地图区域数据，支持多种数据格式
+    const mapRetList = props.mapData?.map_ret_list ||
+        props.mapData?.MapRetCfg?.MapRet ||
+        []
+
+    // 获取文本标签数据，支持多种数据格式
+    const retNameList = props.mapData?.ret_name_list ||
+        props.mapData?.MapRetCfg?.RetName ||
+        []
+
+    // 绘制地图区域
+    mapRetList.forEach(mapRet => {
+        const points = mapRet.Point || mapRet.points || []
+        if (points.length < 3) return
+
+        const pixelPoints = points.map(point => {
+            const x = point.xpos || point['@xpos']
+            const y = point.ypos || point['@ypos']
+            return coordToPixel(Number(x), Number(y))
+        })
+
+        ctx.beginPath()
+        ctx.moveTo(pixelPoints[0].x, pixelPoints[0].y)
+        for (let i = 1; i < pixelPoints.length; i++) {
+            ctx.lineTo(pixelPoints[i].x, pixelPoints[i].y)
+        }
+        ctx.closePath()
+
+        const area = mapRet.Area || mapRet.area
+        const r = area.color_r || area['@color_r']
+        const g = area.color_g || area['@color_g']
+        const b = area.color_b || area['@color_b']
+        const a = area.color_a || area['@color_a']
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${a / 255})`
+        ctx.fill()
+
+        ctx.strokeStyle = '#000000'
+        ctx.lineWidth = 1
+        ctx.stroke()
+    })
+
+    // 绘制文本标签
+    retNameList.forEach(retName => {
+        const startX = retName.start_x || retName['@start_x']
+        const endX = retName.end_x || retName['@end_x']
+        const startY = retName.start_y || retName['@start_y']
+        const endY = retName.end_y || retName['@end_y']
+        const centerX = (Number(startX) + Number(endX)) / 2
+        const centerY = (Number(startY) + Number(endY)) / 2
+        const { x, y } = coordToPixel(centerX, centerY)
+
+        const r = retName.font_color_r || retName['@font_color_r']
+        const g = retName.font_color_g || retName['@font_color_g']
+        const b = retName.font_color_b || retName['@font_color_b']
+        const a = retName.font_color_a || retName['@font_color_a']
+        const size = (retName.size || retName['@size'])/2
+        const font = retName.font || retName['@font']
+
+        const fontSize = Math.max(10, Math.min(30, (size || 16) * scale.value * 0.3))
+
+        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${a / 255})`
+        ctx.font = `${fontSize}px ${font}`
+        ctx.textAlign = 'center'
+        ctx.textBaseline = 'middle'
+
+        const text = retName.text || retName['#text']
+        ctx.fillText(text, x, y)
     })
 }
 
@@ -200,84 +274,80 @@ const drawMapLayer = () => {
 
     // 清空画布
     ctx.clearRect(0, 0, canvas.width, canvas.height)
+    
+    // 使用实时渲染以支持缩放和偏移
+    renderMapLayerInternal(ctx, canvas.width, canvas.height)
+}
 
-    // 获取地图区域数据，支持多种数据格式
-    const mapRetList = props.mapData?.map_ret_list ||
-        props.mapData?.MapRetCfg?.MapRet ||
-        []
-
-    // 获取文本标签数据，支持多种数据格式
-    const retNameList = props.mapData?.ret_name_list ||
-        props.mapData?.MapRetCfg?.RetName ||
-        []
-
-    // 绘制地图区域
-    mapRetList.forEach(mapRet => {
-        // 处理不同格式的点数据
-        const points = mapRet.Point || mapRet.points || []
-        if (points.length < 3) return
-
-        // 转换点坐标，支持两种格式：{xpos, ypos} 和 {@xpos, @ypos}
-        const pixelPoints = points.map(point => {
-            const x = point.xpos || point['@xpos']
-            const y = point.ypos || point['@ypos']
-            return coordToPixel(Number(x), Number(y))
-        })
-
-        // 绘制多边形
-        ctx.beginPath()
-        ctx.moveTo(pixelPoints[0].x, pixelPoints[0].y)
-        for (let i = 1; i < pixelPoints.length; i++) {
-            ctx.lineTo(pixelPoints[i].x, pixelPoints[i].y)
-        }
-        ctx.closePath()
-
-        // 设置填充颜色，支持两种格式：{color_r, color_g, color_b, color_a} 和 {@color_r, @color_g, @color_b, @color_a}
-        const area = mapRet.Area || mapRet.area
-        const r = area.color_r || area['@color_r']
-        const g = area.color_g || area['@color_g']
-        const b = area.color_b || area['@color_b']
-        const a = area.color_a || area['@color_a']
-        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${a / 255})`
-        ctx.fill()
-
-        // 设置边框颜色
-        ctx.strokeStyle = '#000000'
+// 绘制网格参考线
+const drawGridLines = (ctx, width, height) => {
+    const { minX, maxX, minY, maxY } = mapBounds.value
+    
+    // 计算网格间距
+    const rangeX = maxX - minX
+    const rangeY = maxY - minY
+    const mapDiagonal = Math.sqrt(rangeX * rangeX + rangeY * rangeY)
+    
+    // 根据地图大小和缩放比例确定网格间距
+    let gridSize = 100
+    if (mapDiagonal > 2000) gridSize = 500
+    else if (mapDiagonal > 1000) gridSize = 200
+    
+    // 计算网格线数量
+    const xLines = Math.ceil(rangeX / gridSize)
+    const yLines = Math.ceil(rangeY / gridSize)
+    
+    // 只在缩放比例较大时显示网格
+    if (scale.value > 0.8) {
+        ctx.save()
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.1)'
         ctx.lineWidth = 1
-        ctx.stroke()
-    })
-
-    // 绘制文本标签
-    retNameList.forEach(retName => {
-        // 计算文本位置（中心），支持两种格式：{start_x, end_x} 和 {@start_x, @end_x}
-        const startX = retName.start_x || retName['@start_x']
-        const endX = retName.end_x || retName['@end_x']
-        const startY = retName.start_y || retName['@start_y']
-        const endY = retName.end_y || retName['@end_y']
-        const centerX = (Number(startX) + Number(endX)) / 2
-        const centerY = (Number(startY) + Number(endY)) / 2
-        const { x, y } = coordToPixel(centerX, centerY)
-
-        // 设置文本样式，支持两种格式：{font_color_r, font_color_g, font_color_b, font_color_a} 和 {@font_color_r, @font_color_g, @font_color_b, @font_color_a}
-        const r = retName.font_color_r || retName['@font_color_r']
-        const g = retName.font_color_g || retName['@font_color_g']
-        const b = retName.font_color_b || retName['@font_color_b']
-        const a = retName.font_color_a || retName['@font_color_a']
-        const size = (retName.size || retName['@size'])/2
-        const font = retName.font || retName['@font']
-
-        // 调整字体大小，使其更加合适（原大小的0.2倍）
-        const fontSize = Math.max(4, Math.min(20, (size || 16) * scale.value * 0.2))
-
-        ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${a / 255})`
-        ctx.font = `${fontSize}px ${font}`
-        ctx.textAlign = 'center'
-        ctx.textBaseline = 'middle'
-
-        // 绘制文本，支持两种格式：{text} 和 {#text}
-        const text = retName.text || retName['#text']
-        ctx.fillText(text, x, y)
-    })
+        ctx.setLineDash([5, 5])
+        
+        // 绘制垂直线
+        for (let i = 0; i <= xLines; i++) {
+            const x = minX + i * gridSize
+            const { x: pixelX } = coordToPixel(x, minY)
+            if (pixelX >= -50 && pixelX <= width + 50) {
+                ctx.beginPath()
+                ctx.moveTo(pixelX, 0)
+                ctx.lineTo(pixelX, height)
+                ctx.stroke()
+                
+                // 绘制X坐标标签
+                if (scale.value > 1.5) {
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'
+                    ctx.font = '10px Arial'
+                    ctx.textAlign = 'center'
+                    ctx.textBaseline = 'top'
+                    ctx.fillText(Math.round(x), pixelX, height - 20)
+                }
+            }
+        }
+        
+        // 绘制水平线
+        for (let j = 0; j <= yLines; j++) {
+            const y = minY + j * gridSize
+            const { y: pixelY } = coordToPixel(minX, y)
+            if (pixelY >= -50 && pixelY <= height + 50) {
+                ctx.beginPath()
+                ctx.moveTo(0, pixelY)
+                ctx.lineTo(width, pixelY)
+                ctx.stroke()
+                
+                // 绘制Y坐标标签
+                if (scale.value > 1.5) {
+                    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'
+                    ctx.font = '10px Arial'
+                    ctx.textAlign = 'right'
+                    ctx.textBaseline = 'middle'
+                    ctx.fillText(Math.round(y), width - 20, pixelY)
+                }
+            }
+        }
+        
+        ctx.restore()
+    }
 }
 
 // 绘制机器人层（只绘制机器人，不绘制地图）
@@ -298,9 +368,9 @@ const drawRobotLayer = () => {
         const { x, y } = coordToPixel(robot.position.x, robot.position.y)
         const direction = robot.direction || 0
         // 缩小小车基础大小并添加基于缩放的动态调整
-        const baseRobotSize = 20 // 从40缩小到20
+        const baseRobotSize = 30 
         // 基于缩放比例动态调整，但设置最大最小限制
-        const scaledRobotSize = Math.max(10, Math.min(20, baseRobotSize * scale.value))
+        const scaledRobotSize = Math.max(20, Math.min(40, baseRobotSize * scale.value))
         const robotSize = scaledRobotSize
 
         // 绘制机器人图片
@@ -324,10 +394,10 @@ const drawRobotLayer = () => {
             // 绘制四个负载指示器
             const indicatorSize = 6
             const offsets = [
-                { x: -10, y: 10 },  // 左下
-                { x: -10, y: -10 }, // 左上
-                { x: 10, y: 10 },   // 右下
-                { x: 10, y: -10 }   // 右上
+                { x: -10, y: 10 },  
+                { x: -10, y: -10 }, 
+                { x: 10, y: 10 },   
+                { x: 10, y: -10 }   
             ]
 
             hasLoads.forEach((hasLoad, index) => {
@@ -342,10 +412,10 @@ const drawRobotLayer = () => {
 
         // 绘制机器人ID
         ctx.fillStyle = '#000000'
-        ctx.font = `${8}px Arial`
+        ctx.font = `${12}px Arial`
         ctx.textAlign = 'center'
         ctx.textBaseline = 'top'
-        ctx.fillText(robot.RobotId, x, y + 18)
+        ctx.fillText(robot.RobotId, x, y + 25)
     })
 }
 
@@ -381,9 +451,26 @@ const handleMouseUp = () => {
 
 const handleWheel = (e) => {
     e.preventDefault()
+    
+    const canvas = robotCanvasRef.value
+    if (!canvas) return
+    
+    const rect = canvas.getBoundingClientRect()
+    const mouseX = e.clientX - rect.left
+    const mouseY = e.clientY - rect.top
+    
+    // 计算鼠标位置在地图上的坐标
+    const mapX = (mouseX - canvas.width / 2 - offsetX.value) / scale.value + (mapBounds.value.minX + mapBounds.value.maxX) / 2
+    const mapY = (canvas.height / 2 + offsetY.value - mouseY) / scale.value + (mapBounds.value.minY + mapBounds.value.maxY) / 2
+    
     const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1
-    // 调整最小缩放比例为0.5，避免地图过小
-    scale.value = Math.max(1, Math.min(5, scale.value * zoomFactor))
+    const newScale = scale.value * zoomFactor
+    
+    // 计算缩放后需要调整的偏移量，使鼠标位置保持不变
+    offsetX.value = mouseX - canvas.width / 2 - (mapX - (mapBounds.value.minX + mapBounds.value.maxX) / 2) * newScale
+    offsetY.value = mouseY - canvas.height / 2 + (mapY - (mapBounds.value.minY + mapBounds.value.maxY) / 2) * newScale
+    
+    scale.value = newScale
 
     // 分别绘制两个图层以提高性能
     drawMapLayer()
@@ -441,8 +528,29 @@ const handleTouchMove = (e) => {
         const currentDistance = getTouchDistance(e.touches)
         if (lastTouchDistance.value > 0) {
             const scaleFactor = currentDistance / lastTouchDistance.value
-            // 调整最小缩放比例为0.5，避免地图过小
-            scale.value = Math.max(0.5, Math.min(5, scale.value * scaleFactor))
+            const newScale = scale.value * scaleFactor
+            
+            // 计算双指中心点
+            const canvas = robotCanvasRef.value
+            if (canvas) {
+                const rect = canvas.getBoundingClientRect()
+                const touch1X = e.touches[0].clientX - rect.left
+                const touch1Y = e.touches[0].clientY - rect.top
+                const touch2X = e.touches[1].clientX - rect.left
+                const touch2Y = e.touches[1].clientY - rect.top
+                const centerX = (touch1X + touch2X) / 2
+                const centerY = (touch1Y + touch2Y) / 2
+                
+                // 计算中心点在地图上的坐标
+                const mapX = (centerX - canvas.width / 2 - offsetX.value) / scale.value + (mapBounds.value.minX + mapBounds.value.maxX) / 2
+                const mapY = (canvas.height / 2 + offsetY.value - centerY) / scale.value + (mapBounds.value.minY + mapBounds.value.maxY) / 2
+                
+                // 计算缩放后需要调整的偏移量，使中心点保持不变
+                offsetX.value = centerX - canvas.width / 2 - (mapX - (mapBounds.value.minX + mapBounds.value.maxX) / 2) * newScale
+                offsetY.value = centerY - canvas.height / 2 + (mapY - (mapBounds.value.minY + mapBounds.value.maxY) / 2) * newScale
+            }
+            
+            scale.value = newScale
             
             // 重新绘制地图
             drawMapLayer()
@@ -497,13 +605,64 @@ const centerMap = () => {
     // 计算合适的缩放比例（使地图适合画布）
     const xScale = canvasWidth / mapWidth
     const yScale = canvasHeight / mapHeight
-    const fitScale = Math.min(xScale, yScale) * 0.9 // 留10%边距
+    const fitScale = Math.min(xScale, yScale) * 0.9 
     
-    // 设置缩放比例，确保初始大小合适
-    // 添加最小缩放比例限制，避免地图过小
-    const minScale = 0.5 // 最小缩放比例
-    const maxScale = 5 // 最大缩放比例
-    scale.value = Math.max(minScale, Math.min(maxScale, fitScale))
+    // 设置缩放比例，确保初始大小合适，最小缩放比例为0.5
+    const minScale = 0.5
+    scale.value = Math.max(minScale, fitScale)
+}
+
+// 缩放控制
+const zoomIn = () => {
+    scale.value = scale.value * 1.2
+}
+
+const zoomOut = () => {
+    scale.value = scale.value / 1.2
+}
+
+const resetView = () => {
+
+    centerMap()    
+    scale.value = 3
+    offsetX.value = 0
+    offsetY.value = 0
+}
+
+// 点击机器人处理
+const handleCanvasClick = (e) => {
+    const canvas = robotCanvasRef.value
+    if (!canvas) return
+    
+    const rect = canvas.getBoundingClientRect()
+    const clickX = e.clientX - rect.left
+    const clickY = e.clientY - rect.top
+    
+    // 遍历机器人，检查是否点击了某个机器人
+    for (const robot of props.robots) {
+        if (!robot.position) continue
+        
+        const { x, y } = coordToPixel(robot.position.x, robot.position.y)
+        const baseRobotSize = 30 
+        const scaledRobotSize = Math.max(20, Math.min(40, baseRobotSize * scale.value))
+        const robotSize = scaledRobotSize
+        
+        // 计算点击点与机器人中心的距离
+        const dx = clickX - x
+        const dy = clickY - y
+        const distance = Math.sqrt(dx * dx + dy * dy)
+        
+        // 如果点击在机器人范围内
+        if (distance < robotSize / 2 + 10) {
+            selectedRobot.value = robot
+            break
+        }
+    }
+}
+
+// 关闭详情
+const closeRobotDetail = () => {
+    selectedRobot.value = null
 }
 
 // 定位特定机器人到地图中心
@@ -522,20 +681,31 @@ const locateRobot = (robotId) => {
     const { minX, maxX, minY, maxY } = mapBounds.value
     const { width: canvasWidth, height: canvasHeight } = canvasSize.value
     
-    // 计算当前缩放比例下的地图尺寸
-    const usedScale = scale.value
+    // 计算地图中心点
+    const centerX = (maxX + minX) / 2
+    const centerY = (maxY + minY) / 2
     
-    // 计算机器人在画布上的当前位置
-    const currentPixelPos = coordToPixel(robotX, robotY)
+    // 计算合适的缩放比例（使机器人清晰可见）
+    const xScale = canvasWidth / (maxX - minX)
+    const yScale = canvasHeight / (maxY - minY)
+    const fitScale = Math.min(xScale, yScale) * 0.9
+    
+    // 设置缩放比例，确保机器人清晰可见
+    const minScale = 7
+    scale.value = Math.max(minScale, fitScale)
+    
+    // 计算机器人在画布上的目标位置（画布中心）
+    const targetPixelX = canvasWidth / 2
+    const targetPixelY = canvasHeight / 2
+    
+    // 计算机器人在当前缩放下的像素位置（相对于地图中心）
+    const usedScale = Math.min(xScale, yScale) * scale.value
+    const pixelXFromCenter = (robotX - centerX) * usedScale
+    const pixelYFromCenter = -(robotY - centerY) * usedScale
     
     // 计算需要的偏移量，使机器人位于画布中心
-    offsetX.value += (canvasWidth / 2) - currentPixelPos.x
-    offsetY.value += (canvasHeight / 2) - currentPixelPos.y
-    
-    // 调整缩放比例，使机器人更清晰可见
-    // 放大到合适大小，最大不超过5
-    // const targetScale = Math.min(2, scale.value * 1.5)
-    scale.value = 4
+    offsetX.value = targetPixelX - (canvasWidth / 2) - pixelXFromCenter
+    offsetY.value = targetPixelY - (canvasHeight / 2) - pixelYFromCenter
     
     // 重新绘制地图
     drawMapLayer()
@@ -656,20 +826,80 @@ onUnmounted(() => {
         <div class="interaction-layer" @mousedown="handleMouseDown" @mousemove="handleMouseMove"
             @mouseup="handleMouseUp" @mouseleave="handleMouseUp" @wheel="handleWheel"
             @touchstart="handleTouchStart" @touchmove="handleTouchMove" @touchend="handleTouchEnd"
-            @touchcancel="handleTouchEnd"
-            style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: move; -webkit-tap-highlight-color: transparent;" />
+            @touchcancel="handleTouchEnd" @click="handleCanvasClick"
+            style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: pointer; -webkit-tap-highlight-color: transparent;" />
+        
+        <!-- 地图导航控件 -->
+        <div class="map-controls">
+            <button class="map-control-btn zoom-in" @click="zoomIn" title="放大">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    <line x1="11" y1="8" x2="11" y2="14"></line>
+                    <line x1="8" y1="11" x2="14" y2="11"></line>
+                </svg>
+            </button>
+            <button class="map-control-btn zoom-out" @click="zoomOut" title="缩小">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    <line x1="8" y1="11" x2="14" y2="11"></line>
+                </svg>
+            </button>
+            <button class="map-control-btn reset" @click="resetView" title="重置视图">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"></path>
+                    <path d="M3 3v5h5"></path>
+                </svg>
+            </button>
+        </div>
+    </div>
+    
+    <!-- 机器人详情弹窗 -->
+    <div v-if="selectedRobot" class="robot-detail-overlay" @click="closeRobotDetail">
+        <div class="robot-detail-modal" @click.stop>
+            <div class="robot-detail-header">
+                <h3>{{ selectedRobot.RobotId }}</h3>
+                <button class="close-btn" @click="closeRobotDetail">×</button>
+            </div>
+            <div class="robot-detail-body">
+                <div class="detail-item">
+                    <span class="label">状态:</span>
+                    <span class="value">{{ selectedRobot.status || '未知' }}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="label">位置 X:</span>
+                    <span class="value">{{ selectedRobot.position?.x || 'N/A' }}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="label">位置 Y:</span>
+                    <span class="value">{{ selectedRobot.position?.y || 'N/A' }}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="label">方向:</span>
+                    <span class="value">{{ selectedRobot.direction || 0 }}°</span>
+                </div>
+                <div class="detail-item">
+                    <span class="label">滚筒状态:</span>
+                    <span class="value">{{ selectedRobot.roller_status_code || 'N/A' }}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="label">电池电量:</span>
+                    <span class="value">{{ selectedRobot.battery || 'N/A' }}%</span>
+                </div>
+            </div>
+        </div>
     </div>
 </template>
-
 <style scoped>
 .map-component-container {
     position: relative;
     display: inline-block;
     max-width: 100%;
-    max-height: 80vh;
+    max-height: 100vh;
     overflow: hidden; /* 隐藏滚动条，使用拖拽和缩放来导航 */
     height: 100%; /* 自适应高度 */
-    min-height: 300px; /* 设置最小高度 */
+    /* min-height: 500px;  */
     touch-action: none; /* 禁用浏览器默认触摸行为 */
     user-select: none; /* 禁用文本选择 */
     background-color: aliceblue;
@@ -717,10 +947,134 @@ onUnmounted(() => {
     background-color: #66b1ff;
 }
 
+/* 地图导航控件样式 */
+.map-controls {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 5px;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    background-color: white;
+}
+
+.map-control-btn {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s;
+    color: #333;
+}
+
+.map-control-btn:hover {
+    background-color: #f5f5f5;
+    border-color: #999;
+}
+
+.map-control-btn:active {
+    background-color: #e0e0e0;
+}
+
+.robot-detail-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.robot-detail-modal {
+    background-color: white;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    width: 300px;
+    max-width: 90%;
+    overflow: hidden;
+}
+
+.robot-detail-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    border-bottom: 1px solid #eee;
+}
+
+.robot-detail-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #333;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    color: #999;
+    line-height: 1;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    transition: all 0.3s;
+}
+
+.close-btn:hover {
+    background-color: #f5f5f5;
+    color: #333;
+}
+
+.robot-detail-body {
+    padding: 16px;
+}
+
+.detail-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.detail-item:last-child {
+    border-bottom: none;
+}
+
+.detail-item .label {
+    color: #666;
+    font-size: 14px;
+}
+
+.detail-item .value {
+    color: #333;
+    font-weight: 500;
+    font-size: 14px;
+}
+
 /* 响应式设计，针对移动端优化 */
 @media (max-width: 768px) {
     .map-component-container {
-        max-height: 70vh; /* 在移动端使用更大的屏幕比例 */
+        max-height: 70vh; 
     }
     
     .map-search-container {
@@ -737,6 +1091,16 @@ onUnmounted(() => {
     
     .map-search-button {
         padding: 6px 12px;
+    }
+    
+    .map-controls {
+        top: auto;
+        bottom: 10px;
+        flex-direction: row;
+    }
+    
+    .robot-detail-modal {
+        width: 90%;
     }
 }
 </style>

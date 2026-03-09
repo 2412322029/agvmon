@@ -49,6 +49,9 @@ const connectWebSocket = () => {
       try {
         const data = JSON.parse(event.data)
         // 转换数据格式，添加友好的文本显示
+        if (data.type =="heartbeat"){
+          return
+        }
         const formattedData = Object.values(data.data || {}).map(item => {
           // 确定显示状态和颜色
           let displayStatus = '正常'
@@ -135,8 +138,8 @@ onBeforeUnmount(() => {
           <MapComponent 
             :map-data="mapData" 
             :robots="robotData" 
-            :width=screenWidth-20
-            :height="700" 
+            :width=screenWidth
+            :height="900" 
           />
         </div>
         <div v-else class="map-placeholder">

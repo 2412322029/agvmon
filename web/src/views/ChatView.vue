@@ -1,131 +1,134 @@
 <template>
-  <n-layout
+  <div
     style="height: calc(100vh - 80px); display: flex; flex-direction: column; margin: 0 auto; max-width: 100%; background-color: transparent;  backdrop-filter: blur(20px) saturate(1.3);">
 
 
     <!-- Scrollable Content Area -->
-    <n-layout-content ref="messagesContainer"
-      style="overflow-y: auto; padding: 16px; flex: 1; margin-top: 0; margin-bottom: 0; background-color: transparent;">
-      <div v-for="(group, groupIndex) in groupedMessages" :key="groupIndex" :style="{
-        display: 'flex',
-        alignItems: 'flex-start',
-        justifyContent: group.sender === getStoredNickname() ? ' ' : 'flex-start',
-        flexDirection: group.sender === getStoredNickname() ? 'row-reverse' : 'row',
-        marginBottom: '16px'
-      }">
-        <!-- Avatar circle with initials - only shown once per group -->
-        <div :style="{
-          width: '40px',
-          height: '40px',
-          borderRadius: '50%',
-          backgroundColor: group.sender === getStoredNickname() ? '#1890ff' : '#66b3ff',
+    <NScrollbar ref="scrollbarRef" content-class="messagesContainer">
+      <div ref="messagesContainer" id="messagesContainer"
+        style="overflow: auto; padding: 16px; flex: 1; margin-top: 0; margin-bottom: 0; background-color: transparent;">
+        <div v-for="(group, groupIndex) in groupedMessages" :key="groupIndex" :style="{
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: 'white',
-          fontWeight: 'bold',
-          fontSize: '16px',
-          marginRight: group.sender === getStoredNickname() ? '0' : '12px',
-          marginLeft: group.sender === getStoredNickname() ? '12px' : '0',
-          flexShrink: 0
+          alignItems: 'flex-start',
+          justifyContent: group.sender === getStoredNickname() ? ' ' : 'flex-start',
+          flexDirection: group.sender === getStoredNickname() ? 'row-reverse' : 'row',
+          marginBottom: '16px'
         }">
-          {{ getInitials(group.sender) }}
-        </div>
-
-        <!-- Message bubble container -->
-        <div :style="{
-          display: 'flex',
-          flexDirection: 'column',
-          maxWidth: '70%'
-        }">
-          <!-- Username (top right for own messages, top left for others) -->
+          <!-- Avatar circle with initials - only shown once per group -->
           <div :style="{
-            textAlign: group.sender === getStoredNickname() ? 'right' : 'left',
-            marginBottom: '4px',
-            fontSize: '0.85em',
-            color: 'var(--n-text-2)'
+            width: '40px',
+            height: '40px',
+            borderRadius: '50%',
+            backgroundColor: group.sender === getStoredNickname() ? '#1890ff' : '#66b3ff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'white',
+            fontWeight: 'bold',
+            fontSize: '16px',
+            marginRight: group.sender === getStoredNickname() ? '0' : '12px',
+            marginLeft: group.sender === getStoredNickname() ? '12px' : '0',
+            flexShrink: 0
           }">
-            <span style="font-weight: bold; color: var(--n-text-1);">{{ group.sender }}</span>
+            {{ getInitials(group.sender) }}
           </div>
 
-          <!-- All messages in the group -->
-          <div v-for="(message, msgIndex) in group.messages" :key="message.id" :style="{
+          <!-- Message bubble container -->
+          <div :style="{
             display: 'flex',
-            flexDirection: group.sender === getStoredNickname() ? 'row-reverse' : 'row',
+            flexDirection: 'column',
+            maxWidth: '70%'
           }">
-            <!-- Message bubble -->
+            <!-- Username (top right for own messages, top left for others) -->
             <div :style="{
-              padding: '10px 14px',
-              borderRadius: group.sender === getStoredNickname() ? '18px 4px 18px 18px' : '4px 18px 18px 18px',
-              backgroundColor: group.sender === getStoredNickname() ? 'var(--n-success)' : 'var(--n-card)',
-              border: group.sender === getStoredNickname() ? 'none' : '1px solid var(--n-border)',
-              boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-              wordWrap: 'break-word',
-              wordBreak: 'break-word',
-              width: 'max-content',
-              marginTop: msgIndex > 0 ? '4px' : '0'
+              textAlign: group.sender === getStoredNickname() ? 'right' : 'left',
+              marginBottom: '4px',
+              fontSize: '0.85em',
+              color: 'var(--n-text-2)'
             }">
-              <div v-if="message.content" style="margin-bottom: 6px; white-space: pre-wrap;">
-                {{ message.content }}
-              </div>
+              <span style="font-weight: bold; color: var(--n-text-1);">{{ group.sender }}</span>
+            </div>
 
-              <div v-if="message.file">
-                <!-- Image preview -->
-                <div v-if="isImageFile(message.file)" class="image-preview">
-                  <div
-                    style="max-width: 200px; max-height: 300px; display: flex; align-items: center; justify-content: center; border-radius: 8px; overflow: hidden; border: 1px solid #e0e0e0; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-                    <img :src="`/api/util/download/${message.file.stored_filename}`"
-                      :alt="message.file.original_filename"
-                      @click="openImage(`/api/util/download/${message.file.stored_filename}`)"
-                      style="overflow: auto; cursor: pointer; object-fit: contain;" />
-                  </div>
-                  <div style="font-size: 0.75em; color: #666; margin-top: 4px;">
-                    <span style="cursor: pointer; text-decoration: underline;"
-                      @click.stop="showFileDetails(message.file)">
-                      {{ message.file.original_filename }}
-                    </span>
-                    <span> ({{ formatFileSize(message.file.size) }})</span>
-                  </div>
+            <!-- All messages in the group -->
+            <div v-for="(message, msgIndex) in group.messages" :key="message.id" :style="{
+              display: 'flex',
+              flexDirection: group.sender === getStoredNickname() ? 'row-reverse' : 'row',
+            }">
+              <!-- Message bubble -->
+              <div :style="{
+                padding: '10px 14px',
+                borderRadius: group.sender === getStoredNickname() ? '18px 4px 18px 18px' : '4px 18px 18px 18px',
+                backgroundColor: group.sender === getStoredNickname() ? 'var(--n-success)' : 'var(--n-color)',
+                border: '1px solid grey',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                wordWrap: 'break-word',
+                wordBreak: 'break-word',
+                width: 'max-content',
+                marginTop: msgIndex > 0 ? '4px' : '0'
+              }">
+                <div v-if="message.content" style="margin-bottom: 6px; white-space: pre-wrap;">
+                  {{ message.content }}
                 </div>
-                <!-- Other file types -->
-                <div v-else
-                  style="display: flex; flex-direction: column; padding: 12px; background: var(--n-card); border-radius: 8px; cursor: pointer; max-width: 200px; border: 1px solid var(--n-border);"
-                  @click="showFileDetails(message.file)">
-                  <div style="display: flex; align-items: center;">
-                    <n-icon size="24" style="margin-right: 8px; color: #1890ff;">
-                      <document-text-outline />
-                    </n-icon>
-                    <div style="flex: 1; min-width: 0;">
-                      <div
-                        style="color: #1890ff; text-decoration: underline; cursor: pointer; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500;">
+
+                <div v-if="message.file">
+                  <!-- Image preview -->
+                  <div v-if="isImageFile(message.file)" class="image-preview">
+                    <div
+                      style="max-width: 200px; max-height: 300px; display: flex; align-items: center; justify-content: center; border-radius: 8px; overflow: hidden; border: 1px solid #e0e0e0; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                      <img :src="`/api/util/download/${message.file.stored_filename}`"
+                        :alt="message.file.original_filename"
+                        @click="openImage(`/api/util/download/${message.file.stored_filename}`)"
+                        style="overflow: auto; cursor: pointer; object-fit: contain;" />
+                    </div>
+                    <div style="font-size: 0.75em; color: #666; margin-top: 4px;">
+                      <span style="cursor: pointer; text-decoration: underline;"
+                        @click.stop="showFileDetails(message.file)">
                         {{ message.file.original_filename }}
-                      </div>
-                      <div style="font-size: 0.8em; color: #888; margin-top: 2px;">
-                        ({{ formatFileSize(message.file.size) }})
+                      </span>
+                      <span> ({{ formatFileSize(message.file.size) }})</span>
+                    </div>
+                  </div>
+                  <!-- Other file types -->
+                  <div v-else
+                    style="display: flex; flex-direction: column; padding: 12px; background: var(--n-card); border-radius: 8px; cursor: pointer; max-width: 200px; border: 1px solid var(--n-border);"
+                    @click="showFileDetails(message.file)">
+                    <div style="display: flex; align-items: center;">
+                      <n-icon size="24" style="margin-right: 8px; color: #1890ff;">
+                        <document-text-outline />
+                      </n-icon>
+                      <div style="flex: 1; min-width: 0;">
+                        <div
+                          style="color: #1890ff; text-decoration: underline; cursor: pointer; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500;">
+                          {{ message.file.original_filename }}
+                        </div>
+                        <div style="font-size: 0.8em; color: #888; margin-top: 2px;">
+                          ({{ formatFileSize(message.file.size) }})
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
 
-          <!-- Timestamp in the middle of the group -->
-          <div :style="{
-            textAlign: group.sender === getStoredNickname() ? 'right' : 'left',
-            marginTop: '4px',
-            fontSize: '0.75em',
-            color: '#999'
-          }">
-            <span>{{ formatDate(group.lastTimestamp) }}</span>
+            <!-- Timestamp in the middle of the group -->
+            <div :style="{
+              textAlign: group.sender === getStoredNickname() ? 'right' : 'left',
+              marginTop: '4px',
+              fontSize: '0.75em',
+              color: '#999'
+            }">
+              <span>{{ formatDate(group.lastTimestamp) }}</span>
+            </div>
           </div>
         </div>
       </div>
-    </n-layout-content>
+          <NButton size="small" style="width: 40px;background-color: transparent;position: fixed; bottom: 150px;right: 10px;" @click="scrollToBottom">↓</NButton>
 
+    </NScrollbar>
     <!-- Fixed Footer -->
-    <n-layout-footer bordered
-      style="background: var(--n-card); padding: 12px; position: sticky; bottom: 0; z-index: 100; flex-shrink: 0;">
+    <div bordered style=" padding: 12px; position: sticky; bottom: 0; z-index: 100; flex-shrink: 0;">
+
       <n-input v-model:value="messageText" type="textarea" placeholder="输入消息..." :autosize="{ minRows: 2, maxRows: 4 }"
         @keydown.enter.prevent="handleEnterKey" style="margin-bottom: 12px;" />
 
@@ -150,7 +153,7 @@
           </n-button>
         </div>
       </div>
-    </n-layout-footer>
+    </div>
 
     <n-modal v-model:show="imageModalVisible" preset="card"
       style="width: 80vw; max-width: 90vw; height: 80vh; max-height: 90vh;">
@@ -200,7 +203,7 @@
         </div>
       </div>
     </n-modal>
-  </n-layout>
+  </div>
 </template>
 
 <script setup>
@@ -209,10 +212,8 @@ import {
   NButton,
   NIcon,
   NInput,
-  NLayout,
-  NLayoutContent,
-  NLayoutFooter,
   NModal,
+  NScrollbar,
   NTag,
   useMessage
 } from 'naive-ui';
@@ -229,13 +230,14 @@ const message = useMessage();
 const messages = ref([]);
 const messageText = ref('');
 const nickname = ref(getStoredNickname());
-const selectedFile = ref(null);
-const ws = ref(null);
-const messagesContainer = ref(null);
-const imageModalVisible = ref(false);
-const currentImage = ref('');
-const fileDetailsModalVisible = ref(false);
-const selectedFileDetail = ref(null);
+const selectedFile = ref(null)
+const ws = ref(null)
+const messagesContainer = ref(null)
+const scrollbarRef = ref(null)
+const imageModalVisible = ref(false)
+const currentImage = ref('')
+const fileDetailsModalVisible = ref(false)
+const selectedFileDetail = ref(null)
 const sending = ref(false);
 
 // Group messages for display (to show sender and timestamp only when needed)
@@ -593,10 +595,12 @@ function createNotification(data) {
 
 // Scroll to bottom of messages
 function scrollToBottom() {
-  if (messagesContainer.value?.el) {
-    messagesContainer.value.el.scrollTop = messagesContainer.value.el.scrollHeight;
+  if (scrollbarRef.value) {
+    scrollbarRef.value.scrollTo({
+      top: 100000,
+      behavior: 'smooth'
+    })
   }
-  document.querySelector(".n-layout-scroll-container").scrollTo(0, 100011)
 }
 
 // Open image in modal
@@ -697,5 +701,7 @@ defineExpose({
 </script>
 
 <style scoped>
-/* No custom styles needed as we're using Naive UI components */
+.n-layout-scroll-container {
+  overflow-x: unset !important;
+}
 </style>

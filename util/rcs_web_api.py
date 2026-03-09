@@ -639,18 +639,26 @@ class RcsWebApi:
                 name = one.get("eqName")[:8] + one.get("carrierLoc")[-1:]
                 if name in eq_dict:
                     continue
-                cmsIndex = one.get("cmsIndex") or "000000"
+                cmsIndex = one.get("cmsIndex")[:4] + "00"
                 eq_dict[name] = cmsIndex
         # print(f"eq_dict: {json.dumps(eq_dict, ensure_ascii=False, indent=2)}")
-        ksp_dict = {}
+        LET_dict = {}
+        for one in data.get("data", []):
+            if one.get("type") == "2":
+                name = one.get("port")
+                if name in LET_dict:
+                    continue
+                cmsIndex = one.get("cmsIndex")[:4] + "00"
+                LET_dict[name] = cmsIndex
+        PACKING_dict = {}
         for one in data.get("data", []):
             if one.get("type") == "3":
                 name = one.get("eqName")
-                if name in ksp_dict:
+                if name in PACKING_dict:
                     continue
                 cmsIndex = one.get("cmsIndex")[:4] + "00"
-                ksp_dict[name] = cmsIndex
-        # print(f"ksp_dict: {json.dumps(ksp_dict, ensure_ascii=False, indent=2)}")
+                PACKING_dict[name] = cmsIndex
+        # print(f"PACKING_dict: {json.dumps(PACKING_dict, ensure_ascii=False, indent=2)}")
         stk_dict = {}
         for one in data.get("data", []):
             if one.get("type") == "4":
@@ -664,7 +672,7 @@ class RcsWebApi:
             "BUFFER": buffer_dict,
             "CV": cv_dict,
             "EQ": eq_dict,
-            "KSP": ksp_dict,
+            "PACKING": PACKING_dict,
             "STK": stk_dict,
         }
         with open(self.current_cache_path / "cmsindexmap.json", "w") as f:
