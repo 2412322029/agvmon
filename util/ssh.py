@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import json
 import logging
 import pathlib
@@ -327,7 +328,7 @@ class SSHManager:
                     downloaded_size += len(chunk)
 
                     if callback:
-                        if asyncio.iscoroutinefunction(callback):
+                        if inspect.iscoroutinefunction(callback):
                             await callback(downloaded_size, file_size)
                         else:
                             callback(downloaded_size, file_size)
@@ -366,7 +367,7 @@ class SSHManager:
                 downloaded_size += len(chunk)
                 
                 if callback:
-                    if asyncio.iscoroutinefunction(callback):
+                    if inspect.iscoroutinefunction(callback):
                         await callback(downloaded_size, file_size)
                     else:
                         callback(downloaded_size, file_size)
@@ -392,7 +393,7 @@ class SSHManager:
             if len(lines) < 2:
                 return {"exists": False, "size": -1}
             
-            ls_la_line = lines[0]
+            # ls_la_line = lines[0]
             ls_l_line = lines[-1]
             
             if not ls_l_line or ls_l_line.startswith("total"):

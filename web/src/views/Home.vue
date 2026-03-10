@@ -34,11 +34,11 @@ const rollerPositions = computed(() => {
 const drawerWidth = computed(() => {
   // 根据屏幕尺寸动态调整抽屉宽度
   if (window.innerWidth <= 480) {
-    return '75%' // 小屏手机使用95%宽度
+    return '80%' // 小屏手机使用95%宽度
   } else if (window.innerWidth <= 768) {
-    return '70%' // 平板使用90%宽度
+    return '80%' // 平板使用90%宽度
   } else {
-    return '450px' // 桌面使用固定450px宽度
+    return '500px' // 桌面使用固定宽度
   }
 })
 
@@ -116,6 +116,7 @@ const closeDetailModal = () => {
   selectedRobot.value = null
   showDetailDrawer.value = false
   showSSHPanel.value = false  // 关闭SSH面板，这将导致断开连接
+
 }
 
 // 异常记录模态框相关
@@ -667,8 +668,8 @@ const freeagv = async (agvcode = "", stop = false) => {
     </div>
 
     <!-- 设置抽屉 -->
-    <NDrawer v-model:show="showSettingsDrawer" placement="bottom" :width="drawerWidth" @close="closeSettingsDrawer"
-      resizable default-height="50%">
+    <NDrawer v-model:show="showSettingsDrawer" placement="bottom" @close="closeSettingsDrawer" resizable
+      default-height="50%">
       <n-scrollbar>
         <div class="settings-drawer-content">
           <NTabs type="bar" style="margin-bottom: 20px;">
@@ -725,11 +726,13 @@ const freeagv = async (agvcode = "", stop = false) => {
     </NDrawer>
 
     <!-- 机器人详情抽屉 -->
-    <NDrawer v-model:show="showDetailDrawer" placement="right" :width="drawerWidth" @close="closeDetailModal">
+    <NDrawer resizable v-model:show="showDetailDrawer" placement="right" :default-width="drawerWidth"
+      @close="closeDetailModal" @after-leave=" detailActiveTab = 'info'" :min-width="300" :max-width="900">
       <div v-if="selectedRobot" class="detail-drawer-content">
         <h1 style="font-size: 24px; font-weight: bold; display: flex;align-items: center">{{ selectedRobot.RobotId }}
           <span style="margin-left: 10px; position: relative; width: 40px; height: 40px; display: inline-block;">
-            <img :src="timeage(selectedRobot.time * 1000) == '' ? robotImgUrl : robotoffImgUrl" style="width: 40px; height: 40px; transform: rotate(180deg);" alt="">
+            <img :src="timeage(selectedRobot.time * 1000) == '' ? robotImgUrl : robotoffImgUrl"
+              style="width: 40px; height: 40px; transform: rotate(180deg);" alt="">
             <!-- 左下 (第1位) -->
             <img v-if="rollerPositions[0]" :src="robot_fullImgUrl"
               style="position: absolute; bottom: 8px; left:11px; width: 8px; height: 8px;" alt="">
