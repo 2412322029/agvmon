@@ -1,48 +1,89 @@
 import argparse
-import asyncio
 import time
 
-from backend.app import run_api_server
 from util.config import cfg
 from util.logger import logger
-from util.rabbitmq import run_rabbitmq_server
-from util.rcms_api import RcmsApi
-from util.rcs_web_api import RcsWebApi
-from util.showrobot import show_robot_status
-from util.zeromq import Map_info_update, removekey
 
-logger.setLevel('INFO')
+logger.setLevel("INFO")
+
+
 def main():
-    parser = argparse.ArgumentParser(description='AGV监控系统命令行界面')
-    parser.add_argument('--test', action='store_true', help='测试模式')
-    # 添加互斥组用于主要操作
+    parser = argparse.ArgumentParser(description="AGV监控系统命令行界面")
+    parser.add_argument("--test", action="store_true", help="测试模式")
     group = parser.add_mutually_exclusive_group()
-    group.add_argument('--zeromq', action='store_true', help='运行ZeroMQ更新以刷新Redis地图信息')
-    group.add_argument('--rabbitmq', action='store_true', help='运行RabbitMQ更新服务器')
-    
-    # 添加单个操作选项
-    group.add_argument('--build-raw', action='store_true', help='从原始数据构建模型并创建缓存')
-    group.add_argument('--build-cache', action='store_true', help='从缓存构建模型')
-    group.add_argument('--saveport', action='store_true', help='保存bufferPort和machinePort到缓存')
-    group.add_argument('--transport', action='store_true', help='从缓存中读取bufferPort和machinePort并转换')
-    group.add_argument('--genmap', action='store_true', help='从模型生成地图图片')
-    group.add_argument('--show-robot', action='store_true', help='显示机器人状态')
-    
-    # 添加interval选项
-    parser.add_argument("-i",'--interval', type=float, default=None, help='更新间隔时间（秒），适用于--zeromq和--show-robot选项')
-    
-    # web api
-    group.add_argument('--web', action='store_true', help='运行FastAPI WebSocket服务器')
-    group.add_argument('--rk', action='store_true', help='romve key')
-    
+    group.add_argument(
+        "--zeromq", action="store_true", help="运行ZeroMQ更新以刷新Redis地图信息"
+    )
+    group.add_argument("--rabbitmq", action="store_true", help="运行RabbitMQ更新服务器")
+    group.add_argument(
+        "--build-raw", action="store_true", help="从原始数据构建模型并创建缓存"
+    )
+    group.add_argument("--build-cache", action="store_true", help="从缓存构建模型")
+    group.add_argument(
+        "--saveport", action="store_true", help="保存bufferPort和machinePort到缓存"
+    )
+    group.add_argument(
+        "--transport",
+        action="store_true",
+        help="从缓存中读取bufferPort和machinePort并转换",
+    )
+    group.add_argument("--genmap", action="store_true", help="从模型生成地图图片")
+    group.add_argument("--show-robot", action="store_true", help="显示机器人状态")
+    parser.add_argument(
+        "-i",
+        "--interval",
+        type=float,
+        default=None,
+        help="更新间隔时间（秒），适用于--zeromq和--show-robot选项",
+    )
+    group.add_argument("--web", action="store_true", help="运行FastAPI WebSocket服务器")
+    group.add_argument("--rk", action="store_true", help="romve key")
+
     args = parser.parse_args()
     if args.test:
-        cfg.set('test', True)
+        cfg.set("test", True)
         print(f"测试模式: {cfg.get('test')}")
-    # 创建RcmsApi实例
-    rapi = RcmsApi()
-    rcs_api = RcsWebApi()
-    
+
+    if (
+        args.build_raw
+        or args.build_cache
+        or args.genmap
+        or args.zeromq
+        or args.rabbitmq
+        or args.saveport
+        or args.transport
+    ):
+        from util.rcms_api import RcmsApi
+        from util.rcs_web_api import RcsWebApi
+
+        rapi = RcmsApi()
+        rcs_api = RcsWebApi()
+
+    if args.show_robot or args.zeromq:
+        from util.showrobot import show_robot_status
+        from util.zeromq import Map_info_update, removekey
+
+    if args.rabbitmq:
+        from util.rabbitmq import run_rabbitmq_server
+
+    if args.web or (
+        not any(
+            [
+                args.test,
+                args.zeromq,
+                args.rabbitmq,
+                args.build_raw,
+                args.build_cache,
+                args.saveport,
+                args.transport,
+                args.genmap,
+                args.show_robot,
+                args.rk,
+            ]
+        )
+    ):
+        from backend.app import run_api_server
+
     # 执行请求的操作
     if args.build_raw:
         rapi.build_from_raw()
@@ -53,7 +94,7 @@ def main():
         else:
             logger.info("从缓存构建模型成功")
     elif args.genmap:
-        rapi.build_from_cache()  # 生成地图前需要构建模型
+        rapi.build_from_cache()
         rapi.genmapimage()
     elif args.zeromq:
         rapi.build_from_cache()
@@ -72,13 +113,25 @@ def main():
     elif args.web:
         run_api_server()
     elif args.rk:
+        from util.zeromq import removekey
+
         removekey()
     elif args.saveport:
+        import asyncio
+
+        from util.rcs_web_api import RcsWebApi
+
+        rcs_api = RcsWebApi()
+
         async def inner():
             async with rcs_api:
                 await rcs_api.saveallport()
+
         asyncio.run(inner())
     elif args.transport:
+        from util.rcs_web_api import RcsWebApi
+
+        rcs_api = RcsWebApi()
         rcs_api.transport()
     else:
         parser.print_help()
@@ -86,7 +139,6 @@ def main():
         time.sleep(3)
         run_api_server()
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
-
-

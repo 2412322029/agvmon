@@ -30,12 +30,17 @@ def build_with_nuitka():
         "--standalone",  # 创建独立的应用程序
         "--plugin-enable=pyzmq",  # 启用pyzmq插件
         "--include-data-dir=web/dist=./web/dist",  # 包含web/dist目录
-        "--include-data-dir=util/data=./util/data",  # 包含util/data目录
-        """--include-data-files=util/config.toml=./util/config.toml""",  # 包含config.toml文件
+        "--include-data-dir=util/data/cache=./util/data/cache",  # 包含cache目录
+        "--include-data-dir=util/data/fake=./util/data/fake",  # 包含fake目录
+        "--include-data-dir=util/data/map_img=./util/data/map_img",  # 包含map_img目录
+        "--include-data-dir=util/data/robot_img=./util/data/robot_img",  # 包含robot_img目录
+        "--include-data-files=util/config.toml=./util/config.toml",  # 包含config.toml文件
+        "--include-data-files=util/data/Alarminfo.json=./util/data/Alarminfo.json",  # 包含Alarminfo.json
+        "--include-data-files=util/data/AmrStatusInfo.json=./util/data/AmrStatusInfo.json",  # 包含AmrStatusInfo.json
         "--output-dir=dist",  # 输出目录
         # "--follow-imports",
-        "--show-memory",  # 显示内存使用
-        #"--lto=yes",  # 启用LTO优化
+        # "--show-memory",  # 显示内存使用
+        # "--lto=yes",  # 启用LTO优化
         "--nofollow-import-to=tkinter",  # 不跟踪tkinter导入
         "--nofollow-import-to=ttk",  # 不跟踪ttk导入
         "--output-filename=agvmon.exe",  # 输出文件名
@@ -48,7 +53,7 @@ def build_with_nuitka():
 
     try:
         # 执行Nuitka构建命令
-        return_code = os.system(' '.join(nuitka_cmd))
+        return_code = os.system(" ".join(nuitka_cmd))
         if return_code != 0:
             print(f"命令执行失败: {' '.join(nuitka_cmd)}\n退出代码: {return_code}")
             sys.exit(return_code)
