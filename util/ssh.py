@@ -1,5 +1,6 @@
 import asyncio
 import inspect
+import io
 import json
 import logging
 import pathlib
@@ -61,9 +62,9 @@ def validate_remote_path(path: str) -> bool:
         logger.warning(f"路径不能包含 '..': {path}")
         return False
     
-    if not re.match(r'^[a-zA-Z0-9_\-./]+$', path):
-        logger.warning(f"路径包含非法字符: {path}")
-        return False
+    # if not re.match(r'^[a-zA-Z0-9_\-./]+$', path):
+    #     logger.warning(f"路径包含非法字符: {path}")
+    #     return False
     
     return True
 
@@ -338,7 +339,38 @@ class SSHManager:
         except Exception as e:
             logger.error(f"使用dd下载文件失败: {e}")
             return False
-
+    async def download_file_to_memory(self, remote_path: str, block_size: int = 8192,size_limit: int = 10) -> Tuple[bool, io.BytesIO|str]:
+        """下载远程文件到内存
+        :param remote_path: 远程文件路径
+        :param block_size: 每次读取的块大小（KB）
+        :param size_limit: 允许下载的最大文件大小（MB）
+        :return: 元组 (是否成功, 内存缓冲区或错误信息)
+        """
+        if not validate_remote_path(remote_path):
+            return False, "无效的远程路径"
+        try:
+            file_info = await self._get_file_info(remote_path)
+            if not file_info["exists"]:
+                return False, f"错误: 远程文件 '{remote_path}' 不存在"
+            if file_info["size"] > size_limit * 1024 * 1024:
+                return False, f"错误: 远程文件 '{remote_path}' 大小超过限制({size_limit}MB)"
+            command = f"dd if='{remote_path}' bs={block_size}k 2>/dev/null"
+            stdin, stdout, stderr = await self.execute_interactive_command(command)
+            memory_buffer = io.BytesIO()
+            total_written = 0
+            while True:
+                chunk = await stdout.read(block_size * 1024)
+                if not chunk:
+                    break
+                memory_buffer.write(chunk)
+                total_written += len(chunk)
+            if total_written != file_info["size"]:
+                logger.warning(f"下载字节数({total_written})与文件大小({file_info['size']})不匹配")
+            memory_buffer.seek(0)
+            return True, memory_buffer
+        except Exception as e:
+            logger.error(f"下载文件到内存失败: {e}")
+            return False, f"下载文件到内存失败: {e}"
     async def stream_file(
         self, remote_path: str, chunk_size: int = 8192, callback: Optional[Callable[[int, int], None]] = None
     ):

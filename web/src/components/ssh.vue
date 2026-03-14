@@ -45,8 +45,8 @@
         </n-card>
         <n-spin v-if="!connected" style="margin-top: 16px; margin-left: 16px;"></n-spin>
         <!-- 文件详情 -->
-        <n-modal v-model:show="showFileInfo" style="max-width: 400px; overflow: auto;" preset="card" title="文件详情" 
-            :bordered="false" size="small" segmented>
+        <n-modal v-model:show="showFileInfo" style="max-width: 400px; overflow: auto;" preset="card" title="文件详情"
+            :bordered="false" size="small" segmented @close="handleFileInfoClose">
             <n-descriptions label-placement="left" bordered :column="1" v-if="selectedFile">
                 <n-descriptions-item label="名称">
                     <n-text>{{ selectedFile.name }}</n-text>
@@ -74,6 +74,11 @@
                     <n-button @click="showFileInfo = false" size="small">
                         关闭
                     </n-button>
+                    <n-button
+                        v-if="selectedFile && !selectedFile.is_directory && !selectedFile.is_link && canPreview"
+                        @click="handlePreview(selectedFile.path)" type="info" size="small">
+                        预览
+                    </n-button>
                     <n-button v-if="selectedFile && !selectedFile.is_directory && !selectedFile.is_link"
                         @click="handleDownload(selectedFile.path)" type="primary" size="small">
                         下载
@@ -86,7 +91,7 @@
         <n-card v-if="connected" :bordered="false" size="small" segmented style="margin-top: 16px;">
             <n-spin :show="loadingDirectory">
                 <n-data-table :columns="columns" :data="directoryContents" :pagination="false"
-                    :row-key="(row) => row.name" virtual-scroll :max-height="mobileMaxHeight" 
+                    :row-key="(row) => row.name" virtual-scroll :max-height="mobileMaxHeight"
                     :scroll-x="isMobile ? 100 : 800" />
             </n-spin>
         </n-card>
@@ -97,8 +102,25 @@
             <n-progress type="line" :percentage="downloadProgress.percentage" :status="downloadProgress.status">
                 <n-text>{{ downloadProgress.filename }}</n-text>
                 <n-text>{{ formatFileSize(downloadProgress.downloaded) }} / {{ formatFileSize(downloadProgress.total)
-                }}</n-text>
+                    }}</n-text>
             </n-progress>
+        </n-modal>
+
+        <!-- 文件预览弹窗 -->
+        <n-modal v-model:show="showPreviewModal" preset="card" title="文件预览"
+            style="max-width: 800px; max-height: 90vh; overflow: auto;" @close="handlePreviewClose"
+            :auto-focus="false">
+            <div v-if="previewUrl" style="">
+                <img v-if="isImageFile(previewPath)" :src="previewUrl" style="max-width: 100%; max-height: 600px;" />
+                <video v-if="isVideoFile(previewPath)" :src="previewUrl" controls
+                    style="max-width: 100%; max-height: 600px;" />
+                <audio v-if="isAudioFile(previewPath)" :src="previewUrl" controls style="max-width: 100%;" />
+                <pre v-if="isTextFile(previewPath)" style="white-space: pre-wrap; word-break: break-all;">
+            {{ previewText }}
+        </pre>
+                <view-json v-if="isJsonFile(previewPath)">{{ previewText }}</view-json>
+            </div>
+            <n-spin v-else />
         </n-modal>
     </div>
 </template>
@@ -127,7 +149,7 @@ import {
     NText,
     useMessage
 } from 'naive-ui'
-import { computed, h, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, h, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
 
 // 定义 props
 const props = defineProps({
@@ -200,6 +222,7 @@ const currentPath = ref('.')
 const pathInput = ref('.')
 const directoryContents = ref([])
 const showProgressModal = ref(false)
+const showPreviewModal = ref(false)
 const downloadProgress = reactive({
     percentage: 0,
     downloaded: 0,
@@ -207,6 +230,9 @@ const downloadProgress = reactive({
     filename: '',
     status: 'info'
 })
+const previewUrl = ref('')
+const previewPath = ref('')
+const previewText = ref('')
 
 // 移动端适配
 const isMobile = ref(window.innerWidth <= 768)
@@ -342,11 +368,11 @@ const columns = computed(() => {
             render(row) {
                 if (row.is_directory) {
                     return h('span', {
-                        style: { 
-                            cursor: 'pointer', 
-                            color: '#18a058', 
-                            overflow: 'hidden', 
-                            textOverflow: 'ellipsis', 
+                        style: {
+                            cursor: 'pointer',
+                            color: '#18a058',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap'
                         },
                         onClick: () => {
@@ -359,26 +385,26 @@ const columns = computed(() => {
                         row.name
                     ])
                 } else if (row.is_link) {
-                    return h('span', { 
-                        style: { 
-                            cursor: 'pointer', 
+                    return h('span', {
+                        style: {
+                            cursor: 'pointer',
                             color: '#666',
-                            overflow: 'hidden', 
-                            textOverflow: 'ellipsis', 
-                            whiteSpace: 'nowrap' 
-                        } 
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
+                        }
                     }, [
                         h('span', { style: { color: '#666' } }, '🔗 '),
                         row.name
                     ])
                 } else {
                     return h('span', {
-                        style: { 
-                            cursor: 'pointer', 
+                        style: {
+                            cursor: 'pointer',
                             color: '#2080f0',
-                            overflow: 'hidden', 
-                            textOverflow: 'ellipsis', 
-                            whiteSpace: 'nowrap' 
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap'
                         },
                         onClick: () => showFileDetails(row)
                     }, [
@@ -431,7 +457,7 @@ const columns = computed(() => {
                 }
             }
         );
-        
+
         // 桌面端的操作列
         baseColumns.push({
             title: '操作',
@@ -591,13 +617,141 @@ const handleDownload = async (filePath) => {
     }
 }
 
+// 检查是否为图片文件
+const isImageFile = (filePath) => {
+    const ext = filePath.split('.').pop().toLowerCase();
+    return ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp', 'yuv'].includes(ext);
+}
+
+// 检查是否为视频文件
+const isVideoFile = (filePath) => {
+    const ext = filePath.split('.').pop().toLowerCase();
+    return ['mp4', 'avi', 'mkv', 'mov', 'wmv'].includes(ext);
+}
+
+// 检查是否为音频文件
+const isAudioFile = (filePath) => {
+    const ext = filePath.split('.').pop().toLowerCase();
+    return ['wav', 'mp3', 'ogg', 'flac', 'aac'].includes(ext);
+}
+
+// 检查是否为文本文件
+const isTextFile = (filePath) => {
+    const ext = filePath.split('.').pop().toLowerCase();
+    return ['txt', 'csv'].includes(ext);
+}
+const isJsonFile = (filePath) => {
+    const ext = filePath.split('.').pop().toLowerCase();
+    return ['json'].includes(ext);
+}
+const supportedPreviewTypes = ref([
+    'yuv',
+    'png',
+    'jpg',
+    'jpeg',
+    'gif',
+    'bmp',
+    'webp',
+    'wav',
+    'mp3',
+    'mp4',
+    'ogg',
+    'txt',
+    'json',
+    'csv'
+]);
+const fileExt = ref("")
+// 处理文件预览
+const canPreview = () => {
+    return supportedPreviewTypes.value.includes(fileExt.value);
+}
+const handlePreview = async (filePath) => {
+    try {
+        fileExt.value = filePath.split('.').pop().toLowerCase();
+        console.log(fileExt.value);
+        
+        if (!canPreview()) {
+            message.warning('不支持的文件类型，无法预览');
+            return;
+        }
+
+        showPreviewModal.value = true;
+        previewPath.value = filePath;
+        previewText.value = '';
+
+        const response = await axios.post('/agv/remote_file_view', {
+            id: sshId.value,
+            filepath: filePath,
+            // yuv2png: fileExt === 'yuv'
+        }, {
+            responseType: 'blob'
+        });
+
+        if (response.status === 200) {
+            const blob = response.data;
+            const url = window.URL.createObjectURL(blob);
+            previewUrl.value = url;
+
+            if (isTextFile(filePath) || isJsonFile(filePath)) {
+                const text = await blob.text();
+                previewText.value = text;
+            }   
+            message.success('文件预览已加载');
+        }else if(response.status === 202){
+            const json = await JSON.parse(await response.data.text());
+            console.log(json);
+            message.error(json.error || 'error');
+            showPreviewModal.value = false;
+            previewUrl.value = '';
+            previewPath.value = '';
+            previewText.value = '';
+        } else {
+            message.error( '预览失败');
+            showPreviewModal.value = false;
+            window.URL.revokeObjectURL(url);
+            previewUrl.value = '';
+            previewPath.value = '';
+            previewText.value = '';
+        }
+    } catch (error) {
+        console.log(error);
+        message.error(error.response?.data?.error || error.message || '预览失败');
+        showPreviewModal.value = false;
+        window.URL.revokeObjectURL(previewUrl.value);
+        previewUrl.value = '';
+        previewPath.value = '';
+        previewText.value = '';
+    }
+}
+
+// 关闭文件详情模态框时清理资源
+const handleFileInfoClose = () => {
+    selectedFile.value = null;
+}
+
+// 关闭预览模态框时释放资源
+const handlePreviewClose = () => {
+    if (previewUrl.value) {
+        window.URL.revokeObjectURL(previewUrl.value);
+        previewUrl.value = '';
+        previewPath.value = '';
+        previewText.value = '';
+    }
+    nextTick(() => {
+        const fileButtons = document.querySelectorAll('n-button');
+        if (fileButtons.length > 0) {
+            fileButtons[0].focus();
+        }
+    });
+}
+
 // 初始化时尝试连接
 onMounted(() => {
     // 如果提供了默认连接信息，可以自动连接
     if (props.autoConnect) {
         handleConnect()
     }
-    
+
     // 监听窗口大小变化
     window.addEventListener('resize', handleWindowResize);
 })
@@ -614,12 +768,12 @@ onUnmounted(async () => {
             const response = await axios.get(`/agv/disconnect?id=${sshId.value}`)
             if (response.data.message === '断开成功') {
                 console.log('SSH连接已自动断开')
-                            message.info('SSH连接已自动断开')
+                message.info('SSH连接已自动断开')
 
             }
         } catch (error) {
             console.error('自动断开SSH连接时出错:', error)
-                            message.error('自动断开SSH连接时出错')
+            message.error('自动断开SSH连接时出错')
         }
     }
     // 移除窗口大小变化监听器

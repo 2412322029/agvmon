@@ -1,3 +1,4 @@
+import io
 import json
 import pathlib
 import uuid
@@ -5,23 +6,47 @@ from datetime import datetime
 from urllib.parse import quote
 
 # 导入弃用警告装饰器DeprecationWarning
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, Response
 from fastapi.responses import StreamingResponse
 
 from util.config import cfg, r
-from util.ssh import SSHManager, validate_remote_path
+from util.ssh import SSHManager, validate_local_path, validate_remote_path
+from util.yuv2png import y_only_to_rgb_stream
 
 agv_web_router = APIRouter(
     prefix="/agv",
     tags=["agv"],
 )
-
+Media_Type_Map = {
+    ".yuv": "image/png",
+    ".png": "image/png",
+    ".jpg": "image/jpeg",
+    ".jpeg": "image/jpeg",
+    ".wav": "audio/wav",
+    ".mp3": "audio/mpeg",
+    ".mp4": "video/mp4",
+    ".ogg": "audio/ogg",
+    ".txt": "text/plain",
+    ".json": "application/json",
+    ".csv": "text/csv",
+    ".zip": "application/zip",
+    ".rar": "application/x-rar-compressed",
+    ".7z": "application/x-7z-compressed",
+}
 download_path = (
     pathlib.Path(__file__).parent.parent.parent / "util" / "data" / "download"
 )
 # print(f"download_path: {download_path}")
 if not download_path.exists():
     download_path.mkdir(parents=True)
+
+
+def json_response(error, code=202):
+    return Response(
+        json.dumps({"error": error, "success": False}),
+        code,
+        media_type="application/json",
+    )
 
 
 @agv_web_router.post("/connect")
@@ -99,9 +124,9 @@ async def stream_download_file(id: str = Body(...), filepath: str = Body(...)):
     """流式下载文件到浏览器"""
     ssh_manager = SSHManager.get_ssh_manager(id)
     if not ssh_manager:
-        return {"success": False, "error": "连接失败, id不存在"}
+        return json_response(error="连接失败, id不存在")
     if not validate_remote_path(filepath):
-        return {"success": False, "error": f"无效的路径: {filepath}"}
+        return json_response(error=f"无效的路径: {filepath}")
 
     # 获取文件名
     filename = pathlib.PurePath(filepath).name
@@ -176,3 +201,66 @@ async def get_download_info():
             except (json.JSONDecodeError, UnicodeDecodeError):
                 continue
     return {"downloads": downloads, "count": len(downloads)}
+
+
+@agv_web_router.get("/yuv2pngfile")
+async def yuv2pngfile(filename):
+    """
+    将本地 YUV 文件转换为 PNG 并流式返回
+    :param filename: 已下载到本地的 YUV 文件名（不含路径）
+    :return: PNG 图像流
+    """
+    if not filename.endswith(".yuv"):
+        return json_response(error=f"仅支持yuv文件格式: {filename}")
+    if not validate_local_path(filename) or "/" in filename or "\\" in filename:
+        return json_response(error=f"无效的路径: {filename}")
+    file = download_path / filename
+    if not file.exists():
+        return json_response(error=f"文件不存在: {filename}")
+    return StreamingResponse(y_only_to_rgb_stream(file), media_type="image/png")
+
+
+@agv_web_router.post("/remote_file_view")
+async def remote_file_view(
+    id: str = Body(...), filepath: str = Body(...), yuv2png: bool = Body(False)
+):
+    """
+    将远程文件下载到内存并流式返回
+    :param id: SSH 连接ID
+    :param filepath: 远程文件路径
+    :param yuv2png: 是否将yuv文件转换为png
+    :return: 文件内容流或png图像流
+    """
+    file_ext = pathlib.PurePath(filepath).suffix
+    if file_ext == ".yuv":
+        yuv2png = True
+    ssh_manager = SSHManager.get_ssh_manager(id)
+    if not ssh_manager:
+        return json_response(error="连接失败, id不存在")
+    if not validate_remote_path(filepath):
+        return json_response(error=f"无效的路径: {filepath}")
+    if yuv2png and not filepath.endswith(".yuv"):
+        return json_response(error=f"仅支持yuv文件格式: {filepath}")
+    memory_buffer = None
+    try:
+        success, memory_buffer = await ssh_manager.download_file_to_memory(
+            filepath, size_limit=10
+        )
+        if not success or not memory_buffer:
+            return json_response(error=memory_buffer)
+        memory_buffer.seek(0)
+        imgdata = memory_buffer.read()
+        if yuv2png:
+            return StreamingResponse(
+                y_only_to_rgb_stream(y_data=imgdata), media_type="image/png"
+            )
+        else:
+            return Response(
+                imgdata,
+                media_type=Media_Type_Map.get(file_ext, "application/octet-stream"),
+            )
+    except Exception as e:
+        return json_response(error=f"获取远程yuv文件并转换为png失败: {e}")
+    finally:
+        if isinstance(memory_buffer, io.BytesIO):
+            memory_buffer.close()
