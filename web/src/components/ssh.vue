@@ -1,51 +1,56 @@
 <template>
     <div class="ssh-container">
         <!-- 连接表单 -->
-        <n-card v-if="showInput" title="SSH 连接" :bordered="false" size="small" segmented>
+        <div v-if="showInput" title="SSH 连接" :bordered="false" size="small" segmented>
             <n-form :model="connectionForm" :rules="connectionRules" ref="formRef">
                 <n-grid :cols="24" :x-gap="12" :y-gap="8">
-                    <n-form-item-gi :span="24" :span-s="24" label="主机地址" path="host">
+                    <n-form-item-gi :span="4" :span-s="24" label="主机地址" path="host">
                         <n-input v-model:value="connectionForm.host" placeholder="请输入主机地址" />
                     </n-form-item-gi>
-                    <n-form-item-gi :span="8" :span-s="24" label="端口" path="port">
+                    <n-form-item-gi :span="3" :span-s="24" label="端口" path="port">
                         <n-input-number v-model:value="connectionForm.port" :min="1" :max="65535" placeholder="22" />
                     </n-form-item-gi>
-                    <n-form-item-gi :span="8" :span-s="24" label="用户名" path="username">
+                    <n-form-item-gi :span="4" :span-s="24" label="用户名" path="username">
                         <n-input v-model:value="connectionForm.username" placeholder="请输入用户名" />
                     </n-form-item-gi>
-                    <n-form-item-gi :span="8" :span-s="24" label="密码" path="password">
+                    <n-form-item-gi :span="4" :span-s="24" label="密码" path="password">
                         <n-input v-model:value="connectionForm.password" type="password" show-password-on="click"
                             placeholder="请输入密码" />
                     </n-form-item-gi>
+                     <n-form-item-gi :span="2" :span-s="24">
+                         <n-button type="primary" @click="handleConnect" :disabled="connected" :loading="connecting">
+                            {{ connected ? '已连接' : '连接' }}
+                        </n-button>
+                    </n-form-item-gi>
+                    <n-form-item-gi :span="2" :span-s="24">
+                         <n-button @click="handleDisconnect" :disabled="!connected" :loading="disconnecting">
+                            断开连接
+                        </n-button>
+                    </n-form-item-gi>
                 </n-grid>
-                <n-space>
-                    <n-button type="primary" @click="handleConnect" :disabled="connected" :loading="connecting">
-                        {{ connected ? '已连接' : '连接' }}
-                    </n-button>
-                    <n-button @click="handleDisconnect" :disabled="!connected" :loading="disconnecting">
-                        断开连接
-                    </n-button>
-                </n-space>
+
             </n-form>
-        </n-card>
+        </div>
         <!-- 当前路径和面包屑导航 -->
-        <n-card v-if="connected" :bordered="false" size="small" segmented style="margin-top: 16px;">
+        <div v-if="connected" :bordered="false" size="small" segmented style="">
             <n-space vertical :wrap="true">
                 <n-space align="center">
-                    <n-button size="small" @click="goToParentDirectory"
-                        :disabled="currentPath === '/' || currentPath === '.'">
-                        <n-icon><arrow-back-icon /></n-icon>
-                        返回
+                    <n-input v-model:value="pathInput" @keyup.enter="handlePathEnter" style="width: 100%;" />
+                    <n-button @click="goToPath" :loading="loadingDirectory" style="min-width: 60px;">
+                        确认
                     </n-button>
-                    <n-breadcrumb>
-                        <n-breadcrumb-item v-for="(part, index) in pathParts" :key="index">
-                            <n-a @click="navigateToPath(index)">{{ part || '根目录' }}</n-a>
-                        </n-breadcrumb-item>
-                    </n-breadcrumb>
-                    <n-input-group>
-                        <n-input v-model:value="pathInput" @keyup.enter="handlePathEnter" style="flex: 1;" />
-                        <n-button @click="goToPath" :loading="loadingDirectory" style="min-width: 60px;">
-                            确认
+                    <div style="overflow-x: auto; white-space: nowrap;">
+                        <n-breadcrumb>
+                            <n-breadcrumb-item v-for="(part, index) in pathParts" :key="index">
+                                <n-a @click="navigateToPath(index)">{{ part || '根目录' }}</n-a>
+                            </n-breadcrumb-item>
+                        </n-breadcrumb>
+                    </div>
+
+                    <n-input-group style="flex: 0 0 auto;">
+                        <n-button @click="goToParentDirectory" :disabled="currentPath === '/' || currentPath === '.'">
+                            <n-icon><arrow-back-icon /></n-icon>
+                            返回
                         </n-button>
                         <n-button @click="refreshDirectory" :loading="loadingDirectory">
                             <n-icon><refresh-icon /></n-icon>
@@ -55,8 +60,8 @@
                 </n-space>
 
             </n-space>
-        </n-card>
-        <n-spin v-if="!connected" style="margin-top: 16px; margin-left: 16px;"></n-spin>
+        </div>
+        <n-spin v-if="!connected && connecting" style="margin-top: 16px; margin-left: 16px;"></n-spin>
         <!-- 文件详情 -->
         <n-modal v-model:show="showFileInfo" style="max-width: 500px; overflow: auto;" preset="card" title="文件详情"
             :bordered="false" size="small" segmented @close="handleFileInfoClose">
@@ -108,13 +113,13 @@
         </n-modal>
 
         <!-- 文件列表 -->
-        <n-card v-if="connected" :bordered="false" size="small" segmented style="margin-top: 16px;">
+        <div v-if="connected" :bordered="false" size="small" segmented style="margin-top: 16px;">
             <n-spin :show="loadingDirectory">
                 <n-data-table :columns="columns" :data="directoryContents" :pagination="false"
                     :row-key="(row) => row.name" virtual-scroll :max-height="mobileMaxHeight"
                     :scroll-x="isMobile ? 100 : 800" />
             </n-spin>
-        </n-card>
+        </div>
 
 
         <!-- 下载进度弹窗 -->
@@ -135,8 +140,9 @@
                 <video v-if="isVideoFile(previewPath)" :src="previewUrl" controls
                     style="max-width: 100%; max-height: 600px;" />
                 <audio v-if="isAudioFile(previewPath)" :src="previewUrl" controls style="max-width: 100%;" />
-                <pre v-if="astxt || isTextFile(previewPath)" style="white-space: pre-wrap; word-break: break-all;">{{ previewText.length > 3000 ? previewText.slice(0, 3000) + '\n剩余部分不显示' : previewText }}
-                </pre>
+                <pre v-if="astxt || isTextFile(previewPath)" style="white-space: pre-wrap; word-break: break-all;">{{
+                    previewText.length > 3000 ? previewText.slice(0, 3000) + '\n剩余部分不显示' : previewText }}
+        </pre>
                 <view-json v-if="isJsonFile(previewPath)">{{ previewText }}</view-json>
                 <div v-if="decodeResults"
                     style="margin-top: 10px; padding: 10px; background: #f5f5f5; border-radius: 4px;">
@@ -676,7 +682,7 @@ const isImageFile = (filePath) => {
 // 检查是否为视频文件
 const isVideoFile = (filePath) => {
     const ext = filePath.split('.').pop().toLowerCase();
-    return ['mp4', 'avi', 'mkv', 'mov', 'wmv'].includes(ext);
+    return ['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv'].includes(ext);
 }
 
 // 检查是否为音频文件
