@@ -19,24 +19,24 @@ logger = logging.getLogger(__name__)
 def validate_remote_path(path: str) -> bool:
     """
     验证远程路径，防止命令注入
-    
+
     参数:
         path: 远程文件路径
-        
+
     返回:
         bool: 路径是否有效
     """
     if not path:
         return False
-    
+
     if not isinstance(path, str):
         return False
-    
+
     path = path.strip()
-    
+
     if not path:
         return False
-    
+
     forbidden_patterns = [
         r";\s*",
         r"\|\s*",
@@ -48,48 +48,48 @@ def validate_remote_path(path: str) -> bool:
         r"\r",
         r"\x00",
     ]
-    
+
     for pattern in forbidden_patterns:
         if re.search(pattern, path):
             logger.warning(f"检测到非法字符，路径被拒绝: {path}")
             return False
-    
+
     if path.startswith("-"):
         logger.warning(f"路径不能以连字符开头: {path}")
         return False
-    
+
     if ".." in path:
         logger.warning(f"路径不能包含 '..': {path}")
         return False
-    
+
     # if not re.match(r'^[a-zA-Z0-9_\-./]+$', path):
     #     logger.warning(f"路径包含非法字符: {path}")
     #     return False
-    
+
     return True
 
 
 def validate_local_path(path: str) -> bool:
     """
     验证本地路径，防止命令注入和路径遍历
-    
+
     参数:
         path: 本地文件路径
-        
+
     返回:
         bool: 路径是否有效
     """
     if not path:
         return False
-    
+
     if not isinstance(path, str):
         return False
-    
+
     path = path.strip()
-    
+
     if not path:
         return False
-    
+
     forbidden_patterns = [
         r";\s*",
         r"\|\s*",
@@ -100,24 +100,25 @@ def validate_local_path(path: str) -> bool:
         r"\r",
         r"\x00",
     ]
-    
+
     for pattern in forbidden_patterns:
         if re.search(pattern, path):
             logger.warning(f"检测到非法字符，路径被拒绝: {path}")
             return False
-    
+
     try:
         path_obj = pathlib.Path(path)
         resolved = path_obj.resolve()
-        
+
         if ".." in str(resolved.relative_to(resolved.anchor)):
             logger.warning(f"路径包含非法的相对路径: {path}")
             return False
     except Exception as e:
         logger.warning(f"路径验证失败: {path}, 错误: {e}")
         return False
-    
+
     return True
+
 
 # 配置 asyncssh 日志级别,只显示关键信息
 asyncssh.set_log_level(logging.WARNING)
@@ -148,7 +149,12 @@ class SSHManager:
             )
             self.id = uuid.uuid4().hex
             SSHManager.all_ssh_managers.append(
-                {"id": self.id, "manager": self, "create_time": self.create_time, "name": self.name}
+                {
+                    "id": self.id,
+                    "manager": self,
+                    "create_time": self.create_time,
+                    "name": self.name,
+                }
             )
             logger.info(f"SSH连接到 {self.name} 成功")
             return True, None
@@ -182,15 +188,20 @@ class SSHManager:
     @staticmethod
     def get_all_ssh_managers() -> List[Dict[str, Union[str, "SSHManager", datetime]]]:
         """获取所有SSHManager实例"""
-        return [{"id": item["id"], "name": item["name"], "create_time": item["create_time"]} for item in SSHManager.all_ssh_managers]
+        return [
+            {"id": item["id"], "name": item["name"], "create_time": item["create_time"]}
+            for item in SSHManager.all_ssh_managers
+        ]
 
-    async def execute_command(self, command: str, return_bytes: bool = False) -> Tuple[Union[str, bytes], str]:
+    async def execute_command(
+        self, command: str, return_bytes: bool = False, timeout: Optional[int] = None
+    ) -> Tuple[Union[str, bytes], str]:
         """执行SSH命令并返回结果"""
         if not self.connection:
             raise Exception("SSH连接未建立")
 
         try:
-            result = await self.connection.run(command, check=False)
+            result = await self.connection.run(command, check=False, timeout=timeout)
             error = result.stderr
 
             if return_bytes:
@@ -199,32 +210,42 @@ class SSHManager:
                 output = result.stdout
 
             return output, error
-        except Exception as e:
-            logger.error(f"执行命令失败: {e}")
-            raise
+        except asyncio.TimeoutError as e:
+            timeout_str = f"{timeout}秒" if timeout else "默认超时时间"
+            logger.error(f"执行命令超时({timeout_str}): {e}")
+            raise Exception(f"执行命令超时({timeout_str}): {e}")
 
-    async def execute_interactive_command(self, command: str) -> Tuple[Optional[asyncssh.SSHWriter], asyncssh.SSHReader, asyncssh.SSHReader]:
+    async def execute_interactive_command(
+        self, command: str
+    ) -> Tuple[Optional[asyncssh.SSHWriter], asyncssh.SSHReader, asyncssh.SSHReader]:
         """执行交互式命令，返回stdin, stdout, stderr"""
         if not self.connection:
             raise Exception("SSH连接未建立")
 
         try:
-            process = await self.connection.create_process(command, stdin=asyncssh.PIPE, stdout=asyncssh.PIPE, stderr=asyncssh.PIPE,encoding=None)
+            process = await self.connection.create_process(
+                command,
+                stdin=asyncssh.PIPE,
+                stdout=asyncssh.PIPE,
+                stderr=asyncssh.PIPE,
+                encoding=None,
+            )
             return process.stdin, process.stdout, process.stderr
         except Exception as e:
             logger.error(f"执行命令失败: {e}")
             raise
 
-    async def execute_command_text(self, command: str) -> Tuple[str, str]:
+    async def execute_command_text(
+        self, command: str, timeout: Optional[int] = None
+    ) -> Tuple[str, str]:
         """执行SSH命令并返回文本结果"""
-        output, error = await self.execute_command(command, return_bytes=False)
+        output, error = await self.execute_command(command, return_bytes=False, timeout=timeout)
         return output, error
 
     def parse_ls_output(self, ls_output: str) -> List[Dict[str, Union[str, int, bool]]]:
         """解析ls -l命令的输出为JSON格式"""
         lines = ls_output.strip().split("\n")
         result = []
-
         for line in lines:
             if not line.strip() or line.startswith("total"):
                 continue
@@ -271,9 +292,8 @@ class SSHManager:
         """列出目录内容"""
         if not validate_remote_path(path):
             raise ValueError(f"无效的远程路径: {path}")
-        
-        command = f"ls -l '{path}'"
-        output, error = await self.execute_command_text(command)
+        command = f"ls -l -U '{path}'"
+        output, error = await self.execute_command_text(command, timeout=10)
 
         if error and not output:
             raise Exception(f"执行ls命令出错: {error}")
@@ -287,28 +307,32 @@ class SSHManager:
         """以JSON格式返回目录列表"""
         if not validate_remote_path(path):
             raise ValueError(f"无效的远程路径: {path}")
-        
+
         file_list = await self.list_directory(path)
         return json.dumps(file_list, indent=2, ensure_ascii=False)
 
     async def download_file(
-        self, remote_path: str, local_path: str, block_size: int = 8192, callback: Optional[Callable[[int, int], None]] = None
+        self,
+        remote_path: str,
+        local_path: str,
+        block_size: int = 8192,
+        callback: Optional[Callable[[int, int], None]] = None,
     ) -> bool:
         """下载远程文件到本地（支持进度回调）"""
         if not validate_remote_path(remote_path):
             raise ValueError(f"无效的远程路径: {remote_path}")
-        
+
         if not validate_local_path(local_path):
             raise ValueError(f"无效的本地路径: {local_path}")
-        
+
         local_file = pathlib.Path(local_path) / pathlib.Path(remote_path).name
-        
+
         try:
             file_info = await self._get_file_info(remote_path)
             if not file_info["exists"]:
                 logger.error(f"错误: 远程文件 '{remote_path}' 不存在")
                 return False
-            
+
             file_size = file_info["size"]
             if file_size < 0:
                 file_size = 0
@@ -339,7 +363,10 @@ class SSHManager:
         except Exception as e:
             logger.error(f"使用dd下载文件失败: {e}")
             return False
-    async def download_file_to_memory(self, remote_path: str, block_size: int = 8192,size_limit: int = 10) -> Tuple[bool, io.BytesIO|str]:
+
+    async def download_file_to_memory(
+        self, remote_path: str, block_size: int = 8192, size_limit: int = 10
+    ) -> Tuple[bool, io.BytesIO | str]:
         """下载远程文件到内存
         :param remote_path: 远程文件路径
         :param block_size: 每次读取的块大小（KB）
@@ -353,7 +380,10 @@ class SSHManager:
             if not file_info["exists"]:
                 return False, f"错误: 远程文件 '{remote_path}' 不存在"
             if file_info["size"] > size_limit * 1024 * 1024:
-                return False, f"错误: 远程文件 '{remote_path}' 大小超过限制({size_limit}MB)"
+                return (
+                    False,
+                    f"错误: 远程文件 '{remote_path}' 大小超过限制({size_limit}MB)",
+                )
             command = f"dd if='{remote_path}' bs={block_size}k 2>/dev/null"
             stdin, stdout, stderr = await self.execute_interactive_command(command)
             memory_buffer = io.BytesIO()
@@ -365,29 +395,35 @@ class SSHManager:
                 memory_buffer.write(chunk)
                 total_written += len(chunk)
             if total_written != file_info["size"]:
-                logger.warning(f"下载字节数({total_written})与文件大小({file_info['size']})不匹配")
+                logger.warning(
+                    f"下载字节数({total_written})与文件大小({file_info['size']})不匹配"
+                )
             memory_buffer.seek(0)
             return True, memory_buffer
         except Exception as e:
             logger.error(f"下载文件到内存失败: {e}")
             return False, f"下载文件到内存失败: {e}"
+
     async def stream_file(
-        self, remote_path: str, chunk_size: int = 8192, callback: Optional[Callable[[int, int], None]] = None
+        self,
+        remote_path: str,
+        chunk_size: int = 8192,
+        callback: Optional[Callable[[int, int], None]] = None,
     ):
         """流式读取远程文件内容，用于直接传输到HTTP响应"""
         if not validate_remote_path(remote_path):
             raise ValueError(f"无效的远程路径: {remote_path}")
-        
+
         try:
             file_info = await self._get_file_info(remote_path)
             if not file_info["exists"]:
                 logger.error(f"错误: 远程文件 '{remote_path}' 不存在")
                 return
-            
+
             file_size = file_info["size"]
             if file_size < 0:
                 file_size = 0
-            
+
             command = f"dd if='{remote_path}' bs={chunk_size}k 2>/dev/null"
             stdin, stdout, stderr = await self.execute_interactive_command(command)
 
@@ -397,13 +433,13 @@ class SSHManager:
                 if not chunk:
                     break
                 downloaded_size += len(chunk)
-                
+
                 if callback:
                     if inspect.iscoroutinefunction(callback):
                         await callback(downloaded_size, file_size)
                     else:
                         callback(downloaded_size, file_size)
-                
+
                 yield chunk
         except Exception as e:
             logger.error(f"流式读取文件失败: {e}")
@@ -412,25 +448,25 @@ class SSHManager:
         """获取文件信息（存在性和大小），单次SSH会话完成"""
         if not validate_remote_path(remote_path):
             raise ValueError(f"无效的远程路径: {remote_path}")
-        
+
         try:
             command = f"ls -la '{remote_path}' 2>/dev/null && echo '---SIZE---' && ls -l '{remote_path}' 2>/dev/null"
             output, error = await self.execute_command(command)
-            
+
             if error or not output.strip():
                 return {"exists": False, "size": -1}
-            
+
             lines = output.strip().split("\n")
-            
+
             if len(lines) < 2:
                 return {"exists": False, "size": -1}
-            
+
             # ls_la_line = lines[0]
             ls_l_line = lines[-1]
-            
+
             if not ls_l_line or ls_l_line.startswith("total"):
                 return {"exists": False, "size": -1}
-            
+
             parts = ls_l_line.split()
             if len(parts) >= 5:
                 try:
@@ -438,7 +474,7 @@ class SSHManager:
                     return {"exists": True, "size": size}
                 except ValueError:
                     return {"exists": True, "size": -1}
-            
+
             return {"exists": True, "size": -1}
         except Exception:
             return {"exists": False, "size": -1}
@@ -447,7 +483,7 @@ class SSHManager:
         """检查远程文件是否存在，使用ls命令"""
         if not validate_remote_path(remote_path):
             return False
-        
+
         try:
             command = f"ls -la '{remote_path}' 2>/dev/null"
             output, error = await self.execute_command(command)
@@ -459,7 +495,7 @@ class SSHManager:
         """获取远程文件大小，使用ls -l命令"""
         if not validate_remote_path(remote_path):
             return -1
-        
+
         if not await self.file_exists(remote_path):
             return -1
         try:
@@ -489,7 +525,7 @@ async def main():
         if not success:
             logger.error(f"连接失败: {error}")
             return
-        
+
         file_size = await ssh_manager.get_file_size("/home/lolik/22.pcapng")
         logger.info(f"文件大小: {file_size} bytes")
         logger.info("尝试下载一个文件...")

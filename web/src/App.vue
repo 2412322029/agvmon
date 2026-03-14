@@ -115,6 +115,11 @@ const menuOptions = [
         label: '聊天室',
         key: '/chat',
         onClick: () => router.push('/chat')
+      },
+      {
+        label: 'DM编解码',
+        key: '/dmdtx-decode',
+        onClick: () => router.push('/dmdtx-decode')
       }
     ]
   },

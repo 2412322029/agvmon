@@ -28,24 +28,37 @@
                 </n-space>
             </n-form>
         </n-card>
-        <!-- 当前路径和刷新按钮 -->
+        <!-- 当前路径和面包屑导航 -->
         <n-card v-if="connected" :bordered="false" size="small" segmented style="margin-top: 16px;">
             <n-space vertical :wrap="true">
-                <n-input-group>
-                    <n-input v-model:value="pathInput" @keyup.enter="handlePathEnter" style="flex: 1;" />
-                    <n-button @click="goToPath" :loading="loadingDirectory" style="min-width: 60px;">
-                        确认
+                <n-space align="center">
+                    <n-button size="small" @click="goToParentDirectory"
+                        :disabled="currentPath === '/' || currentPath === '.'">
+                        <n-icon><arrow-back-icon /></n-icon>
+                        返回
                     </n-button>
-                </n-input-group>
-                <n-button size="small" @click="refreshDirectory" :loading="loadingDirectory" block>
-                    <n-icon><refresh-icon /></n-icon>
-                    刷新
-                </n-button>
+                    <n-breadcrumb>
+                        <n-breadcrumb-item v-for="(part, index) in pathParts" :key="index">
+                            <n-a @click="navigateToPath(index)">{{ part || '根目录' }}</n-a>
+                        </n-breadcrumb-item>
+                    </n-breadcrumb>
+                    <n-input-group>
+                        <n-input v-model:value="pathInput" @keyup.enter="handlePathEnter" style="flex: 1;" />
+                        <n-button @click="goToPath" :loading="loadingDirectory" style="min-width: 60px;">
+                            确认
+                        </n-button>
+                        <n-button @click="refreshDirectory" :loading="loadingDirectory">
+                            <n-icon><refresh-icon /></n-icon>
+                            刷新
+                        </n-button>
+                    </n-input-group>
+                </n-space>
+
             </n-space>
         </n-card>
         <n-spin v-if="!connected" style="margin-top: 16px; margin-left: 16px;"></n-spin>
         <!-- 文件详情 -->
-        <n-modal v-model:show="showFileInfo" style="max-width: 400px; overflow: auto;" preset="card" title="文件详情"
+        <n-modal v-model:show="showFileInfo" style="max-width: 500px; overflow: auto;" preset="card" title="文件详情"
             :bordered="false" size="small" segmented @close="handleFileInfoClose">
             <n-descriptions label-placement="left" bordered :column="1" v-if="selectedFile">
                 <n-descriptions-item label="名称">
@@ -68,16 +81,23 @@
                 <n-descriptions-item label="修改时间">
                     <n-text>{{ selectedFile.month }} {{ selectedFile.day }} {{ selectedFile.time_or_year }}</n-text>
                 </n-descriptions-item>
+                <n-descriptions-item label="DM值" v-if="DMdata.length > 0">
+                    <n-text v-html="DMdata.join('<br>')"></n-text>
+                </n-descriptions-item>
             </n-descriptions>
             <template #footer>
                 <n-space justify="end">
                     <n-button @click="showFileInfo = false" size="small">
                         关闭
                     </n-button>
-                    <n-button
-                        v-if="selectedFile && !selectedFile.is_directory && !selectedFile.is_link && canPreview"
+                    <n-button v-if="selectedFile && !selectedFile.is_directory && !selectedFile.is_link && canPreview"
                         @click="handlePreview(selectedFile.path)" type="info" size="small">
                         预览
+                    </n-button>
+                    <n-button
+                        v-if="selectedFile && !selectedFile.is_directory && !selectedFile.is_link && isImageFile(selectedFile.name)"
+                        @click="handleDecodeImage(selectedFile.path)" type="success" size="small">
+                        识别图片
                     </n-button>
                     <n-button v-if="selectedFile && !selectedFile.is_directory && !selectedFile.is_link"
                         @click="handleDownload(selectedFile.path)" type="primary" size="small">
@@ -102,23 +122,27 @@
             <n-progress type="line" :percentage="downloadProgress.percentage" :status="downloadProgress.status">
                 <n-text>{{ downloadProgress.filename }}</n-text>
                 <n-text>{{ formatFileSize(downloadProgress.downloaded) }} / {{ formatFileSize(downloadProgress.total)
-                    }}</n-text>
+                }}</n-text>
             </n-progress>
         </n-modal>
 
         <!-- 文件预览弹窗 -->
-        <n-modal v-model:show="showPreviewModal" preset="card" title="文件预览"
-            style="max-width: 800px; max-height: 90vh; overflow: auto;" @close="handlePreviewClose"
-            :auto-focus="false">
+        <n-modal v-model:show="showPreviewModal" preset="card" title="文件预览" :draggable="true"
+            style="max-width: 800px; max-height: 90vh; overflow: auto;" @close="handlePreviewClose" :auto-focus="false">
+            {{ previewPath }}
             <div v-if="previewUrl" style="">
                 <img v-if="isImageFile(previewPath)" :src="previewUrl" style="max-width: 100%; max-height: 600px;" />
                 <video v-if="isVideoFile(previewPath)" :src="previewUrl" controls
                     style="max-width: 100%; max-height: 600px;" />
                 <audio v-if="isAudioFile(previewPath)" :src="previewUrl" controls style="max-width: 100%;" />
-                <pre v-if="isTextFile(previewPath)" style="white-space: pre-wrap; word-break: break-all;">
-            {{ previewText }}
-        </pre>
+                <pre v-if="astxt || isTextFile(previewPath)" style="white-space: pre-wrap; word-break: break-all;">{{ previewText.length > 3000 ? previewText.slice(0, 3000) + '\n剩余部分不显示' : previewText }}
+                </pre>
                 <view-json v-if="isJsonFile(previewPath)">{{ previewText }}</view-json>
+                <div v-if="decodeResults"
+                    style="margin-top: 10px; padding: 10px; background: #f5f5f5; border-radius: 4px;">
+                    <h4>识别结果:</h4>
+                    <view-json>{{ decodeResults }}</view-json>
+                </div>
             </div>
             <n-spin v-else />
         </n-modal>
@@ -126,9 +150,12 @@
 </template>
 
 <script setup>
-import { FolderOutline, Refresh as RefreshIcon } from '@vicons/ionicons5'
+import { ArrowBack as ArrowBackIcon, FolderOutline, Refresh as RefreshIcon } from '@vicons/ionicons5'
 import axios from 'axios'
 import {
+    NA,
+    NBreadcrumb,
+    NBreadcrumbItem,
     NButton,
     NCard,
     NDataTable,
@@ -147,9 +174,10 @@ import {
     NSpin,
     NTag,
     NText,
+    useDialog,
     useMessage
 } from 'naive-ui'
-import { computed, h, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, h, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 
 // 定义 props
 const props = defineProps({
@@ -181,6 +209,7 @@ const props = defineProps({
 
 // 消息提示
 const message = useMessage()
+const dialog = useDialog()
 
 // 连接表单数据
 const connectionForm = reactive({
@@ -220,6 +249,34 @@ const loadingDirectory = ref(false)
 const sshId = ref('')
 const currentPath = ref('.')
 const pathInput = ref('.')
+
+const pathParts = computed(() => {
+    if (currentPath.value === '.' || currentPath.value === '/') {
+        return ['/']
+    }
+    const parts = currentPath.value.split('/').filter(p => p !== '')
+    return ['根目录', ...parts]
+})
+
+const navigateToPath = (index) => {
+    if (index === 0) {
+        loadDirectory('/')
+    } else {
+        const newPath = '/' + pathParts.value.slice(1, index + 1).join('/')
+        loadDirectory(newPath)
+    }
+}
+
+const goToParentDirectory = async () => {
+    const parts = pathParts.value
+    if (parts.length <= 1) {
+        await loadDirectory('/')
+    } else {
+        const newPath = '/' + parts.slice(1, parts.length - 1).join('/')
+        await loadDirectory(newPath || '/')
+    }
+}
+
 const directoryContents = ref([])
 const showProgressModal = ref(false)
 const showPreviewModal = ref(false)
@@ -233,6 +290,7 @@ const downloadProgress = reactive({
 const previewUrl = ref('')
 const previewPath = ref('')
 const previewText = ref('')
+const decodeResults = ref(null)
 
 // 移动端适配
 const isMobile = ref(window.innerWidth <= 768)
@@ -296,10 +354,12 @@ const handleDisconnect = async () => {
             message.success('SSH连接已断开')
         } else {
             message.error(response.data.error || '断开连接失败')
+            connected.value = false
         }
         pathInput.value = '.';  // 重置路径输入框
     } catch (error) {
         message.error(error.response?.data?.error || error.message || '断开连接失败')
+        connected.value = false
     } finally {
         disconnecting.value = false
     }
@@ -336,18 +396,6 @@ const refreshDirectory = async () => {
     await loadDirectory(currentPath.value)
 }
 
-// 切换到上级目录
-const goToParentDirectory = async () => {
-    const pathParts = currentPath.value.split('/')
-    if (pathParts.length <= 1) {
-        await loadDirectory('.')
-    } else {
-        pathParts.pop()
-        const newPath = pathParts.join('/') || '.'
-        await loadDirectory(newPath)
-    }
-    pathInput.value = currentPath.value;  // 同步到路径输入框
-}
 
 // 处理路径输入回车事件
 const handlePathEnter = async () => {
@@ -510,7 +558,9 @@ const showFileDetails = (file) => {
     selectedFile.value = file;
     showFileInfo.value = true;
 }
-
+watch(showFileInfo, () => {
+    DMdata.value = [];
+});
 // Format file size to human readable format
 const formatFileSize = (bytes) => {
     if (typeof bytes !== 'number' || isNaN(bytes)) return '-';
@@ -653,6 +703,7 @@ const supportedPreviewTypes = ref([
     'bmp',
     'webp',
     'wav',
+    'flv',
     'mp3',
     'mp4',
     'ogg',
@@ -661,6 +712,7 @@ const supportedPreviewTypes = ref([
     'csv'
 ]);
 const fileExt = ref("")
+const astxt = ref(false)
 // 处理文件预览
 const canPreview = () => {
     return supportedPreviewTypes.value.includes(fileExt.value);
@@ -669,56 +721,119 @@ const handlePreview = async (filePath) => {
     try {
         fileExt.value = filePath.split('.').pop().toLowerCase();
         console.log(fileExt.value);
-        
+
         if (!canPreview()) {
-            message.warning('不支持的文件类型，无法预览');
+            dialog.warning({
+                title: '警告',
+                content: `不支持的文件类型，是否使用txt格式预览`,
+                positiveText: '确定',
+                negativeText: '取消',
+                draggable: true,
+                onPositiveClick: async () => {
+                    astxt.value = true;
+                    await doPreview(filePath, true);
+                },
+                onNegativeClick: () => {
+                    astxt.value = false;
+                    return;
+                }
+            })
             return;
         }
 
-        showPreviewModal.value = true;
-        previewPath.value = filePath;
-        previewText.value = '';
-
-        const response = await axios.post('/agv/remote_file_view', {
-            id: sshId.value,
-            filepath: filePath,
-            // yuv2png: fileExt === 'yuv'
-        }, {
-            responseType: 'blob'
-        });
-
-        if (response.status === 200) {
-            const blob = response.data;
-            const url = window.URL.createObjectURL(blob);
-            previewUrl.value = url;
-
-            if (isTextFile(filePath) || isJsonFile(filePath)) {
-                const text = await blob.text();
-                previewText.value = text;
-            }   
-            message.success('文件预览已加载');
-        }else if(response.status === 202){
-            const json = await JSON.parse(await response.data.text());
-            console.log(json);
-            message.error(json.error || 'error');
-            showPreviewModal.value = false;
-            previewUrl.value = '';
-            previewPath.value = '';
-            previewText.value = '';
-        } else {
-            message.error( '预览失败');
-            showPreviewModal.value = false;
-            window.URL.revokeObjectURL(url);
-            previewUrl.value = '';
-            previewPath.value = '';
-            previewText.value = '';
-        }
+        await doPreview(filePath, false);
     } catch (error) {
         console.log(error);
         message.error(error.response?.data?.error || error.message || '预览失败');
         showPreviewModal.value = false;
         window.URL.revokeObjectURL(previewUrl.value);
         previewUrl.value = '';
+        previewPath.value = '';
+        previewText.value = '';
+    } finally {
+        astxt.value = false;
+    }
+}
+
+const doPreview = async (filePath, asTxt) => {
+    showPreviewModal.value = true;
+    previewPath.value = filePath;
+    previewText.value = '';
+    decodeResults.value = null;
+
+    const response = await axios.post('/agv/remote_file_view', {
+        id: sshId.value,
+        filepath: filePath,
+        astxt: asTxt
+    }, {
+        responseType: 'blob'
+    });
+
+    if (response.status === 200) {
+        const blob = response.data;
+        const url = window.URL.createObjectURL(blob);
+        previewUrl.value = url;
+
+        if (isTextFile(filePath) || isJsonFile(filePath) || astxt.value) {
+            const text = await blob.text();
+            previewText.value = text;
+        }
+        message.success('文件预览已加载');
+    } else if (response.status === 202) {
+        const json = await JSON.parse(await response.data.text());
+        console.log(json);
+        message.error(json.error || 'error');
+        showPreviewModal.value = false;
+        previewUrl.value = '';
+        previewPath.value = '';
+        previewText.value = '';
+    } else {
+        message.error('预览失败');
+        showPreviewModal.value = false;
+        window.URL.revokeObjectURL(url);
+        previewUrl.value = '';
+        previewPath.value = '';
+        previewText.value = '';
+    }
+}
+
+const DMdata = ref([])
+// 处理图片文件的识别
+const handleDecodeImage = async (filePath) => {
+    try {
+        previewPath.value = filePath;
+        previewText.value = '';
+        decodeResults.value = null;
+        previewUrl.value = '';
+
+        message.loading('正在处理图片文件，请稍候...', { duration: 0 });
+
+        const response = await axios.post('/agv/decode_remote_dmdtx_file', {
+            id: sshId.value,
+            filepath: filePath
+        });
+
+        message.destroyAll();
+
+        if (response.status === 200 && response.data) {
+            const results = typeof response.data === 'string' ? JSON.parse(response.data) : response.data;
+            if (results && results.length > 0) {
+                decodeResults.value = results;
+                message.success(`识别完成，共找到 ${results.length} 个DM码`);
+                DMdata.value = results.map(item => item.data);
+            } else {
+                message.warning('未检测到DM数据');
+            }
+        } else if (response.status === 202) {
+            message.error(response.data.error || '识别失败');
+        } else {
+            message.error('识别失败');
+        }
+    } catch (error) {
+        console.log(error);
+        message.error(error.response?.data?.error || error.message || '识别失败');
+        showPreviewModal.value = false;
+        decodeResults.value = null;
         previewPath.value = '';
         previewText.value = '';
     }
@@ -736,6 +851,7 @@ const handlePreviewClose = () => {
         previewUrl.value = '';
         previewPath.value = '';
         previewText.value = '';
+        decodeResults.value = null;
     }
     nextTick(() => {
         const fileButtons = document.querySelectorAll('n-button');
@@ -743,8 +859,8 @@ const handlePreviewClose = () => {
             fileButtons[0].focus();
         }
     });
-}
 
+}
 // 初始化时尝试连接
 onMounted(() => {
     // 如果提供了默认连接信息，可以自动连接

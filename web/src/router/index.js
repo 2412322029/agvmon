@@ -108,6 +108,15 @@ const router = createRouter({
       },
       component: () => import('../views/FileUploadView.vue'),
     },
+    // Image Decode View Page
+    {
+      path: '/dmdtx-decode',
+      name: 'dmdtx-decode',
+      meta: {
+        disc: 'DM编解码',
+      },
+      component: () => import('../views/ImageDecodeView.vue'),
+    },
     // Chat View Page
     {
       path: '/chat',

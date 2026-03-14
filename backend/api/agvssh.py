@@ -5,13 +5,16 @@ import uuid
 from datetime import datetime
 from urllib.parse import quote
 
+import PIL.Image as Image
+
 # 导入弃用警告装饰器DeprecationWarning
-from fastapi import APIRouter, Body, Response
+from fastapi import APIRouter, Body, File, Response, UploadFile
 from fastapi.responses import StreamingResponse
 
 from util.config import cfg, r
+from util.dmdecoder import all_size, decode_dmdtx, encode_dmdtx, encode_dmdtx_svg
 from util.ssh import SSHManager, validate_local_path, validate_remote_path
-from util.yuv2png import y_only_to_rgb_stream
+from util.yuv2png import y_only_to_rgb, y_only_to_rgb_stream
 
 agv_web_router = APIRouter(
     prefix="/agv",
@@ -25,6 +28,7 @@ Media_Type_Map = {
     ".wav": "audio/wav",
     ".mp3": "audio/mpeg",
     ".mp4": "video/mp4",
+    ".flv": "video/x-flv",
     ".ogg": "audio/ogg",
     ".txt": "text/plain",
     ".json": "application/json",
@@ -222,13 +226,17 @@ async def yuv2pngfile(filename):
 
 @agv_web_router.post("/remote_file_view")
 async def remote_file_view(
-    id: str = Body(...), filepath: str = Body(...), yuv2png: bool = Body(False)
+    id: str = Body(...),
+    filepath: str = Body(...),
+    yuv2png: bool = Body(False),
+    astxt: bool = Body(False),
 ):
     """
     将远程文件下载到内存并流式返回
     :param id: SSH 连接ID
     :param filepath: 远程文件路径
     :param yuv2png: 是否将yuv文件转换为png
+    :param astxt: 是否将文件内容作为文本返回
     :return: 文件内容流或png图像流
     """
     file_ext = pathlib.PurePath(filepath).suffix
@@ -243,24 +251,126 @@ async def remote_file_view(
         return json_response(error=f"仅支持yuv文件格式: {filepath}")
     memory_buffer = None
     try:
+        if yuv2png:
+            success, memory_buffer = await ssh_manager.download_file_to_memory(
+                filepath, size_limit=10
+            )
+            if not success or not memory_buffer:
+                return json_response(error=memory_buffer)
+            memory_buffer.seek(0)
+            imgdata = memory_buffer.read()
+            return StreamingResponse(
+                y_only_to_rgb_stream(y_data=imgdata), media_type="image/png"
+            )
+        else:
+
+            async def iter_stream():
+                async for chunk in ssh_manager.stream_file(filepath):
+                    yield chunk
+
+            if astxt:
+                return StreamingResponse(
+                    iter_stream(),
+                    media_type="text/plain"
+                )
+            else:
+                return StreamingResponse(
+                    iter_stream(),
+                    media_type=Media_Type_Map.get(file_ext, "application/octet-stream"),
+                )
+    except Exception as e:
+        return json_response(error=f"获取远程yuv文件并转换为png失败: {e}")
+    finally:
+        if isinstance(memory_buffer, io.BytesIO):
+            memory_buffer.close()
+
+
+@agv_web_router.post("/decode_dmdtx_file")
+async def decode_dmdtx_file(file: UploadFile = File(...)):
+    """
+    上传图片解码DM数据
+    :param file: 文件对象
+    :return: 解码结果
+    """
+    try:
+        content = await file.read()
+        img = Image.open(io.BytesIO(content))
+        results = await decode_dmdtx(img)
+        if results:
+            return Response(
+                json.dumps(results, ensure_ascii=False), media_type="application/json"
+            )
+        else:
+            return json_response(error="未检测到DM数据", code=200)
+    except Exception as e:
+        return json_response(error=f"处理图片失败: {e}", code=500)
+
+
+@agv_web_router.post("/decode_remote_dmdtx_file")
+async def decode_remote_dmdtx_file(id: str = Body(...), filepath: str = Body(...)):
+    ssh_manager = SSHManager.get_ssh_manager(id)
+    if not ssh_manager:
+        return json_response(error="连接失败, id不存在")
+    if not validate_remote_path(filepath):
+        return json_response(error=f"无效的路径: {filepath}")
+
+    try:
         success, memory_buffer = await ssh_manager.download_file_to_memory(
             filepath, size_limit=10
         )
         if not success or not memory_buffer:
             return json_response(error=memory_buffer)
         memory_buffer.seek(0)
-        imgdata = memory_buffer.read()
-        if yuv2png:
-            return StreamingResponse(
-                y_only_to_rgb_stream(y_data=imgdata), media_type="image/png"
+        if filepath.endswith(".yuv"):
+            img = await y_only_to_rgb(y_data=memory_buffer.read())
+        else:
+            img = Image.open(memory_buffer)
+        results = await decode_dmdtx(img)
+        if results:
+            return Response(
+                json.dumps(results, ensure_ascii=False), media_type="application/json"
             )
         else:
-            return Response(
-                imgdata,
-                media_type=Media_Type_Map.get(file_ext, "application/octet-stream"),
-            )
+            return json_response(error="未检测到DM数据", code=200)
     except Exception as e:
         return json_response(error=f"获取远程yuv文件并转换为png失败: {e}")
     finally:
         if isinstance(memory_buffer, io.BytesIO):
             memory_buffer.close()
+
+
+@agv_web_router.get("/encode_dmdtx_file")
+async def encode_dmdtx_file(data: str, size: str = "14x14", types: str = "png"):
+    """
+    从上传的文件编码DM数据
+    :param file: 上传的文件对象
+    :return: 编码结果
+    """
+    if size not in all_size():
+        return json_response(error=f"无效的尺寸: {size}", code=200)
+    img_io = io.BytesIO()
+    try:
+        if types == "png":
+            img = await encode_dmdtx(data, size)
+            img.save(img_io, format="PNG")
+        elif types == "svg":
+            img = await encode_dmdtx_svg(data, size)
+            img_io.write(img.encode("utf-8"))
+            types = "svg+xml"
+        else:
+            return json_response(error=f"无效的类型: {types}", code=200)
+        img_io.seek(0)
+        return StreamingResponse(img_io, media_type=f"image/{types}")
+    except Exception as e:
+        return json_response(error=f"编码DM数据失败: {e}", code=200)
+
+
+@agv_web_router.get("/get_dmdtx_all_size")
+async def get_dmdtx_all_size():
+    """
+    获取所有支持的尺寸
+    :return: 尺寸列表
+    """
+    return Response(
+        json.dumps(all_size(), ensure_ascii=False), media_type="application/json"
+    )
