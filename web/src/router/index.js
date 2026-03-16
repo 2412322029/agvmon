@@ -74,8 +74,8 @@ const router = createRouter({
     },
     // AGV Protocol Parser Page
     {
-      path: '/agv',
-      name: 'agv-protocol-parser',
+      path: '/agv-eq-protocol-parser',
+      name: 'agv-eq-protocol-parser',
       meta: {
         disc: 'AGV-EQ协议解析',
       },

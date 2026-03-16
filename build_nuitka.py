@@ -4,6 +4,7 @@ Nuitka打包脚本，用于构建AGV监控系统可执行文件
 """
 
 import os
+import shutil
 import sys
 from pathlib import Path
 
@@ -15,13 +16,15 @@ def build_with_nuitka():
     # 获取项目根目录
     project_dir = Path(__file__).parent
     main_py = project_dir / "main.py"
+    venv_dir = project_dir / ".venv"
 
     # 检查主文件是否存在
     if not main_py.exists():
         print(f"错误：找不到主文件 {main_py}")
         sys.exit(1)
 
-    # 构建命令参数
+    libdmtx_dll = venv_dir / "Lib" / "site-packages" / "pylibdmtx" / "libdmtx-64.dll"
+
     nuitka_cmd = [
         sys.executable,
         "-m",
@@ -58,8 +61,15 @@ def build_with_nuitka():
             print(f"命令执行失败: {' '.join(nuitka_cmd)}\n退出代码: {return_code}")
             sys.exit(return_code)
 
-        # 显示输出文件位置
-        dist_dir = project_dir / "dist"
+        dist_dir = project_dir / "dist" / "main.dist"
+        pylibdmtx_dir = dist_dir / "pylibdmtx"
+        if not pylibdmtx_dir.exists():
+            pylibdmtx_dir.mkdir(parents=True)
+        if libdmtx_dll.exists() and dist_dir.exists():
+            target_dll = pylibdmtx_dir / "libdmtx-64.dll"
+            shutil.copy2(libdmtx_dll, target_dll)
+            print(f"已复制 libdmtx-64.dll 到 {target_dll}")
+
         if dist_dir.exists():
             print(f"\n输出目录: {dist_dir.absolute()}")
             for item in dist_dir.iterdir():

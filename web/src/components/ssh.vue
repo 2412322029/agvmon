@@ -17,13 +17,13 @@
                         <n-input v-model:value="connectionForm.password" type="password" show-password-on="click"
                             placeholder="请输入密码" />
                     </n-form-item-gi>
-                     <n-form-item-gi :span="2" :span-s="24">
-                         <n-button type="primary" @click="handleConnect" :disabled="connected" :loading="connecting">
+                    <n-form-item-gi :span="2" :span-s="24">
+                        <n-button type="primary" @click="handleConnect" :disabled="connected" :loading="connecting">
                             {{ connected ? '已连接' : '连接' }}
                         </n-button>
                     </n-form-item-gi>
                     <n-form-item-gi :span="2" :span-s="24">
-                         <n-button @click="handleDisconnect" :disabled="!connected" :loading="disconnecting">
+                        <n-button @click="handleDisconnect" :disabled="!connected" :loading="disconnecting">
                             断开连接
                         </n-button>
                     </n-form-item-gi>
@@ -56,6 +56,18 @@
                             <n-icon><refresh-icon /></n-icon>
                             刷新
                         </n-button>
+                        <div v-if="props.agversion.includes('V4')">
+                            <n-button @click="getyuv(0)">
+                                地码相机
+                            </n-button>
+                            <n-button @click="getyuv(3)">
+                                货码相机
+                            </n-button>
+                            <n-button @click="rmtdcl()">
+                                rm *.yuv
+                            </n-button>
+                        </div>
+
                     </n-input-group>
                 </n-space>
 
@@ -127,7 +139,7 @@
             <n-progress type="line" :percentage="downloadProgress.percentage" :status="downloadProgress.status">
                 <n-text>{{ downloadProgress.filename }}</n-text>
                 <n-text>{{ formatFileSize(downloadProgress.downloaded) }} / {{ formatFileSize(downloadProgress.total)
-                }}</n-text>
+                    }}</n-text>
             </n-progress>
         </n-modal>
 
@@ -163,7 +175,6 @@ import {
     NBreadcrumb,
     NBreadcrumbItem,
     NButton,
-    NCard,
     NDataTable,
     NDescriptions,
     NDescriptionsItem,
@@ -210,6 +221,10 @@ const props = defineProps({
     autoConnect: {
         type: Boolean,
         default: false
+    },
+    agversion:{
+        type: String,
+        default: 'V2'
     }
 })
 
@@ -370,7 +385,41 @@ const handleDisconnect = async () => {
         disconnecting.value = false
     }
 }
-
+const getyuv = async (idx = 0) => {
+    try {
+        const response = await axios.post(`/agv/castor_cam_get_yuv`, {
+            id: sshId.value,
+            idx: idx
+        })
+        if (response.data.success) {
+            message.success(response.data.data)
+            setTimeout(() => {
+                loadDirectory('/mnt/tdcl')
+            }, 1000);
+        } else {
+            message.error(response.data.error || response.data.data || '拍摄失败')
+        }
+    } catch (error) {
+        message.error(error.response?.data?.error || error.message || '拍摄失败')
+    }
+}
+const rmtdcl = async () => {
+    try {
+        const response = await axios.post(`/agv/rm_tdcl`, {
+            id: sshId.value,
+        })
+        if (response.data.success) {
+            message.success(response.data.data || 'tdcl202*.yuv删除成功')
+            setTimeout(() => {
+                loadDirectory('/mnt/tdcl')
+            }, 1000);
+        } else {
+            message.error(response.data.error || response.data.data || '删除失败')
+        }
+    } catch (error) {
+        message.error(error.response?.data?.error || error.message || '删除失败')
+    }
+}
 // 加载目录内容
 const loadDirectory = async (path = '/mnt') => {
     loadingDirectory.value = true

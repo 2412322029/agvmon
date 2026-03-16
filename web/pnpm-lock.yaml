@@ -11,6 +11,9 @@ importers:
       '@vicons/antd':
         specifier: ^0.13.0
         version: 0.13.0
+      '@vicons/fa':
+        specifier: ^0.13.0
+        version: 0.13.0
       '@vicons/ionicons5':
         specifier: ^0.13.0
         version: 0.13.0
@@ -515,6 +518,9 @@ packages:
 
   '@vicons/antd@0.13.0':
     resolution: {integrity: sha512-yrUGoUSz2BbGupk9ghQOahc04n5H3MwUDM9pVPsLh9U1uqB47oRWZvYRiZaT1JKPqgTgSE6BXcVw4i9MOF4M+g==}
+
+  '@vicons/fa@0.13.0':
+    resolution: {integrity: sha512-BFcDewcT78fSn4Y/fOgqlswbLUEW3+qJK2iJiNtgmkMzadBVpDXhNyVKsYM3V2uKPvDUrZT0JCWDWVRCiBXJZA==}
 
   '@vicons/ionicons5@0.13.0':
     resolution: {integrity: sha512-zvZKBPjEXKN7AXNo2Na2uy+nvuv6SP4KAMQxpKL2vfHMj0fSvuw7JZcOPCjQC3e7ayssKnaoFVAhbYcW6v41qQ==}
@@ -1459,6 +1465,8 @@ snapshots:
   '@types/lodash@4.17.23': {}
 
   '@vicons/antd@0.13.0': {}
+
+  '@vicons/fa@0.13.0': {}
 
   '@vicons/ionicons5@0.13.0': {}
 

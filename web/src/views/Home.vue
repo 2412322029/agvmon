@@ -892,7 +892,7 @@ const freeagv = async (agvcode = "", stop = false) => {
           <NTabPane name="files" tab="文件列表">
             <div class="ssh-panel">
               <SSHComponent v-if="showSSHPanel" :defaultHost="selectedRobot.ip" :defaultUsername="sshConfig.username"
-                :defaultPassword="sshConfig.password" :showInput="false" :autoConnect="true" />
+                :defaultPassword="sshConfig.password" :agversion="selectedRobot.version" :showInput="false" :autoConnect="true" />
             </div>
           </NTabPane>
 

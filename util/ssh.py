@@ -239,7 +239,9 @@ class SSHManager:
         self, command: str, timeout: Optional[int] = None
     ) -> Tuple[str, str]:
         """执行SSH命令并返回文本结果"""
-        output, error = await self.execute_command(command, return_bytes=False, timeout=timeout)
+        output, error = await self.execute_command(
+            command, return_bytes=False, timeout=timeout
+        )
         return output, error
 
     def parse_ls_output(self, ls_output: str) -> List[Dict[str, Union[str, int, bool]]]:
@@ -286,13 +288,39 @@ class SSHManager:
 
         return result
 
+    async def get_list(self, path):
+        output, error = await self.execute_command_text(f"ls {path}", timeout=10)
+        if error:
+            raise Exception(f"执行ls命令出错: {error}")
+        return output.split("\n")
+
+    async def run_command(self, command):
+        try:
+            stdin, stdout, stderr = await self.execute_interactive_command(command)
+            err = await stderr.read()
+            if err:
+                return False, err
+            return True, (await stdout.read()).decode("GB2312")
+        except Exception as e:
+            return False, str(e)
+
+    async def castor_cam_get_yuv(self, idx):
+        return await self.run_command(
+            f"sh -c 'export PATH=$PATH:/usr/sbin && castor_cam_get_yuv {idx}'"
+        )
+
+    async def rm_tdcl(self):
+        return await self.run_command(
+            "sh -c 'export PATH=$PATH:/usr/bin && rm /mnt/tdcl/tdcl202*.yuv'"
+        )
+
     async def list_directory(
         self, path: str = ".", parse: bool = True
     ) -> Union[List[Dict], str]:
         """列出目录内容"""
         if not validate_remote_path(path):
             raise ValueError(f"无效的远程路径: {path}")
-        command = f"ls -l -U '{path}'"
+        command = f"ls -l '{path}'"
         output, error = await self.execute_command_text(command, timeout=10)
 
         if error and not output:
@@ -315,7 +343,7 @@ class SSHManager:
         self,
         remote_path: str,
         local_path: str,
-        block_size: int = 8192,
+        block_size: int = 81920,
         callback: Optional[Callable[[int, int], None]] = None,
     ) -> bool:
         """下载远程文件到本地（支持进度回调）"""
@@ -365,7 +393,7 @@ class SSHManager:
             return False
 
     async def download_file_to_memory(
-        self, remote_path: str, block_size: int = 8192, size_limit: int = 10
+        self, remote_path: str, block_size: int = 81920, size_limit: int = 10
     ) -> Tuple[bool, io.BytesIO | str]:
         """下载远程文件到内存
         :param remote_path: 远程文件路径
@@ -407,7 +435,7 @@ class SSHManager:
     async def stream_file(
         self,
         remote_path: str,
-        chunk_size: int = 8192,
+        chunk_size: int = 81920,
         callback: Optional[Callable[[int, int], None]] = None,
     ):
         """流式读取远程文件内容，用于直接传输到HTTP响应"""
@@ -514,9 +542,9 @@ class SSHManager:
 
 
 async def main():
-    host = "172.26.126.120"
-    username = "lolik"
-    password = "123456"
+    host = "172.19.245.104"
+    username = "root"
+    password = "Hik@1234"
 
     ssh_manager = SSHManager(host, username, password)
 
@@ -525,34 +553,8 @@ async def main():
         if not success:
             logger.error(f"连接失败: {error}")
             return
-
-        file_size = await ssh_manager.get_file_size("/home/lolik/22.pcapng")
-        logger.info(f"文件大小: {file_size} bytes")
-        logger.info("尝试下载一个文件...")
-
-        def progress_callback(downloaded, total):
-            if total and total > 0:
-                percent = (downloaded / total) * 100
-                bar_length = 30
-                filled_length = int(bar_length * downloaded // total)
-                bar = "█" * filled_length + "-" * (bar_length - filled_length)
-                print(
-                    f"\r|{bar}| {percent:.1f}% ({downloaded}/{total} bytes)",
-                    end="",
-                    flush=True,
-                )
-            else:
-                print(f"\r已下载: {downloaded} bytes", end="", flush=True)
-
-        success = await ssh_manager.download_file(
-            "/home/lolik/22.pcapng",
-            "D:\\24123\\code\\py\\agvmon",
-            callback=progress_callback,
-        )
-        if success:
-            logger.info("文件下载成功!")
-        else:
-            logger.error("文件下载失败!")
+        o = await ssh_manager.castor_cam_get_yuv("0")
+        print(o)
     finally:
         await ssh_manager.disconnect()
 

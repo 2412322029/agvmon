@@ -2,12 +2,20 @@
 import {
   ApiOutlined,
   ControlFilled,
+  ExceptionOutlined,
   HomeOutlined,
   LinkOutlined,
+  LoginOutlined,
   MenuOutlined,
+  MessageOutlined,
+  QrcodeOutlined,
   SettingOutlined,
-  ToolOutlined
+  ToolOutlined,
+  RadiusSettingOutlined,
+  SwitcherOutlined
 } from '@vicons/antd';
+
+import { FileUpload, MapMarkedAlt, Server, Tasks } from "@vicons/fa";
 import {
   darkTheme,
   dateZhCN,
@@ -64,14 +72,27 @@ const menuOptions = [
     onClick: () => router.push('/')
   },
   {
-    label: '系统管理',
+    label: '管理',
     key: 'system',
     icon: renderIcon(ApiOutlined),
     children: [
       {
         label: '服务管理',
         key: '/service',
+        icon: renderIcon(Server),
         onClick: () => router.push('/service')
+      },
+      {
+        label: 'SSH 连接',
+        key: '/ssh',
+        icon: renderIcon(LinkOutlined),
+        onClick: () => router.push('/ssh')
+      },
+      {
+        label: 'SSH 连接管理',
+        key: '/ssh-mgr',
+        icon: renderIcon(RadiusSettingOutlined),
+        onClick: () => router.push('/ssh-mgr')
       }
     ]
   },
@@ -81,44 +102,33 @@ const menuOptions = [
     icon: renderIcon(ToolOutlined),
     children: [
       {
-        label: 'WCS设备状态',
-        key: '/wcs-status',
-        icon: renderIcon(ControlFilled),
-        onClick: () => router.push('/wcs-status')
-      },
-      {
         label: '异常记录',
         key: '/exception-records',
+        icon: renderIcon(ExceptionOutlined),
         onClick: () => router.push('/exception-records')
       },
       {
         label: 'AGV-EQ协议解析',
         key: '/agv',
+        icon: renderIcon(SwitcherOutlined),
         onClick: () => router.push('/agv')
-      },
-      {
-        label: 'SSH 文件管理',
-        key: '/ssh',
-        onClick: () => router.push('/ssh')
-      },
-      {
-        label: 'SSH 管理',
-        key: '/ssh-mgr',
-        onClick: () => router.push('/ssh-mgr')
       },
       {
         label: '文件上传管理',
         key: '/file-upload',
+        icon: renderIcon(FileUpload),
         onClick: () => router.push('/file-upload')
       },
       {
         label: '聊天室',
         key: '/chat',
+        icon: renderIcon(MessageOutlined),
         onClick: () => router.push('/chat')
       },
       {
         label: 'DM编解码',
         key: '/dmdtx-decode',
+        icon: renderIcon(QrcodeOutlined),
         onClick: () => router.push('/dmdtx-decode')
       }
     ]
@@ -131,17 +141,26 @@ const menuOptions = [
       {
         label: 'RCS Web 登录',
         key: '/rcs-web-login',
+        icon: renderIcon(LoginOutlined),
         onClick: () => router.push('/rcs-web-login')
       },
       {
         label: '任务查询',
         key: '/task-query',
+        icon: renderIcon(Tasks),
         onClick: () => router.push('/task-query')
       },
       {
         label: '地图',
         key: '/map',
+        icon: renderIcon(MapMarkedAlt),
         onClick: () => router.push('/map')
+      },
+      {
+        label: 'WCS设备状态',
+        key: '/wcs-status',
+        icon: renderIcon(ControlFilled),
+        onClick: () => router.push('/wcs-status')
       }
     ]
   },

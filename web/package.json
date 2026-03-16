@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@vicons/antd": "^0.13.0",
+    "@vicons/fa": "^0.13.0",
     "@vicons/ionicons5": "^0.13.0",
     "axios": "^1.13.2",
     "naive-ui": "^2.43.2",

@@ -2,14 +2,8 @@
   <n-card title="DM码图片处理" :bordered="false" size="small" segmented>
     <n-tabs type="line" animated>
       <n-tab-pane name="decode" tab="图片识别">
-        <input
-          type="file"
-          ref="fileInput"
-          style="display: none"
-          :accept="acceptTypes"
-          @change="handleFileChange"
-        />
-        
+        <input type="file" ref="fileInput" style="display: none" :accept="acceptTypes" @change="handleFileChange" />
+
         <n-button type="primary" @click="triggerFileInput" :loading="uploading">
           <n-icon style="margin-right: 8px;">
             <upload-outlined />
@@ -19,17 +13,10 @@
 
         <div v-if="uploadedImageUrl" style="margin-top: 20px;">
           <div style="position: relative; display: inline-block;">
-            <img 
-              :src="uploadedImageUrl" 
-              alt="上传图片" 
-              style="max-width: 100%; max-height: 600px; border-radius: 8px; border: 1px solid #e0e0e0;"
-              ref="imageRef"
-              @load="handleImageLoad"
-            />
-            <canvas 
-              ref="canvasRef" 
-              style="position: absolute; top: 0; left: 0; pointer-events: none;"
-            ></canvas>
+            <img :src="uploadedImageUrl" alt="上传图片"
+              style="max-width: 100%; max-height: 600px; border-radius: 8px; border: 1px solid #e0e0e0;" ref="imageRef"
+              @load="handleImageLoad" />
+            <canvas ref="canvasRef" style="position: absolute; top: 0; left: 0; pointer-events: none;"></canvas>
           </div>
         </div>
 
@@ -38,7 +25,8 @@
             <p>共识别到 {{ decodeResult.length }} 个DM码</p>
           </n-alert>
 
-          <div v-for="(result, index) in decodeResult" :key="index" style="margin-top: 15px; padding: 15px;border-radius: 8px; border: 1px solid #e0e0e0;">
+          <div v-for="(result, index) in decodeResult" :key="index"
+            style="margin-top: 15px; padding: 15px;border-radius: 8px; border: 1px solid #e0e0e0;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
               <h4 style="margin: 0; color: #18a058;">DM码 {{ index + 1 }}</h4>
               <n-tag type="success" size="medium">
@@ -59,29 +47,18 @@
       <n-tab-pane name="encode" tab="生成DM码">
         <n-space vertical :size="16">
           <n-form-item label="要编码的内容" required>
-            <n-input
-              v-model:value="encodeData"
-              type="textarea"
-              placeholder="请输入要编码的内容"
-              :rows="3"
-            />
+            <n-input v-model:value="encodeData" type="textarea" placeholder="请输入要编码的内容" :rows="3" />
           </n-form-item>
 
           <n-space>
             <n-form-item label="尺寸">
-              <n-select
-                v-model:value="encodeSize"
-                :options="sizeOptions"
-                style="width: 150px"
-              />
+              <n-select v-model:value="encodeSize" :options="sizeOptions" style="width: 150px" />
             </n-form-item>
-
             <n-form-item label="类型">
-              <n-select
-                v-model:value="encodeType"
-                :options="typeOptions"
-                style="width: 120px"
-              />
+              <n-select v-model:value="encodeType" :options="typeOptions" style="width: 120px" />
+            </n-form-item> 
+            <n-form-item label="缩放" v-if="encodeType === 'png'">
+              <n-select v-model:value="encodeScale" :options="scaleOptions" style="width: 100px" />
             </n-form-item>
           </n-space>
 
@@ -94,13 +71,10 @@
 
           <div v-if="encodedImageUrl" style="margin-top: 20px;">
             <n-alert type="success" title="生成成功" :show-icon="true" />
-            
+
             <div style="margin-top: 15px; text-align: center;">
-              <img 
-                :src="encodedImageUrl" 
-                alt="生成的DM码" 
-                style="max-width: 100%; border-radius: 8px; border: 1px solid #e0e0e0;"
-              />
+              <img :src="encodedImageUrl" alt="生成的DM码"
+                style="max-width: 100%; border-radius: 8px; border: 1px solid #e0e0e0;" />
             </div>
 
             <div style="margin-top: 15px;">
@@ -145,6 +119,7 @@ const imageLoaded = ref(false)
 
 const encodeData = ref('')
 const encodeSize = ref('14x14')
+const encodeScale = ref(3)
 const encodeType = ref('png')
 const encoding = ref(false)
 const encodedImageUrl = ref('')
@@ -158,7 +133,13 @@ const sizeOptions = ref([
   { label: '26x26', value: '26x26' },
   { label: '32x32', value: '32x32' }
 ])
-
+const scaleOptions = ref([
+  { label: '1', value: 1 },
+  { label: '2', value: 2 },
+  { label: '3', value: 3 },
+  { label: '4', value: 4 },
+  { label: '5', value: 5 }
+])
 const typeOptions = ref([
   { label: 'PNG', value: 'png' },
   { label: 'SVG', value: 'svg' }
@@ -179,7 +160,7 @@ const handleFileChange = async (event) => {
   reader.readAsDataURL(file)
 
   uploading.value = true
-  
+
   try {
     const formData = new FormData()
     formData.append('file', file)
@@ -191,12 +172,12 @@ const handleFileChange = async (event) => {
 
     const responseText = await response.text()
     const data = JSON.parse(responseText)
-    
+
     if (Array.isArray(data)) {
       decodeResult.value = data
       error.value = ''
       message.success(`识别完成，共找到 ${data.length} 个DM码`)
-      
+
       setTimeout(() => {
         drawRectangles()
       }, 300)
@@ -230,24 +211,24 @@ const drawRectangles = () => {
   const image = imageRef.value
   const canvas = canvasRef.value
   const ctx = canvas.getContext('2d')
-  
+
   if (!image || !canvas || !decodeResult.value) return
-  
+
   canvas.width = image.width
   canvas.height = image.height
-  
+
   decodeResult.value.forEach((result, index) => {
     const { left, top, width, height } = result.rect
-    
+
     const offsetTop = top + height
-    
+
     ctx.strokeStyle = '#ff4d4f'
     ctx.lineWidth = 3
     ctx.strokeRect(left, offsetTop, width, height)
-    
+
     ctx.fillStyle = 'rgba(255, 77, 79, 0.3)'
     ctx.fillRect(left, offsetTop, width, height)
-    
+
     ctx.fillStyle = '#ff4d4f'
     ctx.font = 'bold 14px Arial'
     ctx.fillText(`DM-${index + 1}`, left + 5, offsetTop + 20)
@@ -286,6 +267,7 @@ const handleEncode = async () => {
     const params = new URLSearchParams({
       data: encodeData.value,
       size: encodeSize.value,
+      scale: encodeScale.value,
       types: encodeType.value
     })
 
@@ -298,7 +280,7 @@ const handleEncode = async () => {
     }
 
     const contentType = response.headers.get('content-type')
-    
+
     if (contentType && contentType.includes('application/json')) {
       const data = await response.json()
       if (data.error) {
@@ -405,7 +387,7 @@ onMounted(() => {
   .result-item {
     padding: 10px;
   }
-  
+
   .result-data {
     font-size: 14px;
   }

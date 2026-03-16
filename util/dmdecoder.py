@@ -9,13 +9,21 @@ def all_size():
     return ENCODING_SIZE_NAMES
 
 
-async def encode_dmdtx(data, size=ENCODING_SIZE_NAMES[5]) -> Image.Image:
+async def encode_dmdtx(data, size=ENCODING_SIZE_NAMES[5], scale=1) -> Image.Image:
     if size not in ENCODING_SIZE_NAMES:
         raise ValueError(f"Invalid size: {size}")
 
+    if scale <= 0:
+        raise ValueError(f"Invalid scale: {scale}")
+
     def inner():
         encoded = encode(data.encode("utf8"), size=size)
-        return Image.frombytes("RGB", (encoded.width, encoded.height), encoded.pixels)
+        img = Image.frombytes("RGB", (encoded.width, encoded.height), encoded.pixels)
+        if scale != 1:
+            new_width = encoded.width * scale
+            new_height = encoded.height * scale
+            img = img.resize((new_width, new_height), Image.Resampling.NEAREST)
+        return img
 
     return await asyncio.to_thread(inner)
 
@@ -30,19 +38,18 @@ async def encode_dmdtx_svg(data, size=ENCODING_SIZE_NAMES[5]) -> str:
         height = encoded.height
         pixels = encoded.pixels
 
-        svg_content = '<?xml version="1.0" encoding="utf-8"?>\n'
-        svg_content += f'<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="{width}" height="{height}" viewBox="0 0 {width} {height}">\n'
-        svg_content += '  <rect width="100%" height="100%" fill="white"/>\n'
-
+        path_commands = []
         for y in range(height):
             for x in range(width):
                 offset = (y * width + x) * 3
                 r = pixels[offset]
                 if r == 0:
-                    svg_content += (
-                        f'  <rect x="{x}" y="{y}" width="1" height="1" fill="black"/>\n'
-                    )
+                    path_commands.append(f"M{x},{y}h1v1h-1z")
 
+        svg_content = '<?xml version="1.0" encoding="utf-8"?>\n'
+        svg_content += f'<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="{width}" height="{height}" viewBox="0 0 {width} {height}">\n'
+        svg_content += '  <rect width="100%" height="100%" fill="white"/>\n'
+        svg_content += f'  <path d="{"".join(path_commands)}" fill="black"/>\n'
         svg_content += "</svg>\n"
 
         return svg_content

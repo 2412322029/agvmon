@@ -269,10 +269,7 @@ async def remote_file_view(
                     yield chunk
 
             if astxt:
-                return StreamingResponse(
-                    iter_stream(),
-                    media_type="text/plain"
-                )
+                return StreamingResponse(iter_stream(), media_type="text/plain")
             else:
                 return StreamingResponse(
                     iter_stream(),
@@ -340,7 +337,7 @@ async def decode_remote_dmdtx_file(id: str = Body(...), filepath: str = Body(...
 
 
 @agv_web_router.get("/encode_dmdtx_file")
-async def encode_dmdtx_file(data: str, size: str = "14x14", types: str = "png"):
+async def encode_dmdtx_file(data: str, size: str = "14x14",scale:int=1, types: str = "png"):
     """
     从上传的文件编码DM数据
     :param file: 上传的文件对象
@@ -351,7 +348,7 @@ async def encode_dmdtx_file(data: str, size: str = "14x14", types: str = "png"):
     img_io = io.BytesIO()
     try:
         if types == "png":
-            img = await encode_dmdtx(data, size)
+            img = await encode_dmdtx(data, size, scale)
             img.save(img_io, format="PNG")
         elif types == "svg":
             img = await encode_dmdtx_svg(data, size)
@@ -374,3 +371,33 @@ async def get_dmdtx_all_size():
     return Response(
         json.dumps(all_size(), ensure_ascii=False), media_type="application/json"
     )
+
+
+@agv_web_router.post("/castor_cam_get_yuv")
+async def cam_get_yuv(id: str = Body(...), idx: int = Body(0)):
+    """拍摄yuv"""
+    try:
+        idx = int(idx)
+        if idx < 0:
+            return {"success": False, "error": "未知 idx"}
+        ssh_manager = SSHManager.get_ssh_manager(id)
+        if not ssh_manager:
+            return {"success": False, "error": "连接失败, id不存在"}
+
+        success, output = await ssh_manager.castor_cam_get_yuv(idx)
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+    return {"data": output, "success": success}
+
+
+@agv_web_router.post("/rm_tdcl")
+async def rm_tdcl(id: str = Body(..., embed=True)):
+    """删除yuv"""
+    try:
+        ssh_manager = SSHManager.get_ssh_manager(id)
+        if not ssh_manager:
+            return {"success": False, "error": "连接失败, id不存在"}
+        success, output = await ssh_manager.rm_tdcl()
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+    return {"data": output, "success": success}
