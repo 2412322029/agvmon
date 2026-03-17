@@ -17,6 +17,7 @@
     "@vicons/ionicons5": "^0.13.0",
     "axios": "^1.13.2",
     "naive-ui": "^2.43.2",
+    "ua-parser-js": "^2.0.9",
     "vue": "^3.5.26",
     "vue-router": "^4.6.4",
     "xml-formatter": "^3.6.7"

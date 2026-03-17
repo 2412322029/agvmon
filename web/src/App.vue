@@ -9,10 +9,10 @@ import {
   MenuOutlined,
   MessageOutlined,
   QrcodeOutlined,
-  SettingOutlined,
-  ToolOutlined,
   RadiusSettingOutlined,
-  SwitcherOutlined
+  SettingOutlined,
+  SwitcherOutlined,
+  ToolOutlined
 } from '@vicons/antd';
 
 import { FileUpload, MapMarkedAlt, Server, Tasks } from "@vicons/fa";
@@ -109,9 +109,9 @@ const menuOptions = [
       },
       {
         label: 'AGV-EQ协议解析',
-        key: '/agv',
+        key: '/agv-eq-protocol-parser',
         icon: renderIcon(SwitcherOutlined),
-        onClick: () => router.push('/agv')
+        onClick: () => router.push('/agv-eq-protocol-parser')
       },
       {
         label: '文件上传管理',

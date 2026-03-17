@@ -2,13 +2,14 @@
 import TaskDisplayComponent from '@/components/TaskDisplayComponent.vue'
 import SSHComponent from '@/components/ssh.vue'
 import {
-  NButton, NCard, NDataTable, NDivider, NDrawer, NForm, NFormItem, NInput,
-  NInputNumber,
-  NModal,
-  NProgress, NRadioButton, NRadioGroup,
-  NScrollbar,
+  NButton, NCard, NDataTable,
+  NDivider, NDrawer,
+  NEmpty, NFlex,
+  NForm,
+  NFormItem, NInput, NInputNumber, NModal, NProgress, NRadioButton, NRadioGroup, NScrollbar,
   NSpace, NSwitch, NTabPane, NTabs, NTag, NText, useLoadingBar, useMessage
 } from 'naive-ui'
+import { UAParser } from 'ua-parser-js'
 import { computed, h, inject, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 const robotImgUrl = computed(() => location.origin + '/api/robot_img/online.png')
 const robotoffImgUrl = computed(() => location.origin + '/api/robot_img/offline.png')
@@ -53,6 +54,7 @@ const avgbattery = ref(0)
 const loading = ref(true)
 const timestamp = ref('')
 const active_connections = ref('')
+const active_connections_detail = ref([])
 const messageText = ref('正在获取机器人状态数据...')
 // Tab状态
 const activeTab = ref('all') // all, abnormal, removed
@@ -121,12 +123,26 @@ const closeDetailModal = () => {
 
 // 异常记录模态框相关
 const showAddExceptionModal = ref(false)
+const showConnectionDetailModal = ref(false)
 const exceptionForm = ref({
   agv_id: '',
   problem_description: '',
   agv_status: '',
   remarks: ''
 })
+
+// 解析 User-Agent
+const parseUA = (uaString) => {
+  if (!uaString) return { browser: '未知', os: '未知', device: '未知' }
+  const parser = new UAParser(uaString)
+  const browser = parser.getBrowser()
+  const os = parser.getOS()
+  const device = parser.getDevice()
+  let browser_str = browser.name ? `${browser.name} ${browser.version}` : '未知'
+  let os_str = os.name ? `${os.name} ${os.version}` : '未知'
+  return `${os_str} | ${browser_str}`
+}
+
 const moredetail = (agv_status, main_name, sub_name) => {
   if (agv_status.includes("机器人异常") || agv_status.includes("任务异常")) {
     return main_name || sub_name
@@ -396,6 +412,7 @@ const connectWebSocket = () => {
         // 转换数据格式，添加友好的文本显示
         timestamp.value = data.timestamp || ''
         active_connections.value = data.active_connections || 0
+        active_connections_detail.value = data.active_connections_detail || []
         const formattedData = Object.values(data.data || {}).map(item => {
           // 确定显示状态和颜色，基于showrobot.py的逻辑
           let displayStatus = '正常'
@@ -633,7 +650,9 @@ const freeagv = async (agvcode = "", stop = false) => {
                 </svg>
               </template>
             </NButton>
-            <NTag :type="isConnected ? 'success' : 'error'" round style="margin-top: 4px;">
+            <NTag :type="isConnected ? 'success' : 'error'" round
+              style="margin-top: 4px; cursor: pointer;user-select: none;"
+              @click="isConnected ? showConnectionDetailModal = true : message.error('请重新连接WebSocket服务器')">
               {{ isConnected ? active_connections + ' 已连接' : '未连接' }}
             </NTag>
             <NButton type="primary" @click="refreshData" :loading="loading">
@@ -892,7 +911,8 @@ const freeagv = async (agvcode = "", stop = false) => {
           <NTabPane name="files" tab="文件列表">
             <div class="ssh-panel">
               <SSHComponent v-if="showSSHPanel" :defaultHost="selectedRobot.ip" :defaultUsername="sshConfig.username"
-                :defaultPassword="sshConfig.password" :agversion="selectedRobot.version" :showInput="false" :autoConnect="true" />
+                :defaultPassword="sshConfig.password" :agversion="selectedRobot.version" :showInput="false"
+                :autoConnect="true" />
             </div>
           </NTabPane>
 
@@ -923,6 +943,34 @@ const freeagv = async (agvcode = "", stop = false) => {
           <n-button type="primary" @click="submitExceptionRecord">提交</n-button>
         </n-space>
       </template>
+    </n-modal>
+
+    <!-- 连接详情模态框 -->
+    <n-modal v-model:show="showConnectionDetailModal" preset="card" title="WebSocket 连接详情" :mask-closable="true"
+      style="width: 600px; max-width: 90vw;max-height: 80vh;">
+
+      <n-scrollbar style="max-height: 70vh" trigger="none">
+        <n-space vertical>
+          <n-text>当前连接数: {{ active_connections }}</n-text>
+          <div v-if="active_connections_detail.length > 0">
+            <n-space vertical :size="12">
+              <n-card v-for="(conn, index) in active_connections_detail" :key="index" size="small">
+                <n-space vertical>
+                  
+                  <n-flex align="center" :size="[8, 0]"><n-text strong>{{ conn['host:port'] }}</n-text>
+                    <n-tag :type="conn.client_state === 'CONNECTED' ? 'success' : 'warning'" size="small">
+                      {{ conn.client_state === 'CONNECTED' ? '已连接' : conn.client_state }}
+                    </n-tag>
+                    <n-text depth="3">{{ conn.connect_time }}</n-text>
+                  </n-flex>
+                  <n-text depth="3" style="font-size: 12px;" :title="conn.ua">{{ parseUA(conn.ua) }}</n-text>
+                </n-space>
+              </n-card>
+            </n-space>
+          </div>
+          <n-empty v-else description="暂无连接详情" />
+        </n-space>
+      </n-scrollbar>
     </n-modal>
   </div>
 

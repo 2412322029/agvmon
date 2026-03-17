@@ -13,7 +13,7 @@ from util.config import cfg
 
 logger = logging.getLogger(__name__)
 
-active_connections: Set[WebSocket] = set()
+active_connections: dict[WebSocket, datetime] = {}
 
 last_websocket_activity = datetime.now()
 
@@ -76,14 +76,19 @@ async def broadcast_robot_status(redis_client, rdstag):
 
             if robots:
                 message = json.dumps(
-                    {"timestamp": time.time(), "data": robots, "active_connections": len(active_connections)}
+                    {
+                        "timestamp": time.time(),
+                        "data": robots,
+                        "active_connections": len(active_connections),
+                        "active_connections_detail": detail_gen(active_connections),
+                    }
                 )
 
                 for connection in list(active_connections):
                     try:
                         await connection.send_text(message)
                     except WebSocketDisconnect:
-                        active_connections.discard(connection)
+                        del active_connections[connection]
 
             await asyncio.sleep(1)
 
@@ -92,15 +97,27 @@ async def broadcast_robot_status(redis_client, rdstag):
             raise e
 
 
+def detail_gen(wsdict: dict[WebSocket, datetime]):
+    ret = []
+    for w, connect_time in wsdict.items():
+        ret.append(
+            {
+                "client_state": w.client_state.name,
+                "host:port": f"{w.client.host}:{w.client.port}",
+                "ua": w.headers.get("user-agent", ""),
+                "connect_time": connect_time.strftime("%Y-%m-%d %H:%M:%S"),
+            }
+        )
+    return ret
+
+
 async def websocket_robot_status_endpoint(websocket: WebSocket, redis_client, rdstag):
     """机器人状态WebSocket接口"""
     await websocket.accept()
 
-    active_connections.add(websocket)
-
+    active_connections[websocket] = datetime.now()
     global last_websocket_activity
     last_websocket_activity = datetime.now()
-
     # 检查并确保ZeroMQ进程已启动
     global zeromq_stopped_due_to_timeout
     zeromq_stopped_due_to_timeout = False  # 重置超时标志
@@ -135,16 +152,17 @@ async def websocket_robot_status_endpoint(websocket: WebSocket, redis_client, rd
                 await websocket.send_text(json.dumps({"type": "heartbeat"}))
             except WebSocketDisconnect:
                 logger.info(f"WebSocket连接断开，当前连接数: {len(active_connections)}")
-                active_connections.discard(websocket)
+                del active_connections[websocket]
                 break
             except Exception as e:
                 logger.error(f"接收WebSocket消息时出错: {e}")
-                active_connections.discard(websocket)
+                del active_connections[websocket]
                 break
 
     except Exception as e:
         print(f"WebSocket连接出错: {e}")
-        active_connections.discard(websocket)
+        if websocket in active_connections:
+            del active_connections[websocket]
         print(f"WebSocket连接异常断开，当前连接数: {len(active_connections)}")
 
         if len(active_connections) > 0:
@@ -154,4 +172,3 @@ async def websocket_robot_status_endpoint(websocket: WebSocket, redis_client, rd
             await websocket.close()
         except Exception:
             pass
-

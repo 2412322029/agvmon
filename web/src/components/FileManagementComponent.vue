@@ -1,24 +1,34 @@
 <template>
   <n-card :title="title" class="file-management-container">
     <!-- 文件上传区域 -->
-    <n-space horizontal :size="16">
+    <n-space vertical :size="16">
       <n-upload v-if="showUpload" multiple :max="5" :custom-request="handleUpload" :show-file-list="false"
-        :headers="{ 'Content-Type': 'multipart/form-data' }">
-        <n-button type="primary" :loading="uploadLoading">
-          {{ uploadButtonText }}
-        </n-button>
+        trigger-style="width: 100%;">
+        <n-upload-dragger>
+          <div style="margin-bottom: 12px">
+            <n-icon size="48" :depth="3">
+              <upload />
+            </n-icon>
+          </div>
+          <n-text style="font-size: 16px">
+            点击或者拖动文件到该区域来上传
+          </n-text>
+          <n-p depth="3" style="margin: 8px 0 0 0">
+            {{ uploadButtonText }}
+          </n-p>
+        </n-upload-dragger>
       </n-upload>
 
       <!-- 添加文件选择器组件作为备选方式 -->
-      <FileSelectorComponent v-if="showUpload" @file-selected="selectFileFromSelector"
-        @file-uploaded="onFileUploadedFromSelector" />
+      <!-- <FileSelectorComponent v-if="showUpload" @file-selected="selectFileFromSelector"
+        @file-uploaded="onFileUploadedFromSelector" /> -->
 
       <!-- 过期时间选择 -->
       <n-form v-if="showUpload" :model="uploadForm" label-placement="left" label-width="auto">
         <n-form-item label="过期时间（天）">
           <n-input-number v-model:value="uploadForm.expireDays" :min="1" :max="365" placeholder="请输入过期天数"
             style="width: 200px;" />
-          <n-button @click="setDefaultExpireDays" style="margin-left: 10px;">默认 (7天)</n-button>
+          <!-- <n-button @click="setDefaultExpireDays" style="margin-left: 10px;">默认 (7天)</n-button> -->
         </n-form-item>
       </n-form>
     </n-space>
@@ -46,6 +56,22 @@
             </n-icon>
             <n-icon size="48" v-else-if="isAudioFile(file.content_type)">
               <musical-notes-outline />
+            </n-icon>
+            <n-icon size="48" v-else-if="isZipFile(file.content_type)">
+              <file-zip-outlined />
+            </n-icon>
+            <n-icon size="48" v-else-if="isJsonFile(file.content_type)">
+              <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 32 32">
+                <path d="M31 11v10h-2l-2-6v6h-2V11h2l2 6v-6h2z" fill="currentColor"></path>
+                <path
+                  d="M21.334 21h-2.667A1.668 1.668 0 0 1 17 19.334v-6.667A1.668 1.668 0 0 1 18.666 11h2.667A1.668 1.668 0 0 1 23 12.666v6.667A1.668 1.668 0 0 1 21.334 21zM19 19h2v-6h-2z"
+                  fill="currentColor"></path>
+                <path
+                  d="M13.334 21H9v-2h4v-2h-2a2.002 2.002 0 0 1-2-2v-2.334A1.668 1.668 0 0 1 10.666 11H15v2h-4v2h2a2.002 2.002 0 0 1 2 2v2.333A1.668 1.668 0 0 1 13.334 21z"
+                  fill="currentColor"></path>
+                <path d="M5.333 21H2.667A1.668 1.668 0 0 1 1 19.334V17h2v2h2v-8h2v8.334A1.668 1.668 0 0 1 5.333 21z"
+                  fill="currentColor"></path>
+              </svg>
             </n-icon>
             <n-icon size="48" v-else>
               <document-outline />
@@ -123,14 +149,15 @@
 
         <!-- 操作按钮 -->
         <n-space justify="space-between" style="margin-top: 20px; width: 100%;">
-          <n-button type="primary" size="small"
-            @click="downloadFile(selectedFile.stored_filename, selectedFile.original_filename)">
-            下载
-          </n-button>
-          <n-button type="error" size="small" @click="confirmDeleteFile(selectedFile.stored_filename)"
+          <n-button type="error" size="large" @click="confirmDeleteFile(selectedFile.stored_filename)"
             :disabled="deleteLoading">
             删除
           </n-button>
+          <n-button type="primary" size="large"
+            @click="downloadFile(selectedFile.stored_filename, selectedFile.original_filename)">
+            下载
+          </n-button>
+
         </n-space>
       </div>
     </n-modal>
@@ -175,12 +202,14 @@
 </template>
 
 <script setup>
+import { FileZipOutlined } from '@vicons/antd'
+import { Upload } from '@vicons/fa'
 import {
   DocumentOutline,
   DocumentTextOutline,
   ImageOutline,
   MusicalNotesOutline,
-  VideocamOutline
+  VideocamOutline,
 } from '@vicons/ionicons5'
 import {
   NButton,
@@ -191,18 +220,20 @@ import {
   NForm,
   NFormItem,
   NIcon,
+  NInput,
   NInputNumber,
   NModal,
+  NP,
   NProgress,
   NSpace,
   NSpin,
   NTable,
+  NText,
   NUpload,
-  NInput,
+  NUploadDragger,
   useMessage
 } from 'naive-ui'
 import { onMounted, onUnmounted, ref } from 'vue'
-import FileSelectorComponent from './FileSelectorComponent.vue'
 
 const props = defineProps({
   title: {
@@ -381,6 +412,8 @@ const deleteFile = async () => {
     if (response.ok) {
       message.success('文件删除成功')
       showDeleteConfirm.value = false
+      selectedFile.value = null
+      showFileDetail.value = false
       loadFileList() // 重新加载文件列表
       emit('file-deleted', deleteFileStoredName.value) // 发送删除成功的事件
     } else {
@@ -443,6 +476,13 @@ const isVideoFile = (contentType) => {
 // 检查是否为音频文件
 const isAudioFile = (contentType) => {
   return contentType && contentType.startsWith('audio/')
+}
+const isZipFile = (contentType) => {
+  return contentType && (contentType.startsWith('application/x-zip') || contentType.startsWith('application/x-gzip'))
+}
+
+const isJsonFile = (contentType) => {
+  return contentType && contentType.startsWith('application/json')
 }
 
 // 截断文件名

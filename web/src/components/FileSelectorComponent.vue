@@ -287,13 +287,13 @@ const formatFileSize = (bytes) => {
   padding: 6px;
   cursor: pointer;
   transition: all 0.2s ease;
-  background-color: #fafafa;
+  /* background-color: #fafafa; */
   display: flex;
   align-items: center;
 }
 
 .file-item-small:hover {
-  background-color: #e8f4ff;
+  /* background-color: #e8f4ff; */
   border-color: #2080f0;
 }
 
@@ -313,11 +313,11 @@ const formatFileSize = (bytes) => {
   overflow: hidden;
   text-overflow: ellipsis;
   margin-bottom: 2px;
-  color: #333;
+  /* color: #333; */
 }
 
 .file-size-small {
   font-size: 10px;
-  color: #666;
+  /* color: #666; */
 }
 </style>
