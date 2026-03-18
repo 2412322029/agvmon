@@ -27,6 +27,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "nuitka>=2.8.9",
+    "objprint>=0.3.0",
 ]
 
 [tool.nuitka]

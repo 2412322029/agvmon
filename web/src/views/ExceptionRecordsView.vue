@@ -51,7 +51,7 @@
       <n-modal v-model:show="showPreviewModal" preset="card" style="width: 800px;" title="导出文本预览">
         <n-card title="预览内容" size="small" embedded>
           <pre
-            style="white-space: pre-wrap; word-break: break-all; max-height: 400px; overflow-y: auto; margin: 0; padding: 10px; background-color: #f5f5f5; border-radius: 4px;">
+            style="white-space: pre-wrap; word-break: break-all; max-height: 400px; overflow-y: auto; margin: 0; padding: 10px; border-radius: 4px;">
       {{ previewContent }}</pre>
         </n-card>
         <template #footer>
