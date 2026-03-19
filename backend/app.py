@@ -1,6 +1,12 @@
 import uvicorn
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.docs import (
+    get_redoc_html,
+    get_swagger_ui_html,
+    get_swagger_ui_oauth2_redirect_html,
+)
+from fastapi.staticfiles import StaticFiles
 
 from backend.api.agvssh import agv_web_router
 from backend.api.other import util_web_router, websocket_chat_endpoint
@@ -15,14 +21,57 @@ from backend.api.static_routes import (
 from backend.api.wcsapi import wcs_web_router
 from backend.api.websocket import websocket_robot_status_endpoint
 from util.config import cfg, r
+from fastapi.responses import FileResponse
 
 # 创建FastAPI应用
-app = FastAPI(title="AGV Monitor API", description="AGV机器人状态监控WebSocket接口")
+app = FastAPI(
+    title="AGV Monitor API",
+    description="AGV机器人状态监控接口, RCS2000 web接口, WCS web接口, RCMS API, AGV SSH接口, 其他工具接口",
+    docs_url=None,
+    redoc_url=None,
+)
+# 自托管docs静态文件, 即使在离线、没有开放的互联网访问或在本地网络中也能继续工作
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+# 自定义Swagger UI路由
+@app.get("/docs", include_in_schema=False)
+async def custom_swagger_ui_html():
+    return get_swagger_ui_html(
+        openapi_url=app.openapi_url,
+        title=app.title + " - Swagger UI",
+        oauth2_redirect_url=app.swagger_ui_oauth2_redirect_url,
+        swagger_js_url="/static/swagger-ui-bundle.js",
+        swagger_css_url="/static/swagger-ui.css",
+    )
+
+
+@app.get(app.swagger_ui_oauth2_redirect_url, include_in_schema=False)
+async def swagger_ui_redirect():
+    return get_swagger_ui_oauth2_redirect_html()
+
+
+# 自定义ReDoc路由
+@app.get("/redoc", include_in_schema=False)
+async def redoc_html():
+    return get_redoc_html(
+        openapi_url=app.openapi_url,
+        title=app.title + " - ReDoc",
+        redoc_js_url="/static/redoc.standalone.js",
+    )
+
+@app.get("/favicon.ico")
+async def root():
+    return FileResponse("web/dist/favicon.ico")
+
+
+
+
 
 # 添加CORS中间件支持
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 允许所有来源，生产环境中应限制为特定域名
+    allow_origins=["*"],  # 允许所有来源!
     allow_credentials=True,
     allow_methods=["*"],  # 允许所有HTTP方法
     allow_headers=["*"],  # 允许所有HTTP头

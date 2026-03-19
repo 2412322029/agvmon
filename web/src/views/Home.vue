@@ -11,6 +11,8 @@ import {
 } from 'naive-ui'
 import { UAParser } from 'ua-parser-js'
 import { computed, h, inject, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+
+const buildTime = __BUILD_TIME__ || "null";
 const robotImgUrl = computed(() => location.origin + '/api/robot_img/online.png')
 const robotoffImgUrl = computed(() => location.origin + '/api/robot_img/offline.png')
 const robot_fullImgUrl = computed(() => location.origin + '/api/robot_img/full.png')
@@ -956,7 +958,7 @@ const freeagv = async (agvcode = "", stop = false) => {
             <n-space vertical :size="12">
               <n-card v-for="(conn, index) in active_connections_detail" :key="index" size="small">
                 <n-space vertical>
-                  
+
                   <n-flex align="center" :size="[8, 0]"><n-text strong>{{ conn['host:port'] }}</n-text>
                     <n-tag :type="conn.client_state === 'CONNECTED' ? 'success' : 'warning'" size="small">
                       {{ conn.client_state === 'CONNECTED' ? '已连接' : conn.client_state }}
@@ -972,11 +974,24 @@ const freeagv = async (agvcode = "", stop = false) => {
         </n-space>
       </n-scrollbar>
     </n-modal>
+    <footer style="text-align: center;">
+      <p>© 2026 Lolik | Powered by <a href="https://github.com/2412322029/agvmon" target="_blank">agvmon</a>
+        <br>
+        AGV Monitor API <a href="/docs" target="_blank"> swagger-docs</a> / <a href="/redoc" target="_blank">redoc</a>
+        <br>
+        <span style="font-size: 12px; color: #999;">buildTime: {{ buildTime }}</span>
+      </p>
+    </footer>
   </div>
 
 </template>
 
 <style scoped>
+footer a {
+  color: #1890ff;
+  text-decoration: none;
+}
+
 /* 详情区块 */
 .detail-section {
   margin-bottom: 24px;

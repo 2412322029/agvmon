@@ -33,6 +33,7 @@ def build_with_nuitka():
         "--standalone",  # 创建独立的应用程序
         "--plugin-enable=pyzmq",  # 启用pyzmq插件
         "--include-data-dir=web/dist=./web/dist",  # 包含web/dist目录
+        "--include-data-dir=static=./static",  # 包含static目录
         "--include-data-dir=util/data/cache=./util/data/cache",  # 包含cache目录
         "--include-data-dir=util/data/fake=./util/data/fake",  # 包含fake目录
         "--include-data-dir=util/data/map_img=./util/data/map_img",  # 包含map_img目录

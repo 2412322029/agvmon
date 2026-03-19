@@ -43,6 +43,31 @@ onMounted(() => {
   if (clicktimes.value > 0) {
     ribbon(clicktimes.value);
   }
+
+  const backToTop = document.querySelector('.back-to-top');
+  const handleScroll = () => {
+    const scroHei = window.scrollY || document.documentElement.scrollTop;
+    if (scroHei > 500) {
+      backToTop.style.top = '-200px';
+    } else {
+      backToTop.style.top = '-999px';
+    }
+  };
+  const scrollToTop = (e) => {
+    e.preventDefault();
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
+  };
+
+  window.addEventListener('scroll', handleScroll);
+  backToTop.addEventListener('click', scrollToTop);
+
+  onUnmounted(() => {
+    window.removeEventListener('scroll', handleScroll);
+    backToTop.removeEventListener('click', scrollToTop);
+  });
 });
 
 watch(darkMode, (newVal) => {
@@ -258,11 +283,12 @@ onUnmounted(() => {
     <n-global-style />
   </n-config-provider>
 
-
+  <div class="back-to-top cd-top faa-float animated cd-is-visible" style="top: -900px;"></div>
 </template>
 
 <style scoped>
 /* 全局样式 */
+
 #main-content {
   padding: 3px;
   max-width: 1200px;

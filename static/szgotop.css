@@ -1,0 +1,86 @@
+@media (max-width:1000px) {
+    .back-to-top {
+        display: none !important;
+    }
+}
+
+@-webkit-keyframes float {
+    0% {
+        -webkit-transform: translateY(0);
+        transform: translateY(0)
+    }
+
+    50% {
+        -webkit-transform: translateY(-6px);
+        transform: translateY(-6px)
+    }
+
+    100% {
+        -webkit-transform: translateY(0);
+        transform: translateY(0)
+    }
+}
+
+@keyframes float {
+    0% {
+        -webkit-transform: translateY(0);
+        -ms-transform: translateY(0);
+        transform: translateY(0)
+    }
+
+    50% {
+        -webkit-transform: translateY(-6px);
+        -ms-transform: translateY(-6px);
+        transform: translateY(-6px)
+    }
+
+    100% {
+        -webkit-transform: translateY(0);
+        -ms-transform: translateY(0);
+        transform: translateY(0)
+    }
+}
+
+.faa-float.animated,
+.faa-float.animated-hover:hover,
+.faa-parent.animated-hover:hover>.faa-float {
+    -webkit-animation: float 2s linear infinite;
+    animation: float 2s linear infinite
+}
+
+.faa-float.animated-hover.faa-fast:hover,
+.faa-float.animated.faa-fast,
+.faa-parent.animated-hover:hover>.faa-float.faa-fast {
+    -webkit-animation: float 1s linear infinite;
+    animation: float 1s linear infinite
+}
+
+.faa-float.animated-hover.faa-slow:hover,
+.faa-float.animated.faa-slow,
+.faa-parent.animated-hover:hover>.faa-float.faa-slow {
+    -webkit-animation: float 3s linear infinite;
+    animation: float 3s linear infinite
+}
+
+
+.topButton {
+    display: none !important;
+
+}
+
+#goToTop {
+    display: none !important;
+}
+
+.back-to-top {
+    cursor: pointer;
+    position: fixed;
+    right: 80px;
+    top: -900px;
+    z-index: 2;
+    width: 70px;
+    height: 900px;
+    background: url(/static/scroll.png);
+    transition: all .5s ease-in-out;
+    opacity: 1;
+}
