@@ -1,8 +1,9 @@
 from pathlib import Path
 
 import uvicorn
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, Request, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.openapi.docs import (
     get_redoc_html,
     get_swagger_ui_html,
@@ -23,7 +24,7 @@ from backend.api.static_routes import (
 )
 from backend.api.wcsapi import wcs_web_router
 from backend.api.websocket import websocket_robot_status_endpoint
-from util.config import cfg, r
+from util.config import cfg
 
 # 创建FastAPI应用
 app = FastAPI(
@@ -36,6 +37,38 @@ static_dir = Path(__file__).parent.parent / "static"
 static_dir.mkdir(parents=True, exist_ok=True)
 # 自托管docs静态文件, 即使在离线、没有开放的互联网访问或在本地网络中也能继续工作
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
+# 启用 Gzip 压缩，minimum_size 指定响应体超过多少字节才压缩
+app.add_middleware(GZipMiddleware, minimum_size=1024)
+
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    # 调用下一个中间件或路由处理函数
+    response = await call_next(request)
+    # 添加安全头
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=()"
+    response.headers["Content-Security-Policy"] = (
+        "script-src 'self' https: 'unsafe-inline'; "
+        "style-src 'self' https: 'unsafe-inline'; "
+    )
+    content_type = response.headers.get("content-type", "")
+    if "javascript" in content_type or "css" in content_type or "image" in content_type:
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    else:
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+
+    return response
+
+
+# 添加CORS中间件支持
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # 允许所有来源!
+    allow_methods=["*"],  # 允许所有HTTP方法
+)
 
 
 # 自定义Swagger UI路由
@@ -67,17 +100,8 @@ async def redoc_html():
 
 @app.get("/favicon.ico")
 async def root():
-    return FileResponse("web/dist/favicon.ico")
+    return FileResponse(Path(__file__).parent.parent / "web" / "dist" / "favicon.ico")
 
-
-# 添加CORS中间件支持
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # 允许所有来源!
-    allow_credentials=True,
-    allow_methods=["*"],  # 允许所有HTTP方法
-    allow_headers=["*"],  # 允许所有HTTP头
-)
 
 # 配置静态文件服务
 setup_static_files(app)
@@ -112,7 +136,7 @@ app.include_router(wcs_web_router, prefix="/api")
 async def websocket_robot_status(websocket: WebSocket):
     """机器人状态WebSocket接口"""
     rdstag = cfg.get_with_reload("rcms.host").split("://")[1].replace(":", "-")
-    await websocket_robot_status_endpoint(websocket, r, rdstag)
+    await websocket_robot_status_endpoint(websocket, rdstag)
 
 
 @app.websocket("/ws/chat")
@@ -123,4 +147,19 @@ async def websocket_chat(websocket: WebSocket):
 
 def run_api_server():
     """运行FastAPI WebSocket服务器"""
-    uvicorn.run("backend.app:app", **cfg.get("web"))
+    uvicorn.run(
+        "backend.app:app",
+        **cfg.get("web"),
+        timeout_keep_alive=10,  # 连接保持时间
+        timeout_graceful_shutdown=5.0,  # 关闭超时
+        # 性能限制
+        limit_concurrency=1000,  # 最大并发连接数
+        # limit_max_requests=10000,  # 防内存泄漏
+        backlog=2048,  # TCP积压队列
+        # 安全相关
+        server_header=False,  # 隐藏服务器头
+        date_header=True,  # 保留日期头
+        # WebSocket配置
+        ws_ping_interval=15.0,  # WebSocket ping间隔
+        ws_ping_timeout=30.0,  # WebSocket ping超时
+    )

@@ -2,17 +2,98 @@ import asyncio
 import json
 import logging
 import time
+import uuid
 from datetime import datetime, timedelta
 
 from fastapi import WebSocket
 from fastapi.websockets import WebSocketDisconnect
 
 from backend.api import rcmsapi
-from util.config import cfg
+from util.config import cfg, r
 
 logger = logging.getLogger(__name__)
 
-active_connections: dict[WebSocket, datetime] = {}
+WEBSOCKET_CONNECTIONS_KEY = "websocket_connections"
+
+redis_client = None
+local_connections: dict[WebSocket, str] = {}
+
+
+def ws_add_connection(ws: WebSocket) -> str:
+    conn_id = str(uuid.uuid4())
+    conn_data = {
+        "id": conn_id,
+        "connect_time": datetime.now().isoformat(),
+        "client_host": ws.client.host if ws.client else "",
+        "client_port": ws.client.port if ws.client else 0,
+        "user_agent": ws.headers.get("user-agent", ""),
+    }
+    r.hset(WEBSOCKET_CONNECTIONS_KEY, conn_id, json.dumps(conn_data))
+    r.expire(WEBSOCKET_CONNECTIONS_KEY, 60)
+    local_connections[ws] = conn_id
+    return conn_id
+
+
+def ws_remove_connection(conn_id: str):
+    r.hdel(WEBSOCKET_CONNECTIONS_KEY, conn_id)
+
+
+def ws_get_connection_count() -> int:
+    return r.hlen(WEBSOCKET_CONNECTIONS_KEY)
+
+
+def ws_get_all_connections() -> dict:
+    connections = r.hgetall(WEBSOCKET_CONNECTIONS_KEY)
+    result = {}
+    for conn_id, data in connections.items():
+        conn_id_str = conn_id.decode("utf-8")
+        try:
+            data_dict = json.loads(data.decode("utf-8"))
+            data_dict["connect_time"] = datetime.fromisoformat(
+                data_dict["connect_time"]
+            )
+            result[conn_id_str] = data_dict
+        except (json.JSONDecodeError, ValueError):
+            continue
+    return result
+
+
+def ws_detail_gen():
+    connections = ws_get_all_connections()
+    ret = []
+    for conn_id, data in connections.items():
+        connect_time = data.get("connect_time", "")
+        if isinstance(connect_time, datetime):
+            connect_time = connect_time.strftime("%Y-%m-%d %H:%M:%S")
+        ret.append(
+            {
+                "conn_id": conn_id[:8],
+                "client_state": "CONNECTED",
+                "host:port": f"{data.get('client_host', '')}:{data.get('client_port', '')}",
+                "ua": data.get("user_agent", ""),
+                "connect_time": connect_time,
+            }
+        )
+    return ret
+
+
+def ws_safe_remove(ws: WebSocket, conn_id: str):
+    try:
+        ws_remove_connection(conn_id)
+    except Exception:
+        pass
+
+
+def ws_refresh_connection(conn_id: str):
+    r.expire(WEBSOCKET_CONNECTIONS_KEY, 60)
+
+
+def del_without_error(websocket):
+    try:
+        del local_connections[websocket]
+    except Exception:
+        pass
+
 
 last_websocket_activity = datetime.now()
 
@@ -24,13 +105,12 @@ async def start_zeromq_management_task():
     """启动ZeroMQ进程管理定时任务"""
     global last_websocket_activity, zeromq_stopped_due_to_timeout
     timeout = cfg.get("zmq_auto_kill_timedelta")
-    # print(f"ZeroMQ自动关闭超时时间: {timeout} 分钟")
     while True:
         try:
             await asyncio.sleep(10)
 
             idle_time = datetime.now() - last_websocket_activity
-            has_active_websocket = len(active_connections) > 0
+            has_active_websocket = ws_get_connection_count() > 0
 
             should_stop_due_to_idle = (
                 idle_time > timedelta(minutes=timeout) and not has_active_websocket
@@ -47,7 +127,6 @@ async def start_zeromq_management_task():
                         )
                         zeromq_stopped_due_to_timeout = True
                 else:
-                    # 如果有活跃连接或连接刚恢复，重置标志
                     if zeromq_stopped_due_to_timeout:
                         zeromq_stopped_due_to_timeout = False
             except Exception as e:
@@ -58,11 +137,11 @@ async def start_zeromq_management_task():
             await asyncio.sleep(10)
 
 
-async def broadcast_robot_status(redis_client, rdstag):
+async def broadcast_robot_status(rdstag):
     """广播机器人状态数据到所有连接的客户端"""
     while True:
         try:
-            robot_status = redis_client.hgetall(f"{rdstag}:ROBOT_STATUS")
+            robot_status = r.hgetall(f"{rdstag}:ROBOT_STATUS")
 
             robots = {}
             for robot_id, status_json in robot_status.items():
@@ -78,19 +157,19 @@ async def broadcast_robot_status(redis_client, rdstag):
                     {
                         "timestamp": time.time(),
                         "data": robots,
-                        "active_connections": len(active_connections),
-                        "active_connections_detail": detail_gen(active_connections),
+                        "active_connections": ws_get_connection_count(),
+                        "active_connections_detail": ws_detail_gen(),
                     }
                 )
 
-                for connection in list(active_connections):
+                for ws in list(local_connections.keys()):
                     try:
-                        await connection.send_text(message)
-                    except WebSocketDisconnect:
-                        try:
-                            del active_connections[connection]
-                        except Exception:
-                            pass
+                        await ws.send_text(message)
+                    except Exception:
+                        conn_id = local_connections.get(ws)
+                        if conn_id:
+                            ws_safe_remove(ws, conn_id)
+                            del_without_error(ws)
 
             await asyncio.sleep(1)
 
@@ -99,40 +178,25 @@ async def broadcast_robot_status(redis_client, rdstag):
             raise e
 
 
-def detail_gen(wsdict: dict[WebSocket, datetime]):
-    ret = []
-    for w, connect_time in wsdict.items():
-        ret.append(
-            {
-                "client_state": w.client_state.name,
-                "host:port": f"{w.client.host}:{w.client.port}",
-                "ua": w.headers.get("user-agent", ""),
-                "connect_time": connect_time.strftime("%Y-%m-%d %H:%M:%S"),
-            }
-        )
-    return ret
-
-
-async def websocket_robot_status_endpoint(websocket: WebSocket, redis_client, rdstag):
+async def websocket_robot_status_endpoint(websocket: WebSocket, rdstag):
     """机器人状态WebSocket接口"""
     await websocket.accept()
 
-    active_connections[websocket] = datetime.now()
+    conn_id = ws_add_connection(websocket)
     global last_websocket_activity
     last_websocket_activity = datetime.now()
-    # 检查并确保ZeroMQ进程已启动
     global zeromq_stopped_due_to_timeout
-    zeromq_stopped_due_to_timeout = False  # 重置超时标志
+    zeromq_stopped_due_to_timeout = False
 
     try:
-        result = rcmsapi.check_and_manage_zeromq_process(True)  # 有活动连接
-        print(f"新的WebSocket连接，当前连接数: {len(active_connections)}")
+        result = rcmsapi.check_and_manage_zeromq_process(True)
+        print(f"新的WebSocket连接，当前连接数: {ws_get_connection_count()}")
         print(f"ZeroMQ进程状态: {result['message']}")
     except Exception as e:
         print(f"管理ZeroMQ进程时出错: {e}")
 
     try:
-        robot_status = redis_client.hgetall(f"{rdstag}:ROBOT_STATUS")
+        robot_status = r.hgetall(f"{rdstag}:ROBOT_STATUS")
         robots = {}
         for robot_id, status_json in robot_status.items():
             robot_id_str = robot_id.decode("utf-8")
@@ -148,27 +212,35 @@ async def websocket_robot_status_endpoint(websocket: WebSocket, redis_client, rd
 
         while True:
             try:
-                await asyncio.wait_for(websocket.receive_text(), timeout=10)
-                # print(t)
-                last_websocket_activity = datetime.now()
+                rsv = await asyncio.wait_for(websocket.receive_text(), timeout=20)
+                if rsv == "heartbeat":
+                    last_websocket_activity = datetime.now()
+                    ws_refresh_connection(conn_id)
             except asyncio.TimeoutError:
                 await websocket.send_text(json.dumps({"type": "heartbeat"}))
             except WebSocketDisconnect:
-                logger.info(f"WebSocket连接断开，当前连接数: {len(active_connections)}")
-                del active_connections[websocket]
+                logger.info(
+                    f"WebSocket连接断开，当前连接数: {ws_get_connection_count()}"
+                )
+                ws_safe_remove(websocket, conn_id)
+                if websocket in local_connections:
+                    del_without_error(websocket)
                 break
             except Exception as e:
                 logger.error(f"接收WebSocket消息时出错: {e}")
-                del active_connections[websocket]
+                ws_safe_remove(websocket, conn_id)
+                if websocket in local_connections:
+                    del_without_error(websocket)
                 break
 
     except Exception as e:
         print(f"WebSocket连接出错: {e}")
-        if websocket in active_connections:
-            del active_connections[websocket]
-        print(f"WebSocket连接异常断开，当前连接数: {len(active_connections)}")
+        ws_safe_remove(websocket, conn_id)
+        if websocket in local_connections:
+            del_without_error(websocket)
+        print(f"WebSocket连接异常断开，当前连接数: {ws_get_connection_count()}")
 
-        if len(active_connections) > 0:
+        if ws_get_connection_count() > 0:
             last_websocket_activity = datetime.now()
 
         try:
