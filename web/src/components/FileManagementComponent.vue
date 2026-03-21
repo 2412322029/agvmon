@@ -478,7 +478,7 @@ const isAudioFile = (contentType) => {
   return contentType && contentType.startsWith('audio/')
 }
 const isZipFile = (contentType) => {
-  return contentType && (contentType.startsWith('application/x-zip') || contentType.startsWith('application/x-gzip'))
+  return contentType && (contentType.startsWith('application/x-zip') || contentType.startsWith('application/x-gzip')) || contentType.startsWith('application/zip')
 }
 
 const isJsonFile = (contentType) => {

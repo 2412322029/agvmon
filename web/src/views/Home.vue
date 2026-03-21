@@ -409,6 +409,7 @@ const connectWebSocket = () => {
       try {
         const data = JSON.parse(event.data)
         if (data.type == 'heartbeat') {
+          ws.value.send("heartbeat")
           return
         }
         // 转换数据格式，添加友好的文本显示
@@ -753,7 +754,7 @@ const freeagv = async (agvcode = "", stop = false) => {
         <h1 style="font-size: 24px; font-weight: bold; display: flex;align-items: center">{{ selectedRobot.RobotId }}
           <span style="margin-left: 10px; position: relative; width: 40px; height: 40px; display: inline-block;">
             <img :src="timeage(selectedRobot.time * 1000) == '' ? robotImgUrl : robotoffImgUrl"
-              style="width: 40px; height: 40px; transform: rotate(180deg);" alt="">
+              style="width: 40px; height: 40px; transform: rotate(0deg);" alt="">
             <!-- 左下 (第1位) -->
             <img v-if="rollerPositions[0]" :src="robot_fullImgUrl"
               style="position: absolute; bottom: 8px; left:11px; width: 8px; height: 8px;" alt="">

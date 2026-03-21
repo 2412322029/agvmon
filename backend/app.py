@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import uvicorn
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,6 +8,7 @@ from fastapi.openapi.docs import (
     get_swagger_ui_html,
     get_swagger_ui_oauth2_redirect_html,
 )
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.api.agvssh import agv_web_router
@@ -21,7 +24,6 @@ from backend.api.static_routes import (
 from backend.api.wcsapi import wcs_web_router
 from backend.api.websocket import websocket_robot_status_endpoint
 from util.config import cfg, r
-from fastapi.responses import FileResponse
 
 # 创建FastAPI应用
 app = FastAPI(
@@ -30,8 +32,10 @@ app = FastAPI(
     docs_url=None,
     redoc_url=None,
 )
+static_dir = Path(__file__).parent.parent / "static"
+static_dir.mkdir(parents=True, exist_ok=True)
 # 自托管docs静态文件, 即使在离线、没有开放的互联网访问或在本地网络中也能继续工作
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 
 # 自定义Swagger UI路由
@@ -60,12 +64,10 @@ async def redoc_html():
         redoc_js_url="/static/redoc.standalone.js",
     )
 
+
 @app.get("/favicon.ico")
 async def root():
     return FileResponse("web/dist/favicon.ico")
-
-
-
 
 
 # 添加CORS中间件支持

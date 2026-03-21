@@ -3,7 +3,6 @@ import json
 import logging
 import time
 from datetime import datetime, timedelta
-from typing import Set
 
 from fastapi import WebSocket
 from fastapi.websockets import WebSocketDisconnect
@@ -88,7 +87,10 @@ async def broadcast_robot_status(redis_client, rdstag):
                     try:
                         await connection.send_text(message)
                     except WebSocketDisconnect:
-                        del active_connections[connection]
+                        try:
+                            del active_connections[connection]
+                        except Exception:
+                            pass
 
             await asyncio.sleep(1)
 
@@ -146,7 +148,8 @@ async def websocket_robot_status_endpoint(websocket: WebSocket, redis_client, rd
 
         while True:
             try:
-                await asyncio.wait_for(websocket.receive_text(), timeout=30)
+                await asyncio.wait_for(websocket.receive_text(), timeout=10)
+                # print(t)
                 last_websocket_activity = datetime.now()
             except asyncio.TimeoutError:
                 await websocket.send_text(json.dumps({"type": "heartbeat"}))

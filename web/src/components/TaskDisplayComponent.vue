@@ -1,5 +1,5 @@
 <script setup>
-import { NBadge, NButton, NCard, NH3, NModal, NSpin, NTable, NTag, useDialog, useMessage, NScrollbar } from 'naive-ui';
+import { NButton, NCard, NH3, NModal, NScrollbar, NSpin, NTable, NTag, useDialog, useMessage } from 'naive-ui';
 import { computed, ref, watch } from 'vue';
 import xmlFormat from 'xml-formatter';
 const dialog = useDialog()
@@ -387,60 +387,38 @@ const performSoftCancel = async () => {
     try {
         // 检查任务是否正在滚动
         const checkResult = await checkIsRolling(taskId);
+        // // 先检查是否可以软取消
+        const rollingResult = await checkSoftCancel(taskId);
+        // // 检查是否是开始传输任务
+        // const startingResult = await checkStartingTransTasks(taskId);
+        // let [checkResult, rollingResult] = await Promise.all([checkIsRolling(taskId), checkSoftCancel(taskId)])
+        let showres = `1. ${checkResult.success ? "没有滚动任务" : checkResult.msg || JSON.stringify(checkResult)}。\n
+        2.${rollingResult.success ? "可以软取消" : rollingResult.msg || JSON.stringify(rollingResult)}。`
+
         dialog.info({
-            title: 'checkIsRolling',
-            content: JSON.stringify(checkResult),
+            title: 'checkIsRolling & checkSoftCancel',
+            content: showres,
             positiveText: '确定',
             negativeText: '取消',
             draggable: true,
             onPositiveClick: async () => {
-                message.success('确定')
-                // 先检查是否可以软取消
-                const rollingResult = await checkSoftCancel(taskId);
-                dialog.info({
-                    title: 'checkSoftCancel',
-                    content: JSON.stringify(rollingResult),
-                    positiveText: '确定',
-                    negativeText: '取消',
-                    draggable: true,
-                    onPositiveClick: async () => {
-                        message.success('确定')
-                        // 检查是否是开始传输任务
-                        const startingResult = await checkStartingTransTasks(taskId);
-                        dialog.info({
-                            title: 'checkStartingTransTasks',
-                            content: JSON.stringify(startingResult),
-                            positiveText: '确定',
-                            negativeText: '取消',
-                            draggable: true,
-                            onPositiveClick: async () => {
-                                message.success('确定')
-                                // 执行取消操作
-                                const cancelResult = await cancelTransTasks(taskId);
-                                if (cancelResult && cancelResult.success) {
-                                    message.success('任务软取消成功');
-                                    // 关闭模态框
-                                    showModal.value = false;
-                                    // 刷新任务列表
-                                    if (props.robotCode) {
-                                        queryTasksByRobotCode();
-                                    }
-                                } else {
-                                    message.error(JSON.stringify(cancelResult));
-                                }
-                            },
-                            onNegativeClick: () => {
-                                message.error('取消')
-                            }
-                        })
-                    },
-                    onNegativeClick: () => {
-                        message.error('取消')
+                message.loading('正在取消...')
+                // 执行取消操作
+                const cancelResult = await cancelTransTasks(taskId);
+                if (cancelResult && cancelResult.success) {
+                    message.success('任务软取消成功');
+                    // 关闭模态框
+                    showModal.value = false;
+                    // 刷新任务列表
+                    if (props.robotCode) {
+                        queryTasksByRobotCode();
                     }
-                })
+                } else {
+                    message.error(cancelResult.msg || JSON.stringify(cancelResult));
+                }
             },
             onNegativeClick: () => {
-                message.error('取消')
+                message.error('关闭取消')
             }
         })
     } catch (e) {
@@ -513,8 +491,8 @@ function timeAgo(timestamp) {
                                         <template #header>
                                             <NH3 prefix="bar" style="margin: 0;">
                                                 <span style="font-size: 12px;">SubTask
-                                                    <n-tag size="small">{{ task.srcEqName.replace('MF', '') }}</n-tag>
-                                                    to <n-tag size="small">{{ task.desEqName.replace('MF', '')
+                                                    <n-tag size="small">{{ task.srcEqName?.replace('MF', '') }}</n-tag>
+                                                    to <n-tag size="small">{{ task.desEqName?.replace('MF', '')
                                                     }}</n-tag>
                                                 </span>
 
@@ -586,8 +564,10 @@ function timeAgo(timestamp) {
                         <div class="detail-item">
                             <div class="detail-label">任务状态:</div>
                             <div class="detail-value">
-                                <NTag :type="getStatusType(selectedTask.taskStatus?.toString())"
-                                    :bordered="false" >{{ selectedTask.taskStatusStr || getTaskStatusText(selectedTask.taskStatus?.toString()) }}</NTag>
+                                <NTag :type="getStatusType(selectedTask.taskStatus?.toString())" :bordered="false">{{
+                                    selectedTask.taskStatusStr || getTaskStatusText(selectedTask.taskStatus?.toString())
+                                }}
+                                </NTag>
                             </div>
                         </div>
 

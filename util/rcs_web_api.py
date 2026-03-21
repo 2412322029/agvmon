@@ -114,6 +114,7 @@ class RcsWebApi:
                 "JSESSIONID": "86DFC75B5C1472F831C3E15FF31152B5",
                 "HIK_COOKIE": "19BDC358E70VGIB",
             },
+            timeout=10
         )
         print(response.text)
         self.cookies = self.client.cookies
@@ -371,7 +372,7 @@ class RcsWebApi:
         self.client.headers.update(
             {"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"}
         )
-        response = await self.client.post(url, data=data)
+        response = await self.client.post(url, data=data,timeout=10)
 
         if not response.text:
             await self.login(username=self.username, password=self.password)

@@ -19,7 +19,9 @@ def setup_startup_event(app: FastAPI):
         
         # 启动广播任务
         rdstag = cfg.get_with_reload("rcms.host").split("://")[1].replace(":", "-")
-        asyncio.create_task(broadcast_robot_status(r, rdstag))
+        task = asyncio.create_task(broadcast_robot_status(r, rdstag))
+        task.set_name("broadcast_robot_status")
+        # t/ask.result
         # 启动ZeroMQ管理任务
         # print(f"cfg.get('zmq_auto'): {cfg.get('zmq_auto')}")``
         if cfg.get("zmq_auto"):

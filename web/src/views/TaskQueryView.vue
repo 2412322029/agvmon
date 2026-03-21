@@ -35,21 +35,30 @@ const queryParams = reactive({
     edateTo: null,
     limit: 20,
 })
+const options = [
+    { label: "全部", value: "" },
+    { label: "待分配", value: "0" },
+    { label: "已分配", value: "1" },
+    { label: "正在执行", value: "2" },
+    { label: "执行完成", value: "3" },
+    { label: "执行失败", value: "4" },
+    { label: "已取消", value: "5" },
+]
 
 // 设置默认时间范围：昨天00:00:00 到 今天23:59:59
 const setDefaultDateRange = () => {
     const today = new Date()
     const yesterday = new Date(today)
     yesterday.setDate(yesterday.getDate() - 1)
-    
+
     // 设置开始时间为昨天00:00:00
     const startDate = new Date(yesterday)
-    startDate.setHours(0, 0, 0, 0)
-    
+    startDate.setUTCHours(0)
+
     // 设置结束时间为今天23:59:59
     const endDate = new Date(today)
-    endDate.setHours(23, 59, 59, 999)
-    
+    endDate.setUTCHours(24)
+
     // DatePicker expects timestamp in milliseconds
     queryParams.sdateTo = startDate.getTime()
     queryParams.edateTo = endDate.getTime()
@@ -82,7 +91,7 @@ const error = ref('')
 const queryTasks = async () => {
     loading.value = true
     error.value = ''
-    
+
     try {
         // 格式化日期为API需要的格式
         const formattedParams = {
@@ -90,10 +99,10 @@ const queryTasks = async () => {
             sdateTo: queryParams.sdateTo ? new Date(queryParams.sdateTo).toISOString().slice(0, 19).replace('T', ' ') : null,
             edateTo: queryParams.edateTo ? new Date(queryParams.edateTo).toISOString().slice(0, 19).replace('T', ' ') : null
         }
-        
+
         // 添加cache-busting参数
         const timestamp = new Date().getTime();
-        
+
         // 调用后端API，使用POST方法和JSON body
         const response = await fetch(`/api/rcs_web/find_tasks_detail?t=${timestamp}`, {
             method: 'POST',
@@ -106,12 +115,12 @@ const queryTasks = async () => {
             body: JSON.stringify(formattedParams)
         })
         const data = await response.json()
-        
+
         if (data.success || data.code === 0) {
-              queryResult.value = data
-          } else {
-              error.value = data.message || '查询失败'
-          }
+            queryResult.value = data
+        } else {
+            error.value = data.message || '查询失败'
+        }
     } catch (e) {
         error.value = '网络错误：' + e.message
         console.error('查询任务失败：', e)
@@ -130,8 +139,8 @@ const resetParams = () => {
         }
     }
     // 清空日期选择器
-    queryParams.sdateTo = null
-    queryParams.edateTo = null
+    // queryParams.sdateTo = null
+    // queryParams.edateTo = null
 }
 
 // 组件挂载时初始化
@@ -162,14 +171,7 @@ onMounted(() => {
                     <NCollapseItem name="advancedParams" title="高级查询">
                         <div class="form-row">
                             <NFormItem label="任务状态" path="taskStatus" style="flex: 1; margin-right: 15px;">
-                                <NSelect v-model:value="queryParams.taskStatus" placeholder="全部">
-                                    <option value="">全部</option>
-                                    <option value="0">待分配</option>
-                                    <option value="1">已分配</option>
-                                    <option value="2">正在执行</option>
-                                    <option value="3">执行完成</option>
-                                    <option value="4">执行失败</option>
-                                    <option value="5">已取消</option>
+                                <NSelect v-model:value="queryParams.taskStatus" :options="options" placeholder="">
                                 </NSelect>
                             </NFormItem>
                             <NFormItem label="任务类型" path="taskTyp" style="flex: 1;">
@@ -196,23 +198,17 @@ onMounted(() => {
                         </div>
 
                         <div class="form-row">
-                    <NFormItem label="开始时间" path="sdateTo" style="flex: 1; margin-right: 15px;">
-                        <NDatePicker 
-                            :value="queryParams.sdateTo"
-                            @update:value="(value) => queryParams.sdateTo = value"
-                            type="datetime"
-                            placeholder="选择开始时间"
-                        />
-                    </NFormItem>
-                    <NFormItem label="结束时间" path="edateTo" style="flex: 1;">
-                        <NDatePicker 
-                            :value="queryParams.edateTo"
-                            @update:value="(value) => queryParams.edateTo = value"
-                            type="datetime"
-                            placeholder="选择结束时间"
-                        />
-                    </NFormItem>
-                </div>
+                            <NFormItem label="开始时间" path="sdateTo" style="flex: 1; margin-right: 15px;">
+                                <NDatePicker :value="queryParams.sdateTo"
+                                    @update:value="(value) => queryParams.sdateTo = value" type="datetime"
+                                    placeholder="选择开始时间" />
+                            </NFormItem>
+                            <NFormItem label="结束时间" path="edateTo" style="flex: 1;">
+                                <NDatePicker :value="queryParams.edateTo"
+                                    @update:value="(value) => queryParams.edateTo = value" type="datetime"
+                                    placeholder="选择结束时间" />
+                            </NFormItem>
+                        </div>
 
                         <div class="form-row">
                             <NFormItem label="每页数量" path="limit" style="flex: 1;">
@@ -251,7 +247,7 @@ onMounted(() => {
                 <span>共找到 {{ queryResult.total || queryResult.count || 0 }} 条记录</span>
             </div>
             <NSpin :show="loading">
-                <TaskDisplayComponent :tasks="queryResult.data"/>
+                <TaskDisplayComponent :tasks="queryResult.data" />
             </NSpin>
         </NCard>
     </div>
@@ -269,12 +265,15 @@ onMounted(() => {
     font-weight: 600;
     margin-bottom: 20px;
 }
+
 [data-theme="dark"] .task-query-title {
     color: #fff;
 }
+
 [data-theme="light"] .task-query-title {
     color: #333;
 }
+
 .task-query-form {
     margin-bottom: 20px;
 }
