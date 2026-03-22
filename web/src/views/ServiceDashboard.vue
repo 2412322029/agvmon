@@ -1,4 +1,5 @@
 <script setup>
+import RedisInfo from '@/components/redis.vue'
 import { NButton, NCard, NCheckbox, NResult, useMessage } from 'naive-ui'
 import { onMounted, ref } from 'vue'
 
@@ -248,6 +249,7 @@ onMounted(() => {
           </div>
         </div>
       </NCard>
+      
     </div>
 
     <!-- ZeroMQ Process Management Card -->
@@ -329,6 +331,9 @@ onMounted(() => {
         </div>
       </div>
     </NCard>
+
+    <!-- Redis Info Card -->
+    <RedisInfo />
   </div>
 </template>
 
@@ -367,6 +372,7 @@ onMounted(() => {
   gap: 20px;
   max-width: 1200px;
   margin: 0 auto;
+  margin-bottom: 20px;
 }
 
 .service-card {

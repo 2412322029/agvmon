@@ -17,3 +17,4 @@ node_modules/*
 patches/*
 util/rabbitmq.log
 util/data/cache/*
+util/data/cache/172_18_2_72-8182/*

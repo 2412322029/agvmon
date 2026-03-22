@@ -439,3 +439,11 @@ def cleanup_expired_chat_messages():
 
     except Exception as e:
         print(f"清理过期聊天消息时出错: {str(e)}")
+
+@util_web_router.get("/redis")
+def redis_info():
+    try:
+        info = r.info()
+        return info
+    except Exception as e:
+        return {"error": str(e)}
