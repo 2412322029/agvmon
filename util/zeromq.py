@@ -6,12 +6,13 @@ import threading
 import time
 from datetime import datetime
 
-import xmltodict
+# import xmltodict
 import zmq
 
 from util.config import cfg, r
 from util.dataparse import Robot_msg_decode
 from util.rcms_api import RcmsApi
+from util.xml2json import safe_lxml_parse
 
 logger = logging.getLogger(__name__)
 msg_dict = {
@@ -107,7 +108,7 @@ class ZeroMQSubscriber:
             while True:
                 content = self.receive_message()
                 if content is not None:
-                    content = xmltodict.parse(content)
+                    content = safe_lxml_parse(xml_string=content)
                     if callback:
                         msg_type, j = Robot_msg_decode.parse(content)
                         # print(msg_type)

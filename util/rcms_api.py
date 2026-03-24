@@ -4,7 +4,8 @@ import os
 import pathlib
 
 import httpx
-import xmltodict
+
+from util.xml2json import safe_lxml_parse
 
 from .config import cfg
 from .dataparse import generate_map_image, parse_ShareMapInfo
@@ -98,14 +99,14 @@ class RcmsApi:
         method = "findDeviceListByElcMapCode"
         c = ""
         if self.fake:
-            result = xmltodict.parse(self.fake_data(method))
+            result = safe_lxml_parse(xml_string=self.fake_data(method))
         else:
             url = f"{self.base_url}/{method}"
             data = {"elcMapCode": elc_map_code}
             response = self.client.post(url, json=data)
             response.raise_for_status()
             c = response.text
-            result = xmltodict.parse(c)
+            result = safe_lxml_parse(xml_string=c)
 
         # 将结果存储到self.data
         self.devicelist = result["rows"]["row"]
@@ -120,14 +121,14 @@ class RcmsApi:
         method = "findMapListByRcsCode"
         c = ""
         if self.fake:
-            result = xmltodict.parse(self.fake_data(method))
+            result = safe_lxml_parse(xml_string=self.fake_data(method))
         else:
             url = f"{self.base_url}/{method}"
             data = {"rcsCode": rcs_code}
             response = self.client.post(url, json=data)
             response.raise_for_status()
             c = response.text
-            result = xmltodict.parse(c)
+            result = safe_lxml_parse(xml_string=c)
 
         # 将结果存储到self.data
         self.maplist = result["rows"]["row"]
@@ -141,14 +142,14 @@ class RcmsApi:
         method = "findAllRcsList"
         c = ""
         if self.fake:
-            result = xmltodict.parse(self.fake_data(method))
+            result = safe_lxml_parse(xml_string=self.fake_data(method))
             logger.info("使用模拟数据")
         else:
             url = f"{self.base_url}/{method}"
             response = self.client.get(url)
             response.raise_for_status()
             c = response.text
-            result = xmltodict.parse(c)
+            result = safe_lxml_parse(xml_string=c)
         # 将结果存储到self.data
         self.rcsdata = result["rows"]["row"]
         return method, c
@@ -161,13 +162,13 @@ class RcmsApi:
         method = "findDisplayBizEleTyp"
         c = ""
         if self.fake:
-            result = xmltodict.parse(self.fake_data(method))
+            result = safe_lxml_parse(xml_string=self.fake_data(method))
         else:
             url = f"{self.base_url}/{method}"
             response = self.client.get(url)
             response.raise_for_status()
             c = response.text
-            result = xmltodict.parse(c)
+            result = safe_lxml_parse(xml_string=c)
 
         # 将结果存储到self.data
         self.displaytype = result["MapEleTyps"]["MapEleTyp"]
@@ -181,13 +182,13 @@ class RcmsApi:
         method = "findAlarmTypList"
         c = ""
         if self.fake:
-            result = xmltodict.parse(self.fake_data(method))
+            result = safe_lxml_parse(xml_string=self.fake_data(method))
         else:
             url = f"{self.base_url}/{method}"
             response = self.client.get(url)
             response.raise_for_status()
             c = response.text
-            result = xmltodict.parse(c)
+            result = safe_lxml_parse(xml_string=c)
 
         # 将结果存储到self.data
         self.alarmtype = result["rows"]["row"]
@@ -202,15 +203,16 @@ class RcmsApi:
         method = "getMapDataInfo"
         c = ""
         if self.fake:
-            c = xmltodict.parse(self.fake_data(method))
+            result = safe_lxml_parse(xml_string=self.fake_data(method))
         else:
             url = f"{self.base_url}/{method}"
             data = {"mapCode": map_code}
             response = self.client.post(url, json=data)
             response.raise_for_status()
-            c = xmltodict.parse(response.text)
+            c = response.text
+            result = safe_lxml_parse(xml_string=c)
 
-        self.mapdata = c["rows"]["row"]
+        self.mapdata = result["rows"]["row"]    
         return method, c
 
     def get_line_info(self, map_code: str):
@@ -248,7 +250,7 @@ class RcmsApi:
             # print(response.json())
             c = sharemap2json(response.json())
         self.sharemapdata = c
-        self.sharemapdata_dict = xmltodict.parse(c)
+        self.sharemapdata_dict = safe_lxml_parse(xml_string=c)
         return method, c
 
     def get_rabbit_mq_param(self):
@@ -259,13 +261,13 @@ class RcmsApi:
         method = "getRabbitMqParam"
         c = ""
         if self.fake:
-            result = xmltodict.parse(self.fake_data(method))
+            result = safe_lxml_parse(xml_string=self.fake_data(method))
         else:
             url = f"{self.base_url}/{method}"
             response = self.client.get(url)
             response.raise_for_status()
             c = response.text
-            result = xmltodict.parse(c)
+            result = safe_lxml_parse(xml_string=c)
 
         # 将结果存储到self.data
         self.rabbitmqdata = result["result"]
@@ -361,7 +363,7 @@ class RcmsApi:
         if map_data_path.exists():
             with open(map_data_path, "r", encoding="utf-8") as f:
                 self.sharemapdata = f.read()
-                self.sharemapdata_dict = xmltodict.parse(self.sharemapdata)
+                self.sharemapdata_dict = safe_lxml_parse(xml_string=self.sharemapdata)
         else:
             logger.warning(f"地图数据缓存文件不存在: {map_data_path}")
             retmsg.append(f"地图数据缓存文件不存在: {map_data_path}")

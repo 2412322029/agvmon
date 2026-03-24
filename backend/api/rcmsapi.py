@@ -3,12 +3,12 @@ import multiprocessing
 import os
 from typing import Any, Dict
 
-import xmltodict
 from fastapi import APIRouter, Body, Request
 from pydantic import BaseModel, Field
 
 # from backend.api.rcswebapi import refresh_rcs_api
 from util.config import cfg, r
+from util.xml2json import safe_lxml_parse
 
 # 导入异常日志数据库
 from .exception_log import ExceptionLogDB
@@ -286,7 +286,7 @@ def build_rcms_from_raw_api(request: Request):
 @rcms_router.get("/sharemapdata")
 def get_sharemapdata_api():
     if isinstance(rapi.sharemapdata, str):
-        return xmltodict.parse(rapi.sharemapdata)
+        return safe_lxml_parse(xml_string=rapi.sharemapdata)
     return rapi.sharemapdata
 
 
