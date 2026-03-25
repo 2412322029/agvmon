@@ -134,6 +134,19 @@ class RcmsApi:
         self.maplist = result["rows"]["row"]
         return method, c
 
+    def find_remove_agv(self, map_code: str):
+        """
+        根据地图代码查找排除AGV列表
+        :param map_code: 地图代码
+        :return: 排除AGV列表以及原因
+        """
+        method = "findRemoveAgv"
+        url = f"{self.base_url}/{method}"
+        data = {"mapCode": map_code}
+        response = self.client.post(url, json=data)
+        response.raise_for_status()
+        return safe_lxml_parse(xml_string=response.text)
+
     def find_all_rcs_list(self):
         """
         查找所有RCS列表
@@ -340,7 +353,7 @@ class RcmsApi:
         从缓存数据构建API对象
         """
         retmsg = []
-        logger.info(f"从缓存目录 {self.current_cache_path} 加载数据...")
+        # logger.info(f"从缓存目录 {self.current_cache_path} 加载数据...")
         for d in [
             "rcsdata",
             "maplist",
@@ -367,7 +380,7 @@ class RcmsApi:
         else:
             logger.warning(f"地图数据缓存文件不存在: {map_data_path}")
             retmsg.append(f"地图数据缓存文件不存在: {map_data_path}")
-        logger.info("从缓存数据构建API对象完成！")
+        # logger.info("从缓存数据构建API对象完成！")
         return retmsg
 
     def fake_data(self, method: str):
@@ -394,6 +407,7 @@ class RcmsApi:
             self.get_map_data_info,
             self.get_rabbit_mq_param,
             self.get_share_map_data_info,
+            self.find_remove_agv,
         ]
         for method in methods:
             n, content = method()

@@ -1,10 +1,10 @@
 import asyncio
-import json
 import logging
 import time
 import uuid
 from datetime import datetime, timedelta
 
+import orjson
 from fastapi import WebSocket
 from fastapi.websockets import WebSocketDisconnect
 
@@ -28,7 +28,7 @@ def ws_add_connection(ws: WebSocket) -> str:
         "client_port": ws.client.port if ws.client else 0,
         "user_agent": ws.headers.get("user-agent", ""),
     }
-    r.hset(WEBSOCKET_CONNECTIONS_KEY, conn_id, json.dumps(conn_data))
+    r.hset(WEBSOCKET_CONNECTIONS_KEY, conn_id, orjson.dumps(conn_data))
     r.expire(WEBSOCKET_CONNECTIONS_KEY, 60)
     local_connections[ws] = conn_id
     return conn_id
@@ -48,12 +48,12 @@ def ws_get_all_connections() -> dict:
     for conn_id, data in connections.items():
         conn_id_str = conn_id.decode("utf-8")
         try:
-            data_dict = json.loads(data.decode("utf-8"))
+            data_dict = orjson.loads(data.decode("utf-8"))
             data_dict["connect_time"] = datetime.fromisoformat(
                 data_dict["connect_time"]
             )
             result[conn_id_str] = data_dict
-        except (json.JSONDecodeError, ValueError):
+        except (orjson.JSONDecodeError, ValueError):
             continue
     return result
 
@@ -142,25 +142,49 @@ async def broadcast_robot_status(rdstag):
     while True:
         try:
             robot_status = r.hgetall(f"{rdstag}:ROBOT_STATUS")
-
             robots = {}
-            for robot_id, status_json in robot_status.items():
-                robot_id_str = robot_id.decode("utf-8")
-                try:
-                    status = json.loads(status_json.decode("utf-8"))
-                    robots[robot_id_str] = status
-                except json.JSONDecodeError:
-                    continue
+            if robot_status:
+                robot_ids = [robot_id.decode("utf-8") for robot_id in robot_status.keys()]
+                task_info_keys = [f"{rdstag}:TASK_INFO_REQ:{rid}" for rid in robot_ids]
+                robot_path_keys = [f"{rdstag}:ROBOT_PATH:{rid}" for rid in robot_ids]
+                block_cell_keys = [f"{rdstag}:TRP_BLOCK_CELL:{rid}" for rid in robot_ids]
+                
+                task_info_results = r.mget(task_info_keys)
+                robot_path_results = r.mget(robot_path_keys)
+                block_cell_results = r.mget(block_cell_keys)
+                
+                for idx, (robot_id, status_json) in enumerate(robot_status.items()):
+                    robot_id_str = robot_id.decode("utf-8")
+                    try:
+                        status = orjson.loads(status_json.decode("utf-8"))
+                        robots[robot_id_str] = status
+                        robots[robot_id_str].update(
+                            {
+                                "taskinfo": orjson.loads(
+                                    (task_info_results[idx] or b"").decode("utf-8")
+                                ),
+                                "paths": orjson.loads(
+                                    (robot_path_results[idx] or b"").decode("utf-8")
+                                ),
+                                "block_cell": orjson.loads(
+                                    (block_cell_results[idx] or b"").decode("utf-8")
+                                ),
+                            }
+                        )
+                    except orjson.JSONDecodeError:
+                        continue
 
             if robots:
-                message = json.dumps(
+                message = orjson.dumps(
                     {
+                        "type": "ROBOT_STATUS",
                         "timestamp": time.time(),
+                        # "task": taskinfo,
                         "data": robots,
                         "active_connections": ws_get_connection_count(),
                         "active_connections_detail": ws_detail_gen(),
                     }
-                )
+                ).decode("utf-8")
 
                 for ws in list(local_connections.keys()):
                     try:
@@ -196,19 +220,19 @@ async def websocket_robot_status_endpoint(websocket: WebSocket, rdstag):
         print(f"管理ZeroMQ进程时出错: {e}")
 
     try:
-        robot_status = r.hgetall(f"{rdstag}:ROBOT_STATUS")
-        robots = {}
-        for robot_id, status_json in robot_status.items():
-            robot_id_str = robot_id.decode("utf-8")
-            try:
-                status = json.loads(status_json.decode("utf-8"))
-                robots[robot_id_str] = status
-            except json.JSONDecodeError:
-                continue
+        # robot_status = r.hgetall(f"{rdstag}:ROBOT_STATUS")
+        # robots = {}
+        # for robot_id, status_json in robot_status.items():
+        #     robot_id_str = robot_id.decode("utf-8")
+        #     try:
+        #         status = orjson.loads(status_json.decode("utf-8"))
+        #         robots[robot_id_str] = status
+        #     except orjson.JSONDecodeError:
+        #         continue
 
-        await websocket.send_text(
-            json.dumps({"timestamp": time.time(), "data": robots})
-        )
+        # await websocket.send_text(
+        #     orjson.dumps({"timestamp": time.time(), "data": robots}).decode("utf-8")
+        # )
 
         while True:
             try:
@@ -217,7 +241,9 @@ async def websocket_robot_status_endpoint(websocket: WebSocket, rdstag):
                     last_websocket_activity = datetime.now()
                     ws_refresh_connection(conn_id)
             except asyncio.TimeoutError:
-                await websocket.send_text(json.dumps({"type": "heartbeat"}))
+                await websocket.send_text(
+                    orjson.dumps({"type": "heartbeat"}).decode("utf-8")
+                )
             except WebSocketDisconnect:
                 logger.info(
                     f"WebSocket连接断开，当前连接数: {ws_get_connection_count()}"

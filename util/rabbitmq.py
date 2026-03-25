@@ -177,7 +177,7 @@ def run_rabbitmq_server(api: RcmsApi):
 
         # 定义消息处理回调
         def callback(ch, method, properties, body):
-            logger.debug(f"收到消息: {body.decode('utf-8')}")
+            print(f"收到消息: {body.decode('utf-8')}")
             ch.basic_ack(delivery_tag=method.delivery_tag)
 
         # 开始消费消息（注释掉，避免阻塞）

@@ -36,7 +36,7 @@ def lxml_to_dict_simple(element):
                 result[tag] = child_dict
     elif element.text and element.text.strip():
         # 文本内容
-        result["#text"] = element.text.strip()
+        result = element.text.strip()
 
     return result
 
@@ -48,6 +48,8 @@ def safe_lxml_parse(xml_string, xml_file=None):
     elif xml_file:
         tree = etree.parse(xml_file, _SAFE_PARSER)
     else:
+        if isinstance(xml_string, str):
+            xml_string = xml_string.lstrip()
         tree = etree.parse(
             io.BytesIO(
                 xml_string.encode() if isinstance(xml_string, str) else xml_string
@@ -62,17 +64,52 @@ def safe_lxml_parse(xml_string, xml_file=None):
 if __name__ == "__main__":
     # 使用示例
     xml_data = """
-    <root>
-        <item id="1">First</item>
-        <item id="2">Second</item>
-        <info>
-            <name>Test</name>
-            <value>123</value>
-        </info>
-    </root>
+    <?xml version="1.0" encoding="UTF-8" ?>
+<RobotTypes>
+    <Robot>1</Robot>
+    <RobotType Type="0" Offline="offline.png" Online="online.png" Abnormal="alarm.png"/>
+	<RobotType Type="1" Offline="offline.png" Online="online.png" Abnormal="alarm.png"/>
+	<RobotType Type="2" Offline="offline.png" Online="online.png" Abnormal="alarm.png"/>
+	<RobotType Type="3" Offline="offline.png" Online="online.png" Abnormal="alarm.png"/>
+	<RobotType Type="4" Offline="offline.png" Online="online.png" Abnormal="alarm.png"/>
+	<RobotType Type="5" Offline="offline.png" Online="online.png" Abnormal="alarm.png"/>
+	<RobotType Type="30" Offline="fork_offline.png" Online="fork_online.png" Abnormal="fork_alarm.png"/>
+	<RobotType Type="32" Offline="offline.png" Online="online.png" Abnormal="alarm.png"/>
+	<RobotType Type="33" Offline="fork_offline.png" Online="fork_online.png" Abnormal="fork_alarm.png"/>
+	<RobotType Type="34" Offline="fork_offline.png" Online="fork_online.png" Abnormal="fork_alarm.png"/>
+	<RobotType Type="40" Offline="offline.png" Online="online.png" Abnormal="alarm.png"/>
+	<RobotType Type="48" Offline="AMR_offline.png" Online="AMR_normal.png" Abnormal="AMR_alarm.png"/>
+    <RobotType Type="60" Offline="tractor_offline.png" Online="tractor_online.png" Abnormal="tractor_alarm.png"/>
+	<RobotType Type="70" Offline="ClampUnwind_offline.png" Online="ClampUnwind.png" Abnormal="ClampUnwind_alarm.png"/>
+	<RobotType Type="5000" Offline="rcs5000_offline.png" Online="rcs5000_online.png" Abnormal="rcs5000_alarm.png"/>
+</RobotTypes>
     """
-
     result = safe_lxml_parse(
-        xml_string=xml_data,
-    )
+            xml_string=xml_data,
+        )
     print(result)
+    # import time
+    # import tracemalloc
+
+    # import xmltodict
+
+    # start_time = time.perf_counter()
+    # tracemalloc.start()
+    # for i in range(1000):
+    #     result = safe_lxml_parse(
+    #         xml_string=xml_data,
+    #     )
+    # current, peak = tracemalloc.get_traced_memory()
+    # tracemalloc.stop()
+    # print(f"safe_lxml_parse 解析时间: {time.perf_counter() - start_time} 秒")
+    # print(f"safe_lxml_parse 当前内存: {current / 1024 / 1024:.2f} MB, 峰值: {peak / 1024 / 1024:.2f} MB")
+
+    # start_time = time.perf_counter()
+    # tracemalloc.start()
+    # for i in range(1000):
+    #     result2 = xmltodict.parse(xml_data.strip())
+    # current, peak = tracemalloc.get_traced_memory()
+    # tracemalloc.stop()
+    # print(f"xmltodict 解析时间: {time.perf_counter() - start_time} 秒")
+    # print(f"xmltodict 当前内存: {current / 1024 / 1024:.2f} MB, 峰值: {peak / 1024 / 1024:.2f} MB")
+    # print(result==result2)

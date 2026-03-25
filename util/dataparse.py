@@ -28,6 +28,8 @@ class Robot_msg_decode:
 
             if msg_type == "ROBOT_STATUS":
                 return msg_type, Robot_msg_decode.parse_robot_status(message)
+            elif msg_type == "TASK_INFO_REQ":
+                return msg_type, Robot_msg_decode.parse_task_status(message)
             else:
                 return msg_type, message
 
@@ -43,8 +45,27 @@ class Robot_msg_decode:
     @staticmethod
     def pretty_print_robot_status(rsd: dict):
         if rsd.get("abnormal"):
-            print(f"""设备编号 {rsd.get("robot_id"):<7} 设备任务: {rsd.get("status"):<18}  abnormal: {rsd.get("abnormal"):<8}  电量: {rsd.get("battery")}% alarm {rsd.get("alarm").get("main_name")};{rsd.get("alarm").get("sub_name")}""")
-    
+            print(
+                f"""设备编号 {rsd.get("robot_id"):<7} 设备任务: {rsd.get("status"):<18}  abnormal: {rsd.get("abnormal"):<8}  电量: {rsd.get("battery")}% alarm {rsd.get("alarm").get("main_name")};{rsd.get("alarm").get("sub_name")}"""
+            )
+
+    @staticmethod
+    def parse_task_status(message):
+
+        return {
+            "RobotId": message.get("Task", {}).get("RobotId"),
+            "TaskId": message.get("Task", {}).get("Id"),
+            "TaskType": message.get("Task", {}).get("TaskType"),
+            "RollerIndex": message.get("Task", {}).get("RollerIndex"),
+            "GroupId": message.get("Task", {}).get("GroupId"),
+            "TaskStatus": message.get("Task", {}).get("TaskStatus"),
+            "ActionType": message.get("Task", {}).get("SubTask", {}).get("ActionType"),
+            "ActionTypeText": AmrStatusType(
+                message.get("Task", {}).get("SubTask", {}).get("ActionType"), "2"
+            )[0],
+            "Status": message.get("Task", {}).get("Status"),
+        }
+
     @staticmethod
     def parse_robot_status(message):
         """解析ROBOT_STATUS类型的消息"""
@@ -57,9 +78,9 @@ class Robot_msg_decode:
         # print(status_text)
         # 解析滚轮状态
         roller_status_code = int(robot.get("RollerStatus", 0))
-        roller_status_text = Robot_msg_decode.ROLLER_STATUS_MAP.get(
-            roller_status_code, roller_status_code
-        )
+        # roller_status_text = Robot_msg_decode.ROLLER_STATUS_MAP.get(
+        #     roller_status_code, roller_status_code
+        # )
 
         # 解析布尔字段
         stop = Robot_msg_decode._map_boolean(int(robot.get("Stop", 0)))
@@ -80,21 +101,24 @@ class Robot_msg_decode:
             "load_status": int(robot.get("LoadStatus", 0)),
             "direction": int(robot.get("Direction", 0)),
             "battery": int(robot.get("Battery", 0)),
+            "soh": int(robot.get("Soh", 0)),
             "speed": int(robot.get("Speed", 0)),
             "status": status_text,  # 使用映射后的状态文字
             "status_code": status_code,  # 保留原始状态码
             "abnormal": abnormal,
-            "alarm": AlarmType(f'{robot.get("AlarmMain", 0)}-{robot.get("AlarmSub", 0)}'),
+            "alarm": AlarmType(
+                f"{robot.get('AlarmMain', 0)}-{robot.get('AlarmSub', 0)}"
+            ),
             "stop": stop,  # 布尔值
             "stay": stay,  # 布尔值
             "tgt_distance": int(robot.get("TgtDistance", 0)),
             "remove": remove,  # 布尔值
             "change": change,  # 布尔值
             "version": robot.get("Version"),
-            "roller_status": roller_status_text,  # 使用映射后的滚轮状态文字
+            # "roller_status": roller_status_text,  # 使用映射后的滚轮状态文字
             "roller_status_code": roller_status_code,  # 保留原始滚轮状态码
             "pod": {"id": pod.get("Id"), "bind": int(pod.get("Bind", 0))},
-            "time":time.time()
+            "time": time.time(),
         }
 
     def _map_boolean(value):
@@ -104,6 +128,7 @@ class Robot_msg_decode:
         elif value == 1:
             return True
         return value
+
 
 def AlarmType(t: str):
     """
@@ -166,7 +191,9 @@ def AlarmType(t: str):
             "sub_name": "",
             "solution": "",
         }
-def AmrStatusType(t: str):
+
+
+def AmrStatusType(t: str, types="1"):
     """
     根据机器人状态代码查询状态名称和异常标识
 
@@ -189,9 +216,8 @@ def AmrStatusType(t: str):
 
         # 查找匹配的状态
         for status in status_list:
-            if status.get("code") == str(t) and status.get("type") == "1":
-                return status.get("name", "-"),bool(int(status.get("abnormal", False)))
-                
+            if status.get("code") == str(t) and status.get("type") == types:
+                return status.get("name", "-"), bool(int(status.get("abnormal", False)))
 
         # 如果未找到匹配的状态
         return f"未知状态({t})", False
@@ -641,5 +667,6 @@ def generate_map_image(
         logger.info(f"SVG矢量图像已保存到 {svg_filename}")
 
     return image
+
 
 # print(AmrStatusType(246))

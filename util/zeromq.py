@@ -1,10 +1,11 @@
-import json
 import logging
 import os
 import sys
 import threading
 import time
 from datetime import datetime
+
+import orjson
 
 # import xmltodict
 import zmq
@@ -104,7 +105,7 @@ class ZeroMQSubscriber:
         logger.info("ZeroMQ订阅者已启动，等待消息...")
 
         try:
-            print(" | ".join(msg_dict.keys()))
+            # print(" | ".join(msg_dict.keys()))
             while True:
                 content = self.receive_message()
                 if content is not None:
@@ -133,7 +134,10 @@ class ZeroMQSubscriber:
         except Exception as e:
             logger.error(f"关闭订阅者错误: {e}")
 
+
 rdstag = cfg.get("rcms.host").split("://")[1].replace(":", "-")
+
+
 def Map_info_update(
     api: RcmsApi, map_index: int = 0, interval: float = 0.001, show_count: bool = True
 ):
@@ -146,7 +150,7 @@ def Map_info_update(
     try:
         existing_info = r.get(program_info_key)
         if existing_info:
-            existing_info = json.loads(existing_info)
+            existing_info = orjson.loads(existing_info)
             existing_pid = existing_info.get("pid")
             logger.info(f"已存在运行中的实例，PID: {existing_pid}")
             sys.exit(0)
@@ -183,7 +187,7 @@ def Map_info_update(
                     # 将程序信息写入Redis
                     r.set(
                         f"{rdstag}:program_info",
-                        json.dumps(program_info, ensure_ascii=False),
+                        orjson.dumps(program_info),
                         ex=3,
                     )
                     time.sleep(2)  # 每2秒更新一次
@@ -206,23 +210,25 @@ def Map_info_update(
                 )
             count = msg_dict.get(msg_type, 0)
             msg_dict.update({msg_type: count + 1})
-            if (
-                msg_type == "ROBOT_STATUS"
-                or msg_type == "ROBOT_PATH"
-                or msg_type == "TRP_BLOCK_CELL"
-            ):
+            if msg_type == "ROBOT_STATUS":
+                # key=content.get("Robot", {}).get("Id", -1),
                 r.hset(
                     f"{rdstag}:{msg_type}",
                     key=content.get("RobotId", "-1"),
-                    value=json.dumps(content),
+                    value=orjson.dumps(content),
                 )
-
+            elif msg_type == "ROBOT_PATH" or msg_type == "TRP_BLOCK_CELL":
+                rid = content.get("RobotId", "-1")
+                r.set(f"{rdstag}:{msg_type}:{rid}", value=orjson.dumps(content))#, ex=5
+            elif msg_type == "TASK_INFO_REQ":
+                rid = content.get("RobotId", "-1")
+                r.set(f"{rdstag}:{msg_type}:{rid}", value=orjson.dumps(content))#, ex=5
             elif (
                 msg_type == "BLOCK_CELL"
                 or msg_type == "CHARGE_INFO"
                 or msg_type == "VALID_ROBOT_NUM"
             ):
-                r.set(f"{rdstag}:{msg_type}", value=json.dumps(content))
+                r.set(f"{rdstag}:{msg_type}", value=orjson.dumps(content))
             # elif msg_type == "TASK_INFO_REQ":
             #     r.hset(f"{rdstag}:{msg_type}", key=content.get("@ReqCode"), value=json.dumps(content), ex=60*5)
 
@@ -234,11 +240,13 @@ def Map_info_update(
         logger.error(f"主程序错误: {e}")
         sys.exit(1)
 
+
 def removekey():
-    keys_to_delete=[]
+    keys_to_delete = []
     for key in r.scan_iter(match=f"{rdstag}:*"):
         keys_to_delete.append(key)
         r.delete(*keys_to_delete)
+
 
 def show_loading_bar(bar_length=30, slider_width=5, speed=0.08, stop_event=None):
     """显示无线流动加载进度条

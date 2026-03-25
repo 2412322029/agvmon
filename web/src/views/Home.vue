@@ -597,7 +597,7 @@ const stopagv = async (agvcode = "", stop = false) => {
 }
 const removeagv = async (agvcode = "") => {
   const response = await fetch('/api/rcms/remove_agv_status?robot_id=' + agvcode, {
-    method: 'GET',
+    method: 'DELETE',
   })
   const data = await response.json()
   message.error(data.message || JSON.stringify(data))
@@ -807,6 +807,28 @@ const freeagv = async (agvcode = "", stop = false) => {
                 </div>
               </div>
               <div class="detail-section">
+                <h4>任务-路径-锁格</h4>
+                <div class="detail-item">
+                  <span class="label">任务编号:</span>
+                  <span class="value">{{ selectedRobot.taskinfo?.TaskId || '-' }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="label">动作类型:</span>
+                  <span class="value">{{ selectedRobot.taskinfo?.ActionTypeText || '-' }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="label">路径数:</span>
+                  <span class="value">{{
+                    selectedRobot.paths?.Paths['@Count'] || 0
+                  }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="label">锁格数:</span>
+                  <span class="value">{{
+                    selectedRobot?.block_cell?.Blocks['@Count'] || 0 }}</span>
+                </div>
+              </div>
+              <div class="detail-section">
                 <h4>异常与报警</h4>
                 <div class="detail-item">
                   <span class="label">状态信息:</span>
@@ -866,7 +888,7 @@ const freeagv = async (agvcode = "", stop = false) => {
                 <h4>系统信息</h4>
                 <div class="detail-item">
                   <span class="label">版本:</span>
-                  <span class="value">{{ selectedRobot.version || '未知' }} - {{ sshConfig.password }}</span>
+                  <span class="value">{{ selectedRobot.version || '未知' }}</span>
                 </div>
                 <div class="detail-item">
                   <span class="label">滚筒状态码:</span>
@@ -899,8 +921,14 @@ const freeagv = async (agvcode = "", stop = false) => {
 
               <div class="detail-section">
                 <h4>完整数据</h4>
+
+                <details style="cursor: pointer;">
+
+                  <view-json>{{ JSON.stringify(selectedRobot, null, 2) }}</view-json>
+
+                </details>
+
                 <!-- <pre class="pre" style="max-height: 200px; overflow-y: auto;"> -->
-                <view-json>{{ JSON.stringify(selectedRobot, null, 2) }}</view-json>
                 <!-- </pre> -->
               </div>
             </NScrollbar>

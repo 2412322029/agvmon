@@ -1,8 +1,8 @@
-import json
 import multiprocessing
 import os
 from typing import Any, Dict
 
+import orjson
 from fastapi import APIRouter, Body, Request
 from pydantic import BaseModel, Field
 
@@ -24,7 +24,7 @@ from util.zeromq import Map_info_update
 
 # 创建RcmsApi实例
 rapi = RcmsApi()
-
+rapi.build_from_cache()
 
 # 工具函数：获取Redis实例和rdstag
 def get_redis_and_rdstag():
@@ -66,10 +66,10 @@ def get_program_info():
 
     if existing_info:
         try:
-            info_data = json.loads(existing_info)
+            info_data = orjson.loads(existing_info)
             existing_pid = info_data.get("pid")
             return r, program_info_key, info_data, existing_pid
-        except json.JSONDecodeError:
+        except orjson.JSONDecodeError:
             # 格式错误的信息应被删除
             r.delete(program_info_key)
             return r, program_info_key, None, None
@@ -241,11 +241,86 @@ rcms_router = APIRouter(
 )
 
 
-@rcms_router.get("/remove_agv_status")
+@rcms_router.delete("/remove_agv_status")
 def remove_agv_status(robot_id: str):
+    """删除AGV的过期状态redis记录"""
+    if not robot_id:
+        return {"message": "AGV ID不能为空", "success": False}
     num_deleted = r.hdel(get_redis_and_rdstag() + ":ROBOT_STATUS", robot_id)
-    return {"message": f"AGV状态已删除，共删除 {num_deleted} 条记录"}
+    return {"message": f"AGV状态已删除，共删除 {num_deleted} 条记录", "success": True}
 
+
+@rcms_router.get("/get_agv_path")
+def get_agv_path(robot_id: str):
+    """获取指定AGV的路径"""
+    if not robot_id:
+        return {"message": "AGV ID不能为空", "success": False}
+    path = r.hget(get_redis_and_rdstag() + ":ROBOT_PATH", robot_id)
+    if not path:
+        return {"message": "AGV路径不存在", "success": False}
+    return {"path": orjson.loads(path), "success": True, "message": "AGV路径获取成功"}
+
+
+@rcms_router.get("/get_valid_robot_num")
+def get_valid_robot_num():
+    """获取有效AGV数量"""
+    try:
+        valid_robot = r.get(get_redis_and_rdstag() + ":VALID_ROBOT_NUM")
+        if not valid_robot:
+            return {"message": "AGV有效数量不存在", "success": False}
+        valid_robot = orjson.loads(valid_robot)
+        valid_robot_num = int(valid_robot["ValidRobots"]["@Count"])
+    except Exception as e:
+        return {"message": "AGV有效数量获取失败", "errors": [str(e)], "success": False}
+    return {
+        "valid_robot_num": valid_robot_num,
+        "success": True,
+        "message": "AGV有效数量获取成功",
+    }
+
+
+@rcms_router.get("/get_charge_info")
+def get_charge_info_api():
+    """获取AGV充电信息"""
+    try:
+        data = r.get(get_redis_and_rdstag() + ":CHARGE_INFO")
+        if not data:
+            return {"message": "AGV充电信息不存在", "success": False}
+        data = orjson.loads(data)
+    except Exception as e:
+        return {"message": "AGV充电信息获取失败", "errors": [str(e)], "success": False}
+    return {
+        "data": data,
+        "success": True,
+    }
+
+@rcms_router.get("/get_block_cell_info")
+def get_block_cell_info_api():
+    """获取封锁区域信息"""
+    try:
+        data = r.get(get_redis_and_rdstag() + ":BLOCK_CELL")
+        if not data:
+            return {"message": "封锁区域信息不存在", "success": False}
+        data = orjson.loads(data)
+    except Exception as e:
+        return {"message": "封锁区域信息获取失败", "errors": [str(e)], "success": False}
+    return {
+        "data": data,
+        "success": True,
+    }
+@rcms_router.get("/find_remove_agv")
+def find_remove_agv_api():
+    """查找排除AGV列表以及原因"""
+    try:
+        
+        map_code = rapi.maplist[0].get("code", "")
+        retmsg = rapi.find_remove_agv(map_code)
+    except Exception as e:
+        return {"message": str(e), "errors": [str(e)], "success": False}
+    if not retmsg:
+        return {"message": "error", "errors": retmsg, "success": False}
+    else:
+        return {"message": "排除AGV列表获取成功", "data": retmsg, "success": True}
 
 @rcms_router.get("/build_from_cache")
 def build_rcms_from_cache_api():
@@ -525,9 +600,9 @@ def update_config(config_data: Dict[str, Any] = Body([], description="配置项�
         cfg.reload()
         # global rapi
         # rapi = RcmsApi(host=cfg.get_with_reload("rcms.host"))
-        # rapi.build_from_cache()    
+        # rapi.build_from_cache()
         # refresh_rcs_api()
-        
+
         return {"message": "success"}
     except Exception as e:
         return {"message": "error", "errors": [str(e)]}
@@ -544,11 +619,11 @@ def get_config(key: str | None = None, keys: str | None = None):
                 value = cfg.get(k)
                 config_data[k] = value
             return {"message": "success", "data": config_data}
-        
+
         if key:
             value = cfg.get(key)
             return {"message": "success", "data": {key: value}}
-        
+
         return {"message": "error", "errors": ["No key provided"]}
     except Exception as e:
         return {"message": "error", "errors": [str(e)]}
