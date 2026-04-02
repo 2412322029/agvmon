@@ -2,7 +2,7 @@ import hashlib
 import json
 import pathlib
 from datetime import datetime
-from typing import Dict
+from urllib.parse import quote
 
 from fastapi import (
     APIRouter,
@@ -196,6 +196,7 @@ async def download_file(stored_filename: str):
         else:
             original_filename = stored_filename
             content_type = "application/octet-stream"
+        print(original_filename)
 
         # Determine if it's an image file for preview
         image_types = [
@@ -206,13 +207,20 @@ async def download_file(stored_filename: str):
             "image/bmp",
             "image/webp",
         ]
+        
+        # Encode filename for RFC 5987 (support non-ASCII characters)
+        ascii_filename = quote(original_filename, safe='')
+        
+        # Use stored_filename as ASCII-safe fallback for old browsers
+        fallback_filename = stored_filename
+        
         if content_type in image_types:
             # Return image with appropriate content type for preview
             return FileResponse(
                 path=file_path,
                 media_type=content_type,
                 headers={
-                    "Content-Disposition": f"inline; filename={original_filename}"
+                    "Content-Disposition": f"inline; filename=\"{fallback_filename}\"; filename*=UTF-8''{ascii_filename}"
                 },
             )
         else:
@@ -221,8 +229,12 @@ async def download_file(stored_filename: str):
                 path=file_path,
                 filename=original_filename,
                 media_type=content_type or "application/octet-stream",
+                headers={
+                    "Content-Disposition": f"attachment; filename=\"{fallback_filename}\"; filename*=UTF-8''{ascii_filename}"
+                },
             )
     except Exception as e:
+        raise e
         return {"error": str(e)}
 
 

@@ -20,6 +20,7 @@ const fetchMapData = async () => {
   try {
     const response = await fetch('/api/rcms/sharemapdata')
     const data = await response.json()
+    console.log('Map data:', data)
     mapData.value = data
     message.success('地图数据加载成功')
   } catch (error) {
@@ -36,6 +37,7 @@ const connectWebSocket = () => {
     // 创建WebSocket连接
     const wsUrl = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const wsPath = `${wsUrl}//${window.location.host}/ws/robot-status`
+    console.log('WebSocket URL:', wsPath)
     ws.value = new WebSocket(wsPath)
 
     // 连接打开
@@ -48,10 +50,20 @@ const connectWebSocket = () => {
     ws.value.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data)
-        // 转换数据格式，添加友好的文本显示
-        if (data.type =="heartbeat"){
+        console.log('WebSocket message:', data)
+        
+        // 检查数据结构
+        if (!data.data) {
+          console.log('No data field in message')
           return
         }
+        
+        // 转换数据格式，添加友好的文本显示
+        if (data.type === "heartbeat"){
+          //console.log('Heartbeat message, skipping')
+          return
+        }
+        
         const formattedData = Object.values(data.data || {}).map(item => {
           // 确定显示状态和颜色
           let displayStatus = '正常'
@@ -138,7 +150,7 @@ onBeforeUnmount(() => {
           <MapComponent 
             :map-data="mapData" 
             :robots="robotData" 
-            :width=screenWidth
+            :width="screenWidth"
             :height="900" 
           />
         </div>

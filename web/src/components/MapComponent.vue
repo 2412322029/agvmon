@@ -58,32 +58,6 @@ const canvasSize = computed(() => {
     let actualWidth = props.width
     let actualHeight = props.height
     
-    // 处理百分比宽度
-    if (typeof actualWidth === 'string' && actualWidth.includes('%')) {
-        // 获取父容器的实际宽度
-        if (mapCanvasRef.value) {
-            const parentElement = mapCanvasRef.value.parentElement
-            if (parentElement) {
-                const parentWidth = parentElement.clientWidth
-                const widthPercent = parseFloat(actualWidth)
-                actualWidth = (parentWidth * widthPercent) / 100
-            }
-        }
-    }
-    
-    // 处理百分比高度
-    if (typeof actualHeight === 'string' && actualHeight.includes('%')) {
-        // 获取父容器的实际高度
-        if (mapCanvasRef.value) {
-            const parentElement = mapCanvasRef.value.parentElement
-            if (parentElement) {
-                const parentHeight = parentElement.clientHeight
-                const heightPercent = parseFloat(actualHeight)
-                actualHeight = (parentHeight * heightPercent) / 100
-            }
-        }
-    }
-    
     // 确保是数字类型
     actualWidth = Number(actualWidth) || 800
     actualHeight = Number(actualHeight) || 600
@@ -172,7 +146,7 @@ const renderMapLayerInternal = (ctx, width, height) => {
         const size = (retName.size || retName['@size'])/2
         const font = retName.font || retName['@font']
 
-        const fontSize = Math.max(10, Math.min(30, (size || 16) * scale.value * 0.3))
+        const fontSize = Math.max(12, Math.min(40, (size || 20)))
 
         ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${a / 255})`
         ctx.font = `${fontSize}px ${font}`
@@ -195,10 +169,6 @@ const mapBounds = computed(() => {
     const retNameList = props.mapData?.ret_name_list ||
         props.mapData?.MapRetCfg?.RetName ||
         []
-
-    if (mapRetList.length === 0) {
-        return { minX: 0, maxX: 1000, minY: 0, maxY: 1000 }
-    }
 
     let minX = Infinity
     let maxX = -Infinity
@@ -231,6 +201,30 @@ const mapBounds = computed(() => {
         maxY = Math.max(maxY, Number(startY), Number(endY))
     })
 
+    // 处理机器人位置数据，扩大边界以包含所有机器人
+    if (props.robots) {
+        props.robots.forEach(robot => {
+            if (robot.position) {
+                const rx = Number(robot.position.x)
+                const ry = Number(robot.position.y)
+                if (!isNaN(rx) && !isNaN(ry)) {
+                    minX = Math.min(minX, rx)
+                    maxX = Math.max(maxX, rx)
+                    minY = Math.min(minY, ry)
+                    maxY = Math.max(maxY, ry)
+                }
+            }
+        })
+    }
+
+    // 如果没有有效数据，使用默认边界
+    if (minX === Infinity || maxX === -Infinity || isNaN(minX) || isNaN(maxX)) {
+        minX = 0
+        maxX = 200000
+        minY = 0
+        maxY = 200000
+    }
+
     // 添加一些边距
     const padding = (maxX - minX) * 0.1
     minX -= padding
@@ -243,6 +237,8 @@ const mapBounds = computed(() => {
 
 // 将地图坐标转换为Canvas坐标
 const coordToPixel = (x, y) => {
+    const xNum = Number(x)
+    const yNum = Number(y)
     const { minX, maxX, minY, maxY } = mapBounds.value
     const { width: canvasWidth, height: canvasHeight } = canvasSize.value
 
@@ -258,8 +254,8 @@ const coordToPixel = (x, y) => {
     const canvasCenterY = canvasHeight / 2 + offsetY.value
 
     // 转换坐标
-    const pixelX = canvasCenterX + (x - centerX) * usedScale
-    const pixelY = canvasCenterY - (y - centerY) * usedScale // Y轴翻转
+    const pixelX = canvasCenterX + (xNum - centerX) * usedScale
+    const pixelY = canvasCenterY - (yNum - centerY) * usedScale // Y轴翻转
 
     return { x: pixelX, y: pixelY }
 }
@@ -352,20 +348,25 @@ const drawGridLines = (ctx, width, height) => {
 
 // 绘制机器人层（只绘制机器人，不绘制地图）
 const drawRobotLayer = () => {
-    if (!robotCanvasRef.value) return
+    if (!robotCanvasRef.value) {
+        return
+    }
 
     const canvas = robotCanvasRef.value
     const ctx = canvas.getContext('2d')
-    if (!ctx) return
+    if (!ctx) {
+        return
+    }
 
     // 清空画布
     ctx.clearRect(0, 0, canvas.width, canvas.height)
 
     // 绘制机器人
-    props.robots.forEach(robot => {
+    props.robots.forEach((robot, index) => {
         if (!robot.position) return
 
         const { x, y } = coordToPixel(robot.position.x, robot.position.y)
+
         const direction = robot.direction || 0
         // 缩小小车基础大小并添加基于缩放的动态调整
         const baseRobotSize = 30 
@@ -378,15 +379,24 @@ const drawRobotLayer = () => {
         ctx.translate(x, y)
         ctx.rotate((direction * Math.PI) / 180)
 
-        // 使用预加载的图片（不应用额外缩放，因为坐标转换已经包含了缩放）
+        // 使用预加载的图片，如果没有图片则绘制圆形
         if (imageCache.robotImg) {
             ctx.drawImage(imageCache.robotImg, -robotSize / 2, -robotSize / 2, robotSize, robotSize)
+        } else {
+            // Fallback: 绘制圆形
+            ctx.beginPath()
+            ctx.arc(0, 0, robotSize / 2, 0, Math.PI * 2)
+            ctx.fillStyle = '#4CAF50'
+            ctx.fill()
+            ctx.strokeStyle = '#2E7D32'
+            ctx.lineWidth = 2
+            ctx.stroke()
         }
 
         ctx.restore()
 
         // 绘制负载指示器（如果有负载）
-        if (robot.roller_status_code && imageCache.robotFullImg) {
+        if (robot.roller_status_code) {
             // 解析滚筒状态码，获取负载信息
             const rollerStatus = String(robot.roller_status_code).slice(-4).padStart(4, '0')
             const hasLoads = rollerStatus.split('').map(digit => digit === '1')
@@ -405,7 +415,13 @@ const drawRobotLayer = () => {
                     const offset = offsets[index]
                     const indicatorX = x + offset.x
                     const indicatorY = y + offset.y
-                    ctx.drawImage(imageCache.robotFullImg, indicatorX - indicatorSize / 2, indicatorY - indicatorSize / 2, indicatorSize, indicatorSize)
+                    if (imageCache.robotFullImg) {
+                        ctx.drawImage(imageCache.robotFullImg, indicatorX - indicatorSize / 2, indicatorY - indicatorSize / 2, indicatorSize, indicatorSize)
+                    } else {
+                        // Fallback: 绘制小方块
+                        ctx.fillStyle = '#FF9800'
+                        ctx.fillRect(indicatorX - indicatorSize / 2, indicatorY - indicatorSize / 2, indicatorSize, indicatorSize)
+                    }
                 }
             })
         }
@@ -589,8 +605,7 @@ watch(
 
 // 地图自动居中函数
 const centerMap = () => {
-    // 重置缩放和偏移
-    scale.value = 1
+    // 重置偏移
     offsetX.value = 0
     offsetY.value = 0
     
@@ -602,14 +617,26 @@ const centerMap = () => {
     const mapWidth = maxX - minX
     const mapHeight = maxY - minY
     
-    // 计算合适的缩放比例（使地图适合画布）
+    // 计算合适的缩放比例（使地图完全填充画布）
     const xScale = canvasWidth / mapWidth
     const yScale = canvasHeight / mapHeight
-    const fitScale = Math.min(xScale, yScale) * 0.9 
+    const fitScale = Math.min(xScale, yScale)
     
-    // 设置缩放比例，确保初始大小合适，最小缩放比例为0.5
-    const minScale = 0.5
-    scale.value = Math.max(minScale, fitScale)
+    // 根据地图大小设置合适的初始缩放
+    // 大地图用较大缩放让内容更清晰，同时确保默认可见
+    let initialScale = fitScale * 2
+    if (mapWidth > 100000) {
+        initialScale = Math.max(fitScale * 2, 0.3)
+    } else if (mapWidth > 50000) {
+        initialScale = Math.max(fitScale * 2, 0.5)
+    } else if (mapWidth > 10000) {
+        initialScale = fitScale * 2
+    } else {
+        initialScale = fitScale * 1.5
+    }
+    
+    // 限制最大最小缩放
+    scale.value = Math.max(0.1, Math.min(10, initialScale))
 }
 
 // 缩放控制
@@ -622,11 +649,7 @@ const zoomOut = () => {
 }
 
 const resetView = () => {
-
     centerMap()    
-    scale.value = 3
-    offsetX.value = 0
-    offsetY.value = 0
 }
 
 // 点击机器人处理
@@ -764,7 +787,6 @@ onMounted(async () => {
     centerMap()
     // 绘制地图
     drawMap()
-    scale.value = 2
     // 添加窗口大小变化监听
     window.addEventListener('resize', handleResize)
 })
@@ -880,12 +902,28 @@ onUnmounted(() => {
                     <span class="value">{{ selectedRobot.direction || 0 }}°</span>
                 </div>
                 <div class="detail-item">
+                    <span class="label">电池电量:</span>
+                    <span class="value">{{ selectedRobot.battery || 'N/A' }}%</span>
+                </div>
+                <div class="detail-item">
+                    <span class="label">速度:</span>
+                    <span class="value">{{ selectedRobot.speed || 0 }}</span>
+                </div>
+                <div class="detail-item">
+                    <span class="label">IP:</span>
+                    <span class="value">{{ selectedRobot.ip || 'N/A' }}</span>
+                </div>
+                <div class="detail-item">
                     <span class="label">滚筒状态:</span>
                     <span class="value">{{ selectedRobot.roller_status_code || 'N/A' }}</span>
                 </div>
-                <div class="detail-item">
-                    <span class="label">电池电量:</span>
-                    <span class="value">{{ selectedRobot.battery || 'N/A' }}%</span>
+                <div v-if="selectedRobot.taskinfo" class="detail-item">
+                    <span class="label">当前任务:</span>
+                    <span class="value">{{ selectedRobot.taskinfo.TaskType || '无' }}</span>
+                </div>
+                <div v-if="selectedRobot.taskinfo" class="detail-item">
+                    <span class="label">任务ID:</span>
+                    <span class="value task-id">{{ selectedRobot.taskinfo.TaskId || '无' }}</span>
                 </div>
             </div>
         </div>

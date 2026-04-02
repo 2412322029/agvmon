@@ -205,7 +205,7 @@ async def broadcast_robot_status(rdstag):
 async def websocket_robot_status_endpoint(websocket: WebSocket, rdstag):
     """机器人状态WebSocket接口"""
     await websocket.accept()
-
+    
     conn_id = ws_add_connection(websocket)
     global last_websocket_activity
     last_websocket_activity = datetime.now()

@@ -139,10 +139,9 @@ rdstag = cfg.get("rcms.host").split("://")[1].replace(":", "-")
 
 
 def Map_info_update(
-    api: RcmsApi, map_index: int = 0, interval: float = 0.001, show_count: bool = True
+    api: RcmsApi, interval: float = 0.001, show_count: bool = True
 ):
     """更新地图信息"""
-
     # Check if another instance is already running
     rdstag = cfg.get("rcms.host").split("://")[1].replace(":", "-")
     program_info_key = f"{rdstag}:program_info"
@@ -160,16 +159,10 @@ def Map_info_update(
         pid = os.getpid()
 
         if not api.rcsdata:
-            logger.warning("地图数据为空 重新构建缓存")
+            logger.warning("rcs数据为空 重新构建缓存")
             api = RcmsApi()
             api.build_from_cache()
-        ZERO_MQ_IP = api.rcsdata[map_index].get("ip")
-        ZERO_MQ_CTRL_PORT = api.rcsdata[map_index].get("zeroMqCtrlPort")
-        ZERO_MQ_MESSAGE_PORT = api.rcsdata[map_index].get("zeroMqMessagePort")
-        # 创建订阅者实例
-        subscriber = ZeroMQSubscriber(
-            ZERO_MQ_IP, ZERO_MQ_CTRL_PORT, ZERO_MQ_MESSAGE_PORT
-        )
+
         rdstag = cfg.get("rcms.host").split("://")[1].replace(":", "-")
         message_count = 0
 
@@ -186,7 +179,7 @@ def Map_info_update(
                     }
                     # 将程序信息写入Redis
                     r.set(
-                        f"{rdstag}:program_info",
+                        program_info_key,
                         orjson.dumps(program_info),
                         ex=3,
                     )
@@ -219,10 +212,14 @@ def Map_info_update(
                 )
             elif msg_type == "ROBOT_PATH" or msg_type == "TRP_BLOCK_CELL":
                 rid = content.get("RobotId", "-1")
-                r.set(f"{rdstag}:{msg_type}:{rid}", value=orjson.dumps(content))#, ex=5
+                r.set(
+                    f"{rdstag}:{msg_type}:{rid}", value=orjson.dumps(content), ex=5
+                )  # , ex=5
             elif msg_type == "TASK_INFO_REQ":
                 rid = content.get("RobotId", "-1")
-                r.set(f"{rdstag}:{msg_type}:{rid}", value=orjson.dumps(content))#, ex=5
+                r.set(
+                    f"{rdstag}:{msg_type}:{rid}", value=orjson.dumps(content), ex=2
+                )  # , ex=5
             elif (
                 msg_type == "BLOCK_CELL"
                 or msg_type == "CHARGE_INFO"
@@ -231,8 +228,30 @@ def Map_info_update(
                 r.set(f"{rdstag}:{msg_type}", value=orjson.dumps(content))
             # elif msg_type == "TASK_INFO_REQ":
             #     r.hset(f"{rdstag}:{msg_type}", key=content.get("@ReqCode"), value=json.dumps(content), ex=60*5)
+        logger.info(f"zeromq 数量: {len(api.rcsdata)}")
+        threads = []
+        seen = set()
+        for rd in api.rcsdata:
+            ZERO_MQ_IP = rd.get("ip")
+            ZERO_MQ_CTRL_PORT = rd.get("zeroMqCtrlPort")
+            ZERO_MQ_MESSAGE_PORT = rd.get("zeroMqMessagePort")
 
-        subscriber.run(message_callback, interval=interval)
+            key = (ZERO_MQ_IP, ZERO_MQ_CTRL_PORT, ZERO_MQ_MESSAGE_PORT)
+            if key in seen:
+                logger.warning(f"重复zeromq: {key}")
+                continue
+            seen.add(key)
+
+            subscriber = ZeroMQSubscriber(
+                ZERO_MQ_IP, ZERO_MQ_CTRL_PORT, ZERO_MQ_MESSAGE_PORT
+            )
+            t = threading.Thread(target=subscriber.run, args=(message_callback, interval))
+            t.daemon = True
+            t.start()
+            threads.append(t)
+
+        for t in threads:
+            t.join()
     except Exception as e:
         import traceback
 

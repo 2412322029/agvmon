@@ -1,5 +1,6 @@
 <script setup>
 import TaskDisplayComponent from '@/components/TaskDisplayComponent.vue'
+import PathShow from '@/components/pathshow.vue'
 import SSHComponent from '@/components/ssh.vue'
 import {
   NButton, NCard, NDataTable,
@@ -17,6 +18,10 @@ const robotImgUrl = computed(() => location.origin + '/api/robot_img/online.png'
 const robotoffImgUrl = computed(() => location.origin + '/api/robot_img/offline.png')
 const robot_fullImgUrl = computed(() => location.origin + '/api/robot_img/full.png')
 const clicktimes = ref(Number(localStorage.getItem('clicktimes')) || 3);
+const showpath = ref(Boolean(localStorage.getItem('showpath')) || true);
+function saveShowPath() {
+  localStorage.setItem('showpath', showpath.value);
+}
 function saveClickTimes() {
   localStorage.setItem('clicktimes', clicktimes.value);
 }
@@ -44,7 +49,7 @@ const drawerWidth = computed(() => {
     return '500px' // 桌面使用固定宽度
   }
 })
-
+const canvasWidth = ref((drawerWidth.value === '500px') ? 450 : 350) 
 // 初始化loading bar
 const loadingBar = useLoadingBar()
 const message = useMessage()
@@ -732,6 +737,12 @@ const freeagv = async (agvcode = "", stop = false) => {
                     button-placement="both" />
                   <span style="font-size: 12px; color: #999; margin-left: 8px;">点击切换背景次数< 1关闭</span>
                 </div>
+                <!-- 显示路径 -->
+                <div style="display: flex; align-items: center; margin: 10px;">
+                  <span style="margin-right: 10px;">显示路径</span>
+                  <NSwitch v-model:value="showpath" @update:value="saveShowPath" />
+                  <span style="font-size: 12px; color: #999; margin-left: 8px;">显示机器人路径</span>
+                </div>
               </NForm>
             </NTabPane>
             <NTabPane name="map" tab="地图信息">
@@ -778,7 +789,15 @@ const freeagv = async (agvcode = "", stop = false) => {
         <NTabs v-model:value="detailActiveTab" type="card" style="margin: 20px 0;" @update:value="handleTabChange">
 
           <NTabPane name="info" tab="基本信息">
-            <NScrollbar style="max-height: 78vh" trigger="none">
+              <NScrollbar style="max-height: 78vh" trigger="none">
+              <div style="padding: 10px;" v-if="showpath && Number(selectedRobot.paths?.Paths['@Count'] || 0) > 0">
+                <PathShow 
+                  :pathData="selectedRobot.paths" 
+                  :currentPosition="selectedRobot.position"
+                  :width="canvasWidth"
+                  :height="300"
+                />
+              </div>
               <div class="detail-section">
                 <h4>基本信息</h4>
                 <div class="detail-item">
