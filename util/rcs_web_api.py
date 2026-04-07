@@ -25,7 +25,7 @@ class RcsWebApi:
 
     def __init__(
         self,
-        base_url=cfg.get_with_reload("rcms.host") + "/rcms/web",
+        base_url=cfg.get_with_reload("rcms.rcs_web_api") + "/rcms/web",
         username=cfg.get_with_reload("rcms.username"),
         password=cfg.get_with_reload("rcms.password"),
     ):
@@ -55,6 +55,7 @@ class RcsWebApi:
             cookies={
                 "same": "agvmon",
             },
+            verify=False,
         )
         return self
 
@@ -95,7 +96,8 @@ class RcsWebApi:
             headers={
                 "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
                 "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-            }
+            },
+            verify=False,
         )
         if not username or not password:
             raise Exception("用户名和密码不能为空")

@@ -25,14 +25,14 @@ if not cache_path.exists():
 class RcmsApi:
     def __init__(
         self,
-        host: str = cfg.get("rcms.host"),
+        host: str = cfg.get("rcms.rcms_rest_api"),
         fake: bool = cfg.get("fake"),
     ):
         self.host = host
         self.base_url = f"{self.host}/rcms/services/rest/clientService"
         self.user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36"
         self.client = httpx.Client(
-            headers={"Content-Type": "application/json", "User-Agent": self.user_agent}
+            headers={"Content-Type": "application/json", "User-Agent": self.user_agent}, verify=False
         )
         self.fake = fake
         self.rcsdata = {}

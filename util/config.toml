@@ -6,6 +6,7 @@ test = false
 
 [rcms]
 host = "http://172.18.2.72:8182"
+rcms_rest_api = "http://172.18.2.72:8182"
 wcs_rest_api = "http://172.18.2.72:8090"
 username = "lll"
 password = "Hik@123++"
