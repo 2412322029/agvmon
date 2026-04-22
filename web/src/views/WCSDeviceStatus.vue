@@ -33,7 +33,7 @@ const getmaplist = async () => {
     message.error("获取地图列表失败")
     return
   }
-  mapname.value = data[0]['name']
+  mapname.value = data.map(item => item.name).join(' ')
   console.log(mapname.value);
 
 }

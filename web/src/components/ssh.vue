@@ -56,7 +56,8 @@
                             <n-icon><refresh-icon /></n-icon>
                             刷新
                         </n-button>
-                        <div v-if="props.agversion.includes('V4')">
+                        <div >
+                            <!-- v-if="props.agversion.includes('V4')" -->
                             <n-button @click="getyuv(0)">
                                 地码相机
                             </n-button>

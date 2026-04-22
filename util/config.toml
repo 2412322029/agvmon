@@ -1,15 +1,16 @@
 fake = false
 log_level = "INFO"
 zmq_auto_kill_timedelta = 5
-zmq_auto = true
+zmq_auto = false
 test = false
 
 [rcms]
-host = "http://172.18.2.72:8182"
-rcms_rest_api = "http://172.18.2.72:8182"
-wcs_rest_api = "http://172.18.2.72:8090"
-username = "lll"
-password = "Hik@123++"
+host = "https://172.27.6.43:443"
+rcms_rest_api = "http://172.27.6.43:8181"
+wcs_rest_api = "http://172.27.6.43:8090"
+hash = "sha256"
+username = "twh"
+password = "Hik@123456"
 
 [redis]
 host = "127.0.0.1"

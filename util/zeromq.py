@@ -30,12 +30,14 @@ msg_dict = {
 class ZeroMQSubscriber:
     """ZeroMQ消息订阅者类"""
 
-    def __init__(self, ip, port, message_port):
+    def __init__(self, ip, port, message_port, use_ssl=False, ssl_verify=False):
         """初始化订阅者"""
         try:
             self.ip = ip
             self.port = port
             self.message_port = message_port
+            self.use_ssl = use_ssl
+            self.ssl_verify = ssl_verify
 
             # 创建ZeroMQ上下文
             self.context = zmq.Context()
@@ -43,9 +45,26 @@ class ZeroMQSubscriber:
             self.socket = self.context.socket(zmq.SUB)
             # 设置接收超时（可选）
             self.socket.setsockopt(zmq.RCVTIMEO, 5000)  # 5秒超时
-            # 连接到消息端口
-            self.socket.connect(f"tcp://{self.ip}:{self.message_port}")
-            logger.info(f"已尝试连接到消息服务器: tcp://{self.ip}:{self.message_port}")
+            
+            # 处理SSL连接
+            if self.use_ssl:
+                try:
+                    # 尝试使用tcps协议连接
+                    self.socket.connect(f"tcps://{self.ip}:{self.message_port}")
+                    logger.info(f"已尝试连接到消息服务器: tcps://{self.ip}:{self.message_port}")
+                except zmq.ZMQError as e:
+                    if "Protocol not supported" in str(e):
+                        # 如果不支持SSL协议，回退到普通tcp连接
+                        logger.warning(f"SSL协议不支持，回退到普通TCP连接: {e}")
+                        self.socket.connect(f"udp://{self.ip}:{self.message_port}")
+                        logger.info(f"已尝试连接到消息服务器: udp://{self.ip}:{self.message_port}")
+                    else:
+                        # 其他错误继续抛出
+                        raise
+            else:
+                # 连接到消息端口（使用tcp协议）
+                self.socket.connect(f"tcp://{self.ip}:{self.message_port}")
+                logger.info(f"已尝试连接到消息服务器: tcp://{self.ip}:{self.message_port}")
         except zmq.ZMQError as e:
             logger.error(f"ZeroMQ初始化错误: {e}")
             raise
@@ -94,20 +113,22 @@ class ZeroMQSubscriber:
             logger.error(f"消息处理错误: {e}")
             raise
 
-    def run(self, callback=None, interval=0.01):
+    def run(self, callback=None, interval=0.01, stop_event=None):
         """运行订阅者主循环
 
         Args:
             topic: 订阅主题
             callback: 消息处理回调函数，接收(topic, content)作为参数
+            stop_event: 停止事件对象，用于控制线程退出
         """
         self.subscribe()
         logger.info("ZeroMQ订阅者已启动，等待消息...")
 
         try:
-            # print(" | ".join(msg_dict.keys()))
-            while True:
+            print(" | ".join(msg_dict.keys()))
+            while not (stop_event and stop_event.is_set()):
                 content = self.receive_message()
+                print(content)
                 if content is not None:
                     content = safe_lxml_parse(xml_string=content)
                     if callback:
@@ -146,6 +167,9 @@ def Map_info_update(
     rdstag = cfg.get("rcms.host").split("://")[1].replace(":", "-")
     program_info_key = f"{rdstag}:program_info"
 
+    # 创建停止事件
+    stop_event = threading.Event()
+
     try:
         existing_info = r.get(program_info_key)
         if existing_info:
@@ -169,7 +193,7 @@ def Map_info_update(
         # 创建一个线程定期将程序信息写入Redis
 
         def update_program_info():
-            while True:
+            while not stop_event.is_set():
                 try:
                     program_info = {
                         "pid": pid,
@@ -232,7 +256,7 @@ def Map_info_update(
         threads = []
         seen = set()
         for rd in api.rcsdata:
-            ZERO_MQ_IP = rd.get("ip")
+            ZERO_MQ_IP =rd.get("ip")
             ZERO_MQ_CTRL_PORT = rd.get("zeroMqCtrlPort")
             ZERO_MQ_MESSAGE_PORT = rd.get("zeroMqMessagePort")
 
@@ -242,16 +266,32 @@ def Map_info_update(
                 continue
             seen.add(key)
 
+            # 检查是否需要使用SSL连接（这里可以根据实际情况调整判断逻辑）
+            # 例如，根据端口号或其他配置信息来判断
+            use_ssl = False
+            # 这里可以添加逻辑来判断是否需要使用SSL，例如：
+            # use_ssl = rd.get('useSsl', False) or ZERO_MQ_MESSAGE_PORT in [8883, 8443]
+            
             subscriber = ZeroMQSubscriber(
-                ZERO_MQ_IP, ZERO_MQ_CTRL_PORT, ZERO_MQ_MESSAGE_PORT
+                ZERO_MQ_IP, ZERO_MQ_CTRL_PORT, ZERO_MQ_MESSAGE_PORT,
+                use_ssl=use_ssl, ssl_verify=False  # 不安全的SSL连接
             )
-            t = threading.Thread(target=subscriber.run, args=(message_callback, interval))
+            t = threading.Thread(target=subscriber.run, args=(message_callback, interval, stop_event))
             t.daemon = True
             t.start()
             threads.append(t)
 
+        # 等待用户输入中断
+        try:
+            while not stop_event.is_set():
+                time.sleep(0.1)
+        except KeyboardInterrupt:
+            logger.info("收到中断信号，正在停止所有线程...")
+            stop_event.set()
+
+        # 等待所有线程结束
         for t in threads:
-            t.join()
+            t.join(timeout=1.0)  # 1秒超时，防止线程卡住
     except Exception as e:
         import traceback
 

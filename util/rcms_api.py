@@ -162,6 +162,7 @@ class RcmsApi:
             response = self.client.get(url)
             response.raise_for_status()
             c = response.text
+            # print(url,c)
             result = safe_lxml_parse(xml_string=c)
         # 将结果存储到self.data
         self.rcsdata = result["rows"]["row"]
@@ -251,7 +252,7 @@ class RcmsApi:
         :return: 地图数据信息
         """
         method = "getShareMapInfoByMapCode"
-        c = ""
+        # c = map_code="DD"
         if self.fake:
             with open(f"{fake_path}/{method}.json", "r", encoding="utf-8") as f:
                 c = sharemap2json(json.load(f))
@@ -260,7 +261,7 @@ class RcmsApi:
             data = {"mapCode": map_code, "shareInfos": {"content": "", "type": typen}}
             response = self.client.post(url, json=data)
             response.raise_for_status()
-            # print(response.json())
+            # print(response.text)
             c = sharemap2json(response.json())
         self.sharemapdata = c
         self.sharemapdata_dict = safe_lxml_parse(xml_string=c)

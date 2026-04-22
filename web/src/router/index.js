@@ -144,6 +144,14 @@ const router = createRouter({
       },
       component: () => import('../views/WCSDeviceStatus.vue'),
     },
+    {
+      path: '/test',
+      name: 'test',
+      meta: {
+        disc: 'test',
+      },
+      component: () => import('../components/pathshow.vue'),
+    },
     // 404 Not Found Page
     {
       path: '/:pathMatch(.*)*',

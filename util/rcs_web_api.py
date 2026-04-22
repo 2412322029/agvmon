@@ -4,7 +4,7 @@ import logging
 import os
 import pathlib
 from datetime import datetime, timedelta
-from hashlib import md5
+from hashlib import md5, sha256
 from urllib.parse import quote
 
 import httpx
@@ -25,7 +25,7 @@ class RcsWebApi:
 
     def __init__(
         self,
-        base_url=cfg.get_with_reload("rcms.rcs_web_api") + "/rcms/web",
+        base_url=cfg.get_with_reload("rcms.host") + "/rcms/web",
         username=cfg.get_with_reload("rcms.username"),
         password=cfg.get_with_reload("rcms.password"),
     ):
@@ -103,12 +103,18 @@ class RcsWebApi:
             raise Exception("用户名和密码不能为空")
 
         url = self.base_url + "/login/login.action"
+        if cfg.get("rcms.hash") == "md5":
+            pwd = md5(password.encode("utf-8")).hexdigest()
+        elif cfg.get("rcms.hash") == "sha256":
+            pwd = sha256(password.encode("utf-8")).hexdigest()
+        else:
+            raise("unkown hash, md5 or sha256")
         data = {
             "ecsUserName": username,
-            "ecsPassword": md5(password.encode("utf-8")).hexdigest(),
+            "ecsPassword": pwd,
             "pwdSafeLevelLogin": pwd_safe_level,
         }
-
+        # print(sha256(password.encode("utf-8")).hexdigest())
         response = await self.client.post(
             url,
             data=data,
@@ -615,23 +621,55 @@ class RcsWebApi:
         file_path = self.current_cache_path / "bufferPort.json"
         with open(file_path, "r") as f:
             data = json.load(f)
-        buffer_dict = {}
+        BUFFER_dict = {}
         for one in data.get("data", []):
             if one.get("type") == "1":
-                name = one.get("port")[:8]
-                if name in buffer_dict:
+                name = one.get("port")[:4]
+                if name in BUFFER_dict:
                     continue
                 cmsIndex = one.get("cmsIndex")[:4] + "00"
-                buffer_dict[name] = cmsIndex
+                BUFFER_dict[name] = cmsIndex
         # print(f"buffer_dict: {json.dumps(buffer_dict, ensure_ascii=False, indent=2)}")
-        cv_dict = {}
+        buffer2_dict = {}
         for one in data.get("data", []):
             if one.get("type") == "2":
-                name = one.get("port")[:8]
-                if name in cv_dict:
+                name = one.get("port")
+                if name in buffer2_dict:
                     continue
                 cmsIndex = one.get("cmsIndex")[:4] + "00"
-                cv_dict[name] = cmsIndex
+                buffer2_dict[name] = cmsIndex
+        buffer3_dict = {}
+        for one in data.get("data", []):
+            if one.get("type") == "3":
+                name = one.get("port")
+                if name in buffer3_dict:
+                    continue
+                cmsIndex = one.get("cmsIndex")[:4] + "00"
+                buffer3_dict[name] = cmsIndex
+        buffer5_dict = {}
+        for one in data.get("data", []):
+            if one.get("type") == "5":
+                name = one.get("port")
+                if name in buffer5_dict:
+                    continue
+                cmsIndex = one.get("cmsIndex")[:4] + "00"
+                buffer5_dict[name] = cmsIndex
+        buffer8_dict = {}
+        for one in data.get("data", []):
+            if one.get("type") == "8":
+                name = one.get("port")
+                if name in buffer8_dict:
+                    continue
+                cmsIndex = one.get("cmsIndex")[:4] + "00"
+                buffer8_dict[name] = cmsIndex
+        buffer9_dict = {}
+        for one in data.get("data", []):
+            if one.get("type") == "9":
+                name = one.get("port")
+                if name in buffer9_dict:
+                    continue
+                cmsIndex = one.get("cmsIndex")[:4] + "00"
+                buffer9_dict[name] = cmsIndex
         # print(f"cv_dict: {json.dumps(cv_dict, ensure_ascii=False, indent=2)}")
         file_path = self.current_cache_path / "machinePort.json"
         with open(file_path, "r") as f:
@@ -645,40 +683,45 @@ class RcsWebApi:
                 cmsIndex = one.get("cmsIndex")[:4] + "00"
                 eq_dict[name] = cmsIndex
         # print(f"eq_dict: {json.dumps(eq_dict, ensure_ascii=False, indent=2)}")
-        LET_dict = {}
-        for one in data.get("data", []):
-            if one.get("type") == "2":
-                name = one.get("port")
-                if name in LET_dict:
-                    continue
-                cmsIndex = one.get("cmsIndex")[:4] + "00"
-                LET_dict[name] = cmsIndex
-        PACKING_dict = {}
-        for one in data.get("data", []):
-            if one.get("type") == "3":
-                name = one.get("eqName")
-                if name in PACKING_dict:
-                    continue
-                cmsIndex = one.get("cmsIndex")[:4] + "00"
-                PACKING_dict[name] = cmsIndex
-        # print(f"PACKING_dict: {json.dumps(PACKING_dict, ensure_ascii=False, indent=2)}")
-        stk_dict = {}
+        UPK_dict = {}
         for one in data.get("data", []):
             if one.get("type") == "4":
                 name = one.get("port")
-                if name in stk_dict:
+                if name in UPK_dict:
                     continue
                 cmsIndex = one.get("cmsIndex")[:4] + "00"
-                stk_dict[name] = cmsIndex
+                UPK_dict[name] = cmsIndex
+        STK_dict = {}
+        for one in data.get("data", []):
+            if one.get("type") == "3":
+                name = one.get("eqName")
+                if name in STK_dict:
+                    continue
+                cmsIndex = one.get("cmsIndex")[:4] + "00"
+                STK_dict[name] = cmsIndex
+        # print(f"PACKING_dict: {json.dumps(PACKING_dict, ensure_ascii=False, indent=2)}")
+        VS_dict = {}
+        for one in data.get("data", []):
+            if one.get("type") == "8":
+                name = one.get("port")
+                if name in VS_dict:
+                    continue
+                cmsIndex = one.get("cmsIndex")[:4] + "00"
+                VS_dict[name] = cmsIndex
         # print(f"stk_dict: {json.dumps(stk_dict, ensure_ascii=False, indent=2)}")
         all_dict = {
-            "BUFFER": buffer_dict,
-            "CV": cv_dict,
+            "BUFFER": BUFFER_dict,
+            "CV":buffer2_dict,
+            "无动力BUFFER":buffer3_dict,
+            "潜伏车货架":buffer5_dict,
+            "单滚车CV货架":buffer8_dict,
+            "虚拟货架":buffer9_dict,
             "EQ": eq_dict,
-            "PACKING": PACKING_dict,
-            "STK": stk_dict,
+            "STK": STK_dict,
+            "UPK": UPK_dict,
+            "VS":VS_dict,
         }
-        with open(self.current_cache_path / "cmsindexmap.json", "w") as f:
+        with open(self.current_cache_path / "cmsindexmap.json", "w", encoding="utf-8") as f:
             json.dump(all_dict, f, ensure_ascii=False, indent=2)
         logger.info(
             f"cmsindexmap.json缓存成功，路径：{self.current_cache_path / 'cmsindexmap.json'}"
@@ -692,7 +735,7 @@ class RcsWebApi:
             dict: CMS索引映射字典，包含设备类型和对应的CMS索引列表
         """
         file_path = self.current_cache_path / "cmsindexmap.json"
-        with open(file_path, "r") as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
         return data
 

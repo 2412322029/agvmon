@@ -11,11 +11,12 @@ def all_size():
 
 async def encode_dmdtx(data, size=ENCODING_SIZE_NAMES[5], scale=1) -> Image.Image:
     if size not in ENCODING_SIZE_NAMES:
-        raise ValueError(f"Invalid size: {size}")
+        raise ValueError(f"Invalid size: {str(size)[:10]}...")
 
     if scale <= 0:
-        raise ValueError(f"Invalid scale: {scale}")
-
+        raise ValueError(f"Invalid scale: {str(scale)[:10]}...")
+    if scale >= 5:
+        raise ValueError(f"Scale too large: {str(scale)[:10]}...")
     def inner():
         encoded = encode(data.encode("utf8"), size=size)
         img = Image.frombytes("RGB", (encoded.width, encoded.height), encoded.pixels)
