@@ -182,6 +182,10 @@ const groupedData = computed(() => {
                   <span class="hover-label">trayId:</span>
                   <span class="hover-value">{{ item.trayId }}</span>
                 </div>
+                <div v-if="item.traySize" class="hover-info-item">
+                  <span class="hover-label">traySize:</span>
+                  <span class="hover-value">{{ item.traySize }}</span>
+                </div>
                 <div v-if="item.manualOp" class="hover-info-item">
                   <span class="hover-label">manualOp:</span>
                   <span class="hover-value">{{ item.manualOp }}</span>
@@ -216,6 +220,10 @@ const groupedData = computed(() => {
                 <div v-if="item.trayId" class="hover-info-item">
                   <span class="hover-label">trayId:</span>
                   <span class="hover-value">{{ item.trayId }}</span>
+                </div>
+                <div v-if="item.traySize" class="hover-info-item">
+                  <span class="hover-label">traySize:</span>
+                  <span class="hover-value">{{ item.traySize }}</span>
                 </div>
                 <div v-if="item.manualOp" class="hover-info-item">
                   <span class="hover-label">manualOp:</span>

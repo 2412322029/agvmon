@@ -62,7 +62,7 @@ def test_zmq_address(ip, port, timeout=5000, use_curve=False, server_public_key=
                 return False
             address = f"tcp://{ip}:{port}"
         else:
-            address = f"tcp://{ip}:{port}"
+            address = f"udp://{ip}:{port}"
         
         print(f"连接到: {address}")
         socket.connect(address)
@@ -71,7 +71,7 @@ def test_zmq_address(ip, port, timeout=5000, use_curve=False, server_public_key=
         message = socket.recv()
 
         if message:
-            print(f"收到消息: {message[:100]}...")  # 打印前100字节
+            print(f"收到消息: {message[:500]}...")  # 打印前100字节
             print(f"完整消息长度: {len(message)} bytes")
             
             # 解析消息
@@ -104,7 +104,7 @@ if __name__ == "__main__":
     
     parser = argparse.ArgumentParser(description='测试 ZeroMQ 地址是否有数据')
     parser.add_argument('--ip', default='172.27.6.43', help='目标 IP 地址')
-    parser.add_argument('--port', type=int, default=1883, help='目标端口')
+    parser.add_argument('--port', type=int, default=8990, help='目标端口')
     parser.add_argument('--timeout', type=int, default=5000, help='超时时间 (ms)')
     
     parser.add_argument('--use-curve', type=lambda x: x.lower() == 'true', default=False, help='是否使用 CURVE 加密')

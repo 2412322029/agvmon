@@ -314,7 +314,8 @@ class RcmsApi:
                 self.maplist = [self.maplist]
 
             if self.maplist:
-                map_code = self.maplist[0].get("code", "")
+                map_code = cfg.get("rcms.map_code") or self.maplist[0].get("code", "")
+                
                 logger.info(f"   使用地图代码: {map_code}")
 
                 # 5. 根据地图代码获取设备列表

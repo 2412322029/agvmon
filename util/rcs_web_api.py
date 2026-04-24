@@ -712,14 +712,13 @@ class RcsWebApi:
         all_dict = {
             "BUFFER": BUFFER_dict,
             "CV":buffer2_dict,
-            "无动力BUFFER":buffer3_dict,
-            "潜伏车货架":buffer5_dict,
-            "单滚车CV货架":buffer8_dict,
-            "虚拟货架":buffer9_dict,
+            "NO_POWER_BUFFER":buffer3_dict,
+            # "潜伏车货架":buffer5_dict,
+            "S_CV":buffer8_dict,
             "EQ": eq_dict,
             "STK": STK_dict,
-            "UPK": UPK_dict,
-            "VS":VS_dict,
+            "PODEQ": UPK_dict,
+            # "VS":VS_dict,
         }
         with open(self.current_cache_path / "cmsindexmap.json", "w", encoding="utf-8") as f:
             json.dump(all_dict, f, ensure_ascii=False, indent=2)

@@ -8,6 +8,7 @@ test = false
 host = "https://172.27.6.43:443"
 rcms_rest_api = "http://172.27.6.43:8181"
 wcs_rest_api = "http://172.27.6.43:8090"
+map_code = "DD"
 hash = "sha256"
 username = "twh"
 password = "Hik@123456"
