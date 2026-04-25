@@ -17,14 +17,4 @@ node_modules/*
 patches/*
 util/rabbitmq.log
 util/data/cache/*
-util/data/cache/172_18_2_72-8182/*
-util/data/cache/172_18_2_72-8182/alarmtype.json
-util/data/cache/172_18_2_72-8182/bufferPort.json
-util/data/cache/172_18_2_72-8182/cmsindexmap.json
-util/data/cache/172_18_2_72-8182/devicelist.json
-util/data/cache/172_18_2_72-8182/machinePort.json
-util/data/cache/172_18_2_72-8182/mapdata.json
-util/data/cache/172_18_2_72-8182/maplist.json
-util/data/cache/172_18_2_72-8182/rcsdata.json
-util/data/cache/172_18_2_72-8182/sharemapdata_dict.json
-util/data/cache/172_18_2_72-8182/sharemapdata.xml
+util/data/agvlog/*

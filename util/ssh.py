@@ -314,6 +314,11 @@ class SSHManager:
             "sh -c 'export PATH=$PATH:/usr/bin && rm /mnt/tdcl/tdcl202*.yuv'"
         )
 
+    async def refresh_record(self):
+        return await self.run_command(
+            "sh -c 'export PATH=$PATH:/usr/sbin && castor_refresh_record'"
+        )
+
     async def list_directory(
         self, path: str = ".", parse: bool = True
     ) -> Union[List[Dict], str]:
@@ -542,9 +547,9 @@ class SSHManager:
 
 
 async def main():
-    host = "172.19.245.104"
+    host = "192.168.9.70"
     username = "root"
-    password = "Hik@1234"
+    password = "hiklinux"
 
     ssh_manager = SSHManager(host, username, password)
 
@@ -553,7 +558,9 @@ async def main():
         if not success:
             logger.error(f"连接失败: {error}")
             return
-        o = await ssh_manager.castor_cam_get_yuv("0")
+        _, o = await ssh_manager.run_command(
+            "sh -c 'export PATH=$PATH:/usr/sbin && castor_refresh_record'"
+        )
         print(o)
     finally:
         await ssh_manager.disconnect()

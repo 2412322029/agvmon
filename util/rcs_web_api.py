@@ -8,8 +8,7 @@ from hashlib import md5, sha256
 from urllib.parse import quote
 
 import httpx
-
-from util.config import cfg
+from config import cfg
 
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger()
@@ -108,7 +107,7 @@ class RcsWebApi:
         elif cfg.get("rcms.hash") == "sha256":
             pwd = sha256(password.encode("utf-8")).hexdigest()
         else:
-            raise("unkown hash, md5 or sha256")
+            raise ("unkown hash, md5 or sha256")
         data = {
             "ecsUserName": username,
             "ecsPassword": pwd,
@@ -122,7 +121,7 @@ class RcsWebApi:
                 "JSESSIONID": "86DFC75B5C1472F831C3E15FF31152B5",
                 "HIK_COOKIE": "19BDC358E70VGIB",
             },
-            timeout=10
+            timeout=10,
         )
         print(response.text)
         self.cookies = self.client.cookies
@@ -208,8 +207,7 @@ class RcsWebApi:
         try:
             d = response.json()
         except Exception:
-            # print(response.text)
-            return {"success": False, "msg": response.text}
+            return self.failhelp("查询任务详情", response)
         if not d.get("success"):
             raise Exception(f"查询任务详情失败，响应内容：{response.json()}")
         return response.json()
@@ -325,9 +323,13 @@ class RcsWebApi:
         try:
             d = response.json()
         except Exception:
-            return {"success": False, "msg": response.text}
+            return self.failhelp("检查任务滚动状态", response)
         return d
-
+    def failhelp(self,key, response):
+        return {
+                "success": False,
+                "msg": f"{key}失败，状态码：{response.status_code}，响应内容：{response.text}",
+            }
     async def check_starting_trans_tasks(self, trans_task_nums):
         """
         检查开始传输任务
@@ -352,14 +354,11 @@ class RcsWebApi:
             await self.login(username=self.username, password=self.password)
             response = await self.client.post(url, data=data)
         if response.status_code != 200:
-            return {
-                "success": False,
-                "msg": f"检查开始传输任务失败，状态码：{response.status_code}，响应内容：{response.text}",
-            }
+            return self.failhelp("检查开始传输任务", response)
         try:
             d = response.json()
         except Exception:
-            return {"success": False, "msg": response.text}
+            return self.failhelp("检查开始传输任务", response)
         return d
 
     async def check_soft_cancel(self, trans_task_nums):
@@ -380,20 +379,17 @@ class RcsWebApi:
         self.client.headers.update(
             {"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"}
         )
-        response = await self.client.post(url, data=data,timeout=10)
+        response = await self.client.post(url, data=data, timeout=10)
 
         if not response.text:
             await self.login(username=self.username, password=self.password)
             response = await self.client.post(url, data=data)
         if response.status_code != 200:
-            return {
-                "success": False,
-                "msg": f"检查软取消任务失败，状态码：{response.status_code}，响应内容：{response.text}",
-            }
+            return self.failhelp("检查软取消任务", response)
         try:
             d = response.json()
         except Exception:
-            return {"success": False, "msg": response.text}
+            return self.failhelp("检查软取消任务", response)
         return d
 
     async def cancel_trans_tasks(
@@ -427,16 +423,13 @@ class RcsWebApi:
             await self.login(username=self.username, password=self.password)
             response = await self.client.post(url, data=data)
         if response.status_code != 200:
-            return {
-                "success": False,
-                "msg": f"取消任务失败，状态码：{response.status_code}，响应内容：{response.text}",
-            }
+            return self.failhelp("取消任务", response)
 
         try:
             d = response.json()
             print(d)
         except Exception:
-            return {"success": False, "msg": response.text}
+            return self.failhelp("取消任务", response)
         return d
 
     async def forceCancelTask(self, trans_task_nums: str):
@@ -452,10 +445,7 @@ class RcsWebApi:
         self.client.cookies = self.cookies
         response = await self.client.post(url, json=data)
         if response.status_code != 200:
-            return {
-                "success": False,
-                "msg": f"取消任务失败，状态码：{response.status_code}，响应内容：{response.text}",
-            }
+            return self.failhelp("强制取消任务", response)
         d = response.json()
         # if d["resultCode"] == "redirect":
         #     response = self.client.post(d["message"], data=data)
@@ -479,16 +469,13 @@ class RcsWebApi:
             await self.login(username=self.username, password=self.password)
             response = await self.client.post(url, json=data)
         if response.status_code != 200:
-            return {
-                "success": False,
-                "msg": f"取消任务失败，状态码：{response.status_code}，响应内容：{response.text}",
-            }
+            return self.failhelp("恢复agv", response)
 
         try:
             d = response.json()
             print(d)
         except Exception:
-            return {"success": False, "msg": response.text}
+            return self.failhelp("恢复agv", response)
         return d
 
     async def freeagv(self, agvcode: str):
@@ -509,10 +496,7 @@ class RcsWebApi:
             await self.login(username=self.username, password=self.password)
             response = await self.client.post(url, json=data)
         if response.status_code != 200:
-            return {
-                "success": False,
-                "msg": f"freeagv失败，状态码：{response.status_code}，响应内容：{response.text}",
-            }
+            return self.failhelp("释放agv", response)
 
         try:
             d = response.json()
@@ -520,6 +504,45 @@ class RcsWebApi:
             return {"success": False, "msg": response.text}
         return d
 
+    async def findAllAgv(self):
+        url = self.base_url + "/agvQuery/findAllAgv.action"
+        data = {"clientCode": ""}
+        self.client.headers.update(
+            {
+                "Content-Type": "application/json",
+            }
+        )
+        self.client.cookies = self.cookies
+        response = await self.client.post(url, json=data)
+        if response.status_code != 200:
+            return self.failhelp("查询所有AGV", response)
+        try:
+            d = response.json() 
+        except Exception:
+            return {"success": False, "msg": response.text}
+        return d
+    async def wcsTaskState(self, start=1, limit=100, deviceType="rotate", deviceIndex=""):
+        url = self.base_url + "/wcsTaskState/findTaskState.action"
+        data = {"start": start, "limit": limit,"deviceType": deviceType,"deviceIndex": deviceIndex}
+        self.client.cookies = self.cookies
+        response = await self.client.post(url, data=data)
+        if response.status_code != 200:
+            return self.failhelp("wcsTaskState", response)
+        try:
+            d = response.json() 
+        except Exception:
+            return self.failhelp("wcsTaskState", response)
+        return d
+    async def saveagvinfo(self):
+        file_path = self.current_cache_path / "agvinfo.json"
+        await self.login(username=self.username, password=self.password)
+        logger.info("开始缓存AGV信息")
+        d = await self.findAllAgv()
+        with open(file_path, "w", encoding="utf-8") as f:
+            json.dump(d, f, ensure_ascii=False, indent=4)
+        logger.info(f"缓存AGV信息到{file_path}")
+        
+                
     async def getPort(
         self,
         start=1,
@@ -590,7 +613,7 @@ class RcsWebApi:
                     logger.info(f"{buforeq}缓存成功，路径：{file_path}")
             return d
         except Exception:
-            return {"success": False, "msg": response.text}
+            return self.failhelp(buforeq, response)
         return d
 
     async def saveallport(self):
@@ -711,16 +734,18 @@ class RcsWebApi:
         # print(f"stk_dict: {json.dumps(stk_dict, ensure_ascii=False, indent=2)}")
         all_dict = {
             "BUFFER": BUFFER_dict,
-            "CV":buffer2_dict,
-            "NO_POWER_BUFFER":buffer3_dict,
+            "CV": buffer2_dict,
+            "NO_POWER_BUFFER": buffer3_dict,
             # "潜伏车货架":buffer5_dict,
-            "S_CV":buffer8_dict,
+            "S_CV": buffer8_dict,
             "EQ": eq_dict,
             "STK": STK_dict,
             "PODEQ": UPK_dict,
             # "VS":VS_dict,
         }
-        with open(self.current_cache_path / "cmsindexmap.json", "w", encoding="utf-8") as f:
+        with open(
+            self.current_cache_path / "cmsindexmap.json", "w", encoding="utf-8"
+        ) as f:
             json.dump(all_dict, f, ensure_ascii=False, indent=2)
         logger.info(
             f"cmsindexmap.json缓存成功，路径：{self.current_cache_path / 'cmsindexmap.json'}"
@@ -762,6 +787,8 @@ if __name__ == "__main__":
             password=cfg.get("rcms.password"),
         )
         async with rcs_web_api:
-            print(await rcs_web_api.find_tasks_detail(robotCode=""))
+            await rcs_web_api.login(rcs_web_api.username, rcs_web_api.password)
+            data = await rcs_web_api.wcsTaskState()
+            print(data)
 
     asyncio.run(main())
