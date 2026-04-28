@@ -13,6 +13,8 @@ from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import asyncssh
 
+from util.config import cfg
+
 logger = logging.getLogger(__name__)
 
 
@@ -164,7 +166,22 @@ class SSHManager:
         except Exception as e:
             logger.error(f"SSH连接失败: {e}")
             return False, str(e)
-
+    async def agv_auto_connect(self):
+        """自动连接AGV"""
+        for index, username in enumerate(cfg.get("agv.usernames")):
+            self.username = username
+            self.password = cfg.get("agv.passwords")[index]
+            iscon,why = await self.connect()
+            if why and "Permission denied" in why:
+                continue
+            elif iscon:
+                break
+            else:
+                raise Exception(f"检查ip是否正确,用户名和密码是否正确,错误信息:{why}")
+        else:
+            logger.error("所有用户名和密码均失败，添加更多用户名和密码到配置文件 config.toml")
+            return False
+        return True
     async def disconnect(self):
         """断开SSH连接"""
         if self.connection:

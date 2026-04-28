@@ -8,7 +8,8 @@ from hashlib import md5, sha256
 from urllib.parse import quote
 
 import httpx
-from config import cfg
+
+from util.config import cfg
 
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger()
@@ -303,7 +304,7 @@ class RcsWebApi:
         返回:
             dict: 查询响应的JSON数据
         """
-        url = self.base_url + "/transTask/checkIsRolling.action"
+        url = self.base_url + "/transTask/checkRollTransTasks.action"
         data = {
             "transTaskNums": trans_task_nums,
         }
@@ -393,7 +394,7 @@ class RcsWebApi:
         return d
 
     async def cancel_trans_tasks(
-        self, trans_task_nums, cancel_type="0", cancel_reason="2"
+        self, trans_task_nums, cancel_type="0", toStationTaskCodes=""
     ):
         """
         取消传输任务
@@ -401,7 +402,7 @@ class RcsWebApi:
         参数:
             trans_task_nums: 传输任务编号，多个任务号可以用逗号分隔
             cancel_type: 取消类型，默认为"0"
-            cancel_reason: 取消原因，默认为"2"
+            toStationTaskCodes: 回区域
 
         返回:
             dict: 查询响应的JSON数据
@@ -410,8 +411,9 @@ class RcsWebApi:
         data = {
             "transTaskNums": trans_task_nums,
             "cancelType": cancel_type,
-            "forceCancel": 2,
-            "cancelReason": cancel_reason,
+            "toStationTaskCodes":toStationTaskCodes,
+            # "forceCancel": 2,
+            # "cancelReason": cancel_reason,
         }
         self.client.headers.update(
             {"Content-Type": "application/x-www-form-urlencoded; charset=UTF-8"}

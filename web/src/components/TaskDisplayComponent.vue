@@ -303,7 +303,7 @@ const cancelTransTasks = async (taskId) => {
             body: JSON.stringify({
                 trans_task_nums: taskId,
                 cancel_type: "0",
-                cancel_reason: "2"
+                toStationTaskCodes: "" //回区域
             })
         });
         const data = await response.json();

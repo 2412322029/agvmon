@@ -401,13 +401,13 @@ async def cancel_trans_tasks_api(
         "", embed=True, description="传输任务编号，多个任务号用逗号分隔"
     ),
     cancel_type: str = Body("0", embed=True, description="取消类型"),
-    cancel_reason: str = Body("2", embed=True, description="取消原因"),
+    toStationTaskCodes: str = Body("2", embed=True, description="回区域"),
 ):
     async with rcs_api:
         result = await rcs_api.cancel_trans_tasks(
             trans_task_nums=trans_task_nums,
             cancel_type=cancel_type,
-            cancel_reason=cancel_reason,
+            toStationTaskCodes=toStationTaskCodes,
         )
     return result
 

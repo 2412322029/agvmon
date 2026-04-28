@@ -24,8 +24,8 @@ port = 8000
 workers = 1
 
 [agv]
-username = "root"
-password = "hiklinux"
+usernames = ["root","root","lolik"]
+passwords = ["hiklinux","Hik@12345","123456"]
 
 [chat]
 expire_days = 7

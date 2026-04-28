@@ -57,13 +57,13 @@ def json_response(error, code=202):
 async def connect_agv(
     host: str = Body(...),
     port: int = Body(22, description="SSH端口，默认22"),
-    username: str = Body(cfg.get("agv.username"), description="ssh用户名"),
-    password: str = Body(cfg.get("agv.password"), description="ssh密码"),
+    username: str = Body(cfg.get("agv.usernames")[0], description="ssh用户名"),
+    password: str = Body(cfg.get("agv.passwords")[0], description="ssh密码"),
 ):
     if not username:
-        username = cfg.get("agv.username")
+        username = cfg.get("agv.usernames")[0]
     if not password:
-        password = cfg.get("agv.password")
+        password = cfg.get("agv.passwords")[0]
     if not port:
         port = 22
     # print(f"connect_agv: {host}, {port}, {username}, {password}")
