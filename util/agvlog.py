@@ -5,8 +5,11 @@ import os
 import subprocess
 from ipaddress import ip_address
 
+from util.config import cfg
+
 # import time
 from util.logger import logger
+from util.rcs_web_api import RcsWebApi
 from util.ssh import SSHManager
 
 agv_log_dir = os.path.join(os.path.dirname(__file__), "data", "agvlog")
@@ -182,7 +185,7 @@ def parse_pio_log_line(log_line):
     import re
 
     # 匹配日志行格式
-    pattern = r"\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]\[(\d+)\].*?agv_check_pio_input result (\d+) pio_value (\w+)"
+    pattern = r"\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\]\[(\d+)\]\[NOTIC\]\[ROL\]agv_check_pio_input result ([0-9a-fA-F]+) pio_value ([0-9a-fA-F]+)"
     match = re.match(pattern, log_line)
 
     if not match:
@@ -191,8 +194,8 @@ def parse_pio_log_line(log_line):
     return {
         "time": match.group(1),
         "line_number": int(match.group(2)),
-        "pio_result": int(match.group(3)),
-        "pio_value": match.group(4),
+        "pio_result": int(match.group(3), 16),
+        "pio_value": int(match.group(4), 16),
     }
 
 
@@ -231,7 +234,11 @@ def merge_pio_logs(log_lines):
 
     if not parsed_logs:
         return []
-
+    if len(parsed_logs) != len(log_lines):
+        logger.warning(
+            f"解析日志行时，正则表达式发现 {len(parsed_logs)} 条有效记录，与包含指定关键字日志行数 {len(log_lines)} 不匹配"
+        )
+    # 按时间排序
     # 按时间排序
     parsed_logs.sort(key=lambda x: x["time"])
 
@@ -246,7 +253,7 @@ def merge_pio_logs(log_lines):
             # 开始新组
             # 将16进制转换为二进制
             try:
-                pio_value_bin = bin(int(log["pio_value"], 16))[2:].zfill(8)  # 8位二进制
+                pio_value_bin = bin(log["pio_value"])[2:].zfill(8)  # 8位二进制
             except ValueError:
                 pio_value_bin = log["pio_value"]
 
@@ -277,9 +284,7 @@ def merge_pio_logs(log_lines):
 
                 # 将16进制转换为二进制
                 try:
-                    pio_value_bin = bin(int(log["pio_value"], 16))[2:].zfill(
-                        8
-                    )  # 8位二进制
+                    pio_value_bin = bin(log["pio_value"])[2:].zfill(8)  # 8位二进制
                 except ValueError:
                     pio_value_bin = log["pio_value"]
 
@@ -325,7 +330,11 @@ def get_pio_result(filenames: list[str]):
 
 
 async def download_agv_logs(
-    ip_or_carid: str, filenames: list[str] = [], prefix: str = "/mnt/agv_log/", new_count=1
+    ip_or_carid: str,
+    filenames: list[str] = [],
+    prefix: str = "/mnt/agv_log/",
+    new_count=1,
+    is_agvlog=True,
 ):
     """
      从AGV下载日志文件
@@ -335,14 +344,18 @@ async def download_agv_logs(
     : prefix: 日志文件路径前缀，默认"/mnt/agv_log/"
     :return: 下功下载的文件列表
     """
-    ip = getip_from_carid(ip_or_carid) or ip_or_carid
+    if "." not in ip_or_carid and 0 < len(ip_or_carid) < 6:
+        ip = await getip_from_carid(ip_or_carid)
+    else:
+        ip = ip_or_carid
     if not ip_address(ip):
         raise ValueError(f"IP地址 {ip_or_carid} 无效")
     carid = ip_or_carid if "." not in ip_or_carid else None
-    for filename in filenames:
-        if not filename.startswith("AGV_"):
-            raise ValueError(f"文件 {filename} 不以AGV_开头!")
-    ssh_manager = SSHManager(ip, username="", password="")
+    if is_agvlog:
+        for filename in filenames:
+            if not filename.startswith("AGV_"):
+                raise ValueError(f"文件 {filename} 不以AGV_开头!")
+    ssh_manager = SSHManager(ip, username="root", password="")
     if not prefix.endswith("/"):
         prefix += "/"
 
@@ -371,17 +384,21 @@ async def download_agv_logs(
         if not filenames:  # 如果没有指定文件名，从AGV获取最新文件
             res = await ssh_manager.list_directory(path=f"/{prefix.strip('/')}")
             agv_files = [
-                f for f in res if f.get("is_file") and f.get("name", "").startswith("AGV_")
+                f
+                for f in res
+                if f.get("is_file") and f.get("name", "").startswith("AGV_")
             ]
-            agv_files.sort(key=lambda x: parse_time_from_filename(x["name"]), reverse=True)
+            agv_files.sort(
+                key=lambda x: parse_time_from_filename(x["name"]), reverse=True
+            )
             filenames = [f["name"] for f in agv_files[:new_count]]
             logger.info(f"找到 {len(filenames)} 个最新AGV日志文件: {filenames}")
         existsfile = os.listdir(agv_log_dir)
         for filename in filenames:
-            if carid and not filename.endswith(carid):
+            if is_agvlog and carid and not filename.endswith(carid):
                 logger.warning(f"文件 {filename} 不匹配AGV ID {carid}, 跳过")
                 continue
-                
+
             if filename in existsfile:
                 logger.info(f"文件已存在: {filename}, 跳过")
                 success_download_file.append(filename)
@@ -405,6 +422,26 @@ async def download_agv_logs(
         await ssh_manager.disconnect()
 
 
+async def lsagv(ip_or_carid, path="/mnt"):
+    #TODO path需做安全过滤
+    if "." not in ip_or_carid and 0 < len(ip_or_carid) < 6:
+        ip = await getip_from_carid(ip_or_carid)
+    else:
+        ip = ip_or_carid
+    if not ip_address(ip):
+        raise ValueError(f"IP地址 {ip_or_carid} 无效")
+    ssh_manager = SSHManager(ip, username="root", password="")
+    await ssh_manager.agv_auto_connect()
+    try:
+        output, err = await ssh_manager.execute_command_text(f"ls -l {path}", timeout=5)
+        if not err:
+            print(output)
+        else:
+            print(err)
+    finally:
+        await ssh_manager.disconnect()
+
+
 pio_info_map = [
     "正常状态  ",
     "上仓位    ",
@@ -417,42 +454,121 @@ pio_info_map = [
 ]
 
 
-def print_merged_info(merged_logs):
-    def format_binary_comparison(result_bin, value_bin):
-        result_bin = result_bin.zfill(len(result_bin))
-        value_bin = value_bin.zfill(len(value_bin))
-        mismatches = []
-        lines = []
-        for idx in range(len(result_bin)):
-            r_bit = result_bin[idx]
-            v_bit = value_bin[idx]
-            bit_pos = len(result_bin) - 1 - idx
-            if r_bit != v_bit:
-                lines.append(
-                    f" {bit_pos} {pio_info_map[::-1][idx]} : {r_bit} | {v_bit} \033[31m[X]\033[0m "
-                )
-            else:
-                lines.append(
-                    f" {bit_pos} {pio_info_map[::-1][idx]} : {r_bit} | {v_bit} \033[32m[√]\033[0m"
-                )
-        result_lines = lines[::-1]
-        if mismatches:
-            result_lines.extend(mismatches[::-1])
-        return "\n".join(result_lines)
+def format_binary_comparison(result_bin, value_bin):
+    result_bin = result_bin.zfill(len(result_bin))
+    value_bin = value_bin.zfill(len(value_bin))
+    lines = []
+    for idx in range(len(result_bin)):
+        r_bit = result_bin[idx]
+        v_bit = value_bin[idx]
+        bit_pos = len(result_bin) - 1 - idx
+        if r_bit != v_bit:
+            lines.append(
+                f" {bit_pos} {pio_info_map[::-1][idx]} : {r_bit} | {v_bit} \033[31m[X]\033[0m "
+            )
+        else:
+            lines.append(
+                f" {bit_pos} {pio_info_map[::-1][idx]} : {r_bit} | {v_bit} \033[32m[√]\033[0m"
+            )
+    return "\n".join(lines[::-1])
 
+
+def browse_merged_info(merged_logs):
+
+    if not merged_logs:
+        print("没有数据")
+        return
+
+    total = len(merged_logs)
+    current = 0
+
+    def show_page(idx):
+        import os
+
+        os.system("cls" if os.name == "nt" else "clear")
+        group = merged_logs[idx]
+        print(f"\n组 {idx + 1}/{total}:", flush=True)
+        print(
+            f"[{group['start_time']} ~ {group['end_time']}], line ({group['start_line']} ~ {group['end_line']}) 合并行数: {group['count']}",
+            flush=True,
+        )
+        print(
+            f"  得到,需要的pio值(16进制): {group['pio_result']:#x}, {group['pio_value']:#x}",
+            flush=True,
+        )
+        print(
+            format_binary_comparison(group["pio_result_bin"], group["pio_value_bin"]),
+            flush=True,
+        )
+        print("\n--- a: 上一页 | d: 下一页 | q: 退出 ---", flush=True)
+
+    show_page(current)
+
+    while True:
+        try:
+            import msvcrt
+
+            key = msvcrt.getch()
+            if key == b"a" and current > 0:
+                current -= 1
+                show_page(current)
+            elif key == b"d" and current < total - 1:
+                current += 1
+                show_page(current)
+            elif key == b"q":
+                break
+        except ImportError:
+            import sys
+            import termios
+            import tty
+
+            def get_key():
+                fd = sys.stdin.fileno()
+                old_settings = termios.tcgetattr(fd)
+                try:
+                    tty.setraw(fd)
+                    ch = sys.stdin.read(1)
+                finally:
+                    termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+                return ch
+
+            key = get_key()
+            if key == "a" and current > 0:
+                current -= 1
+                show_page(current)
+            elif key == "d" and current < total - 1:
+                current += 1
+                show_page(current)
+            elif key == "q":
+                break
+
+
+def print_merged_info(merged_logs):
     for i, group in enumerate(merged_logs, 1):
         print(f"\n组 {i}:")
         print(
             f"[{group['start_time']} ~ {group['end_time']}], line ({group['start_line']} ~ {group['end_line']}) 合并行数: {group['count']}"
         )
         print(
-            f"  得到,需要的pio值(16进制): {group['pio_result']}, {group['pio_value']}"
+            f"  得到,需要的pio值(16进制): {group['pio_result']:#x}, {group['pio_value']:#x}"
         )
         print(format_binary_comparison(group["pio_result_bin"], group["pio_value_bin"]))
 
-def getip_from_carid(carid: str) -> str:
-    d = {"1032": "172.26.126.120","3002": "172.26.126.120" }
-    return d.get(carid, "")
+
+async def getip_from_carid(carid: str) -> str:
+    rcs_web_api = RcsWebApi(
+        username=cfg.get("rcms.username"),
+        password=cfg.get("rcms.password"),
+    )
+    async with rcs_web_api:
+        await rcs_web_api.login(rcs_web_api.username, rcs_web_api.password)
+        data = await rcs_web_api.get_agv(agvid=carid)
+        if data.get("code") == "0":
+            ip = data.get("data")[0].get("robotIp")
+            return ip
+        else:
+            logger.error(f"查找小车ip失败:{data}")
+            return None
 
 
 if __name__ == "__main__":

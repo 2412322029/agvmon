@@ -124,7 +124,7 @@ class RcsWebApi:
             },
             timeout=10,
         )
-        print(response.text)
+        logger.info(f"登录rcs2000 web:{response.text}")
         self.cookies = self.client.cookies
         if response.status_code != 200:
             raise Exception(
@@ -326,11 +326,13 @@ class RcsWebApi:
         except Exception:
             return self.failhelp("检查任务滚动状态", response)
         return d
-    def failhelp(self,key, response):
+
+    def failhelp(self, key, response):
         return {
-                "success": False,
-                "msg": f"{key}失败，状态码：{response.status_code}，响应内容：{response.text}",
-            }
+            "success": False,
+            "msg": f"{key}失败，状态码：{response.status_code}，响应内容：{response.text}",
+        }
+
     async def check_starting_trans_tasks(self, trans_task_nums):
         """
         检查开始传输任务
@@ -411,7 +413,7 @@ class RcsWebApi:
         data = {
             "transTaskNums": trans_task_nums,
             "cancelType": cancel_type,
-            "toStationTaskCodes":toStationTaskCodes,
+            "toStationTaskCodes": toStationTaskCodes,
             # "forceCancel": 2,
             # "cancelReason": cancel_reason,
         }
@@ -519,22 +521,58 @@ class RcsWebApi:
         if response.status_code != 200:
             return self.failhelp("查询所有AGV", response)
         try:
-            d = response.json() 
+            d = response.json()
         except Exception:
             return {"success": False, "msg": response.text}
         return d
-    async def wcsTaskState(self, start=1, limit=100, deviceType="rotate", deviceIndex=""):
+
+    async def get_agv(self, agvid=""):
+        url = self.base_url + "/agvQuery/getAgvStatus.action"
+        data = {
+            "clientCode": "",
+            "robotCount": "",
+            "robots": agvid,
+            "mapShortName": "",
+        }
+        self.client.headers.update(
+            {
+                "Content-Type": "application/json",
+            }
+        )
+        self.client.cookies = self.cookies
+        response = await self.client.post(url, json=data)
+        if response.status_code != 200:
+            return self.failhelp("查询AGV状态", response)
+        try:
+            d = response.json()
+            if d["message"] == "成功":
+                return d
+            else:
+                {"success": False, "msg": d["message"]}
+        except Exception:
+            return {"success": False, "msg": response.text}
+
+
+    async def wcsTaskState(
+        self, start=1, limit=100, deviceType="rotate", deviceIndex=""
+    ):
         url = self.base_url + "/wcsTaskState/findTaskState.action"
-        data = {"start": start, "limit": limit,"deviceType": deviceType,"deviceIndex": deviceIndex}
+        data = {
+            "start": start,
+            "limit": limit,
+            "deviceType": deviceType,
+            "deviceIndex": deviceIndex,
+        }
         self.client.cookies = self.cookies
         response = await self.client.post(url, data=data)
         if response.status_code != 200:
             return self.failhelp("wcsTaskState", response)
         try:
-            d = response.json() 
+            d = response.json()
         except Exception:
             return self.failhelp("wcsTaskState", response)
         return d
+
     async def saveagvinfo(self):
         file_path = self.current_cache_path / "agvinfo.json"
         await self.login(username=self.username, password=self.password)
@@ -543,8 +581,7 @@ class RcsWebApi:
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(d, f, ensure_ascii=False, indent=4)
         logger.info(f"缓存AGV信息到{file_path}")
-        
-                
+
     async def getPort(
         self,
         start=1,
@@ -790,7 +827,7 @@ if __name__ == "__main__":
         )
         async with rcs_web_api:
             await rcs_web_api.login(rcs_web_api.username, rcs_web_api.password)
-            data = await rcs_web_api.wcsTaskState()
+            data = await rcs_web_api.get_agv(agvid='1069')
             print(data)
 
     asyncio.run(main())
