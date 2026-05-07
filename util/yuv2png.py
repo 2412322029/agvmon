@@ -2,7 +2,7 @@ import asyncio
 import io
 import logging
 from pathlib import Path
-from typing import AsyncGenerator, NoReturn
+from typing import AsyncGenerator
 
 import aiofiles
 import numpy as np
@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 async def y_only_to_rgb(
     y_data_file=None, y_data=None, width=800, height=600, has_uv = False
-) -> Image | NoReturn:
+) -> Image.Image | None:
     """
     将只有Y平面(灰度)的数据转换为RGB图像。
     :param y_data_file: Yuv数据文件路径

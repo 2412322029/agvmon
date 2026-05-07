@@ -5,7 +5,9 @@ Nuitka打包脚本，用于构建AGV监控系统可执行文件
 
 import os
 import shutil
+import subprocess
 import sys
+from datetime import datetime
 from pathlib import Path
 
 
@@ -71,10 +73,55 @@ def build_with_nuitka():
             shutil.copy2(libdmtx_dll, target_dll)
             print(f"已复制 libdmtx-64.dll 到 {target_dll}")
 
+        # 复制 util/tool 目录到输出
+        tool_src = project_dir / "util" / "tool"
+        tool_dst = dist_dir / "util" / "tool"
+        if tool_src.exists() and dist_dir.exists():
+            if tool_dst.exists():
+                shutil.rmtree(tool_dst)
+            shutil.copytree(tool_src, tool_dst)
+            print(f"已复制 tool 目录到 {tool_dst}")
+
         if dist_dir.exists():
             print(f"\n输出目录: {dist_dir.absolute()}")
             for item in dist_dir.iterdir():
                 print(f"- {item}")
+
+        # 询问是否使用7z压缩
+        compress = input("\n是否使用7z压缩 main.dist 目录？(y/N): ").strip().lower()
+        if compress == "y":
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            zip_name = f"agvmon_{timestamp}.zip"
+            zip_path = project_dir / "dist" / zip_name
+
+            # 尝试查找7z命令
+            seven_zip = shutil.which("7z") or shutil.which("7za") or shutil.which("7zz")
+            if not seven_zip:
+                # 常见安装路径
+                common_paths = [
+                    "C:\\Program Files\\7-Zip\\7z.exe",
+                    "C:\\Program Files (x86)\\7-Zip\\7z.exe",
+                    os.path.expanduser("~\\scoop\\apps\\7zip\\current\\7z.exe"),
+                ]
+                for p in common_paths:
+                    if os.path.exists(p):
+                        seven_zip = p
+                        break
+
+            if not seven_zip:
+                print("错误：未找到7z命令，请安装7-Zip并将其添加到PATH环境变量。")
+            else:
+                print(f"正在压缩 {dist_dir} 到 {zip_path} ...")
+                result = subprocess.run(
+                    [seven_zip, "a", "-tzip", "-mx=9", str(zip_path), str(dist_dir) + "\\*"],
+                    capture_output=True,
+                    text=True,
+                )
+                if result.returncode == 0:
+                    size_mb = zip_path.stat().st_size / (1024 * 1024)
+                    print(f"压缩完成：{zip_path} ({size_mb:.2f} MB)")
+                else:
+                    print(f"压缩失败：{result.stderr.strip() or result.stdout.strip()}")
 
     except Exception as e:
         print(f"发生未知错误: {e}")

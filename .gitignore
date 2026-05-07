@@ -16,5 +16,6 @@ util/data/upload/*
 node_modules/*
 patches/*
 util/rabbitmq.log
-util/data/cache/*
+util/data/cache/
 util/data/agvlog/*
+.github/skills/alist-cli/SKILL.md

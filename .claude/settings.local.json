@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wmic OS get TotalVisibleMemorySize,FreePhysicalMemory /Value)",
+      "Read(//proc/**)"
+    ]
+  }
+}
