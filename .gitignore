@@ -19,3 +19,4 @@ util/rabbitmq.log
 util/data/cache/
 util/data/agvlog/*
 .github/skills/alist-cli/SKILL.md
+util/data/wcslog/*

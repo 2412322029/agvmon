@@ -199,6 +199,92 @@ def parse_pio_log_line(log_line):
     }
 
 
+def list_agv_logs():
+    """
+    列出 agvlog 目录下的所有日志文件
+
+    Returns:
+        list[dict]: 文件信息列表，每个元素包含：
+            - filename: 文件名
+            - path: 完整路径
+            - size: 文件大小（字节）
+            - mtime: 最后修改时间（ISO格式）
+            - is_dir: 是否为目录
+    """
+    if not os.path.exists(agv_log_dir):
+        logger.warning(f"AGV日志目录不存在: {agv_log_dir}")
+        return []
+
+    files = []
+    for name in os.listdir(agv_log_dir):
+        full_path = os.path.join(agv_log_dir, name)
+        stat = os.stat(full_path)
+        files.append({
+            "filename": name,
+            "path": full_path,
+            "size": stat.st_size,
+            "mtime": datetime.datetime.fromtimestamp(stat.st_mtime).isoformat(),
+            "is_dir": os.path.isdir(full_path),
+        })
+
+    # 按修改时间降序排序
+    files.sort(key=lambda x: x["mtime"], reverse=True)
+    return files
+
+
+def delete_agv_logs(log_filenames: list[str] | None = None):
+    """
+    删除 agvlog 目录下的日志文件
+
+    Args:
+        log_filenames: 要删除的文件名列表。为 None 时删除所有文件（含子目录）。
+
+    Returns:
+        list[str]: 成功删除的文件路径列表
+
+    Raises:
+        FileNotFoundError: 指定的文件不存在时
+    """
+    if not os.path.exists(agv_log_dir):
+        logger.warning(f"AGV日志目录不存在: {agv_log_dir}")
+        return []
+
+    deleted = []
+
+    if log_filenames is None:
+        # 删除所有文件
+        for name in os.listdir(agv_log_dir):
+            full_path = os.path.join(agv_log_dir, name)
+            try:
+                if os.path.isdir(full_path):
+                    import shutil
+                    shutil.rmtree(full_path)
+                else:
+                    os.remove(full_path)
+                deleted.append(full_path)
+                logger.info(f"已删除AGV日志: {full_path}")
+            except Exception as e:
+                logger.error(f"删除AGV日志失败 {full_path}: {e}")
+    else:
+        # 删除指定文件
+        for filename in log_filenames:
+            full_path = os.path.join(agv_log_dir, filename)
+            if not os.path.exists(full_path):
+                raise FileNotFoundError(f"AGV日志文件不存在: {full_path}")
+            try:
+                if os.path.isdir(full_path):
+                    import shutil
+                    shutil.rmtree(full_path)
+                else:
+                    os.remove(full_path)
+                deleted.append(full_path)
+                logger.info(f"已删除AGV日志: {full_path}")
+            except Exception as e:
+                logger.error(f"删除AGV日志失败 {full_path}: {e}")
+
+    return deleted
+
+
 def merge_pio_logs(log_lines):
     """
     合并result和pio_value相同的日志行

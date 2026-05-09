@@ -49,7 +49,7 @@ def main():
     )
 
     # run rabbitmq
-    build_subparsers.add_parser("rabbitmq", help="运行RabbitMQ更新服务器")
+    run_subparsers.add_parser("rabbitmq", help="运行RabbitMQ更新服务器")
 
     # run web
     run_subparsers.add_parser("web", help="运行FastAPI WebSocket服务器")
@@ -70,6 +70,31 @@ def main():
 
     # tools rk (remove key)
     tools_subparsers.add_parser("rk", help="remove key")
+
+    # tools clean
+    tools_clean_parser = tools_subparsers.add_parser(
+        "clean", help="清理日志文件"
+    )
+    tools_clean_subparsers = tools_clean_parser.add_subparsers(
+        dest="clean_target", help="清理目标"
+    )
+    tools_clean_subparsers.add_parser("wcslog", help="清理WCS日志文件")
+    tools_clean_subparsers.add_parser("agvlog", help="清理AGV日志文件")
+
+    # tools wcslog
+    tools_wcslog_parser = tools_subparsers.add_parser("wcslog", help="解析WCS日志文件")
+    tools_wcslog_parser.add_argument(
+        "files",
+        nargs="*",
+        default=None,
+        help="要解析的日志文件路径，不指定则扫描 ./data/wcslog/",
+    )
+    tools_wcslog_parser.add_argument(
+        "-c",
+        "--code",
+        default=None,
+        help="探测器短码过滤，如 528000 或 5280xx (xx=通配符)",
+    )
 
     # tools agvlog
     tools_agvlog_parser = tools_subparsers.add_parser(
@@ -109,75 +134,85 @@ def main():
         cfg.set("test", True)
         print(f"测试模式: {cfg.get('test')}")
 
-    # 导入所需模块
-    if args.command == "build" or args.command == "run":
-        from util.rcms_api import RcmsApi
-        from util.rcs_web_api import RcsWebApi
+    subcmd = {
+        "build": getattr(args, "build_command", None),
+        "run": getattr(args, "run_command", None),
+        "tools": getattr(args, "tools_command", None),
+    }.get(args.command)
 
-        rapi = RcmsApi()
-        rcs_api = RcsWebApi()
+    match (args.command, subcmd):
+        # -- build raw --
+        case ("build", "raw"):
+            from util.rcms_api import RcmsApi
 
-    if args.command == "run" and args.run_command == "zeromq":
-        from util.showrobot import show_robot_status
-        from util.zeromq import Map_info_update, removekey
+            RcmsApi().build_from_raw()
 
-    if args.command == "run" and args.run_command == "rabbitmq":
-        from util.rabbitmq import run_rabbitmq_server
+        # -- build cache --
+        case ("build", "cache"):
+            from util.rcms_api import RcmsApi
 
-    if args.command == "run" and args.run_command == "web":
-        from backend.app import run_api_server
-
-    # 执行请求的操作
-    if args.command == "build":
-        if args.build_command == "raw":
-            rapi.build_from_raw()
-        elif args.build_command == "cache":
+            rapi = RcmsApi()
             retmsg = rapi.build_from_cache()
             if retmsg:
                 logger.error(f"构建模型缓存失败: {retmsg}")
             else:
                 logger.info("从缓存构建模型成功")
-        elif args.build_command == "genmap":
+
+        # -- build genmap --
+        case ("build", "genmap"):
+            from util.rcms_api import RcmsApi
+
+            rapi = RcmsApi()
             rapi.build_from_cache()
             rapi.genmapimage()
 
-        elif args.build_command == "saveport":
+        # -- build saveport --
+        case ("build", "saveport"):
             import asyncio
 
             from util.rcs_web_api import RcsWebApi
 
-            rcs_api = RcsWebApi()
-
-            async def inner():
-                async with rcs_api:
+            async def _saveport():
+                async with RcsWebApi() as rcs_api:
                     await rcs_api.saveallport()
 
-            asyncio.run(inner())
+            asyncio.run(_saveport())
 
-        elif args.build_command == "transport":
+        # -- build transport --
+        case ("build", "transport"):
             from util.rcs_web_api import RcsWebApi
 
-            rcs_api = RcsWebApi()
-            rcs_api.transport()
-        else:
-            build_parser.print_help()
-    elif args.command == "run":
-        if args.run_command == "zeromq":
+            RcsWebApi().transport()
+
+        # -- run zeromq --
+        case ("run", "zeromq"):
+            from util.rcms_api import RcmsApi
+            from util.zeromq import Map_info_update
+
+            rapi = RcmsApi()
             rapi.build_from_cache()
             if args.interval is not None:
                 Map_info_update(rapi, interval=args.interval)
             else:
                 Map_info_update(rapi)
-        elif args.run_command == "rabbitmq":
+
+        # -- run rabbitmq --
+        case ("run", "rabbitmq"):
+            from util.rabbitmq import run_rabbitmq_server
+            from util.rcms_api import RcmsApi
+
+            rapi = RcmsApi()
             rapi.build_from_cache()
             run_rabbitmq_server(rapi)
-        elif args.run_command == "web":
-            run_api_server()
-        else:
-            run_parser.print_help()
 
-    elif args.command == "tools":
-        if args.tools_command == "show-robot":
+        # -- run web --
+        case ("run", "web"):
+            from backend.app import run_api_server
+
+            run_api_server()
+
+        # -- tools show-robot --
+        case ("tools", "show-robot"):
             from util.showrobot import show_robot_status
 
             if args.interval is not None:
@@ -185,12 +220,36 @@ def main():
             else:
                 show_robot_status()
 
-        elif args.tools_command == "rk":
+        # -- tools rk --
+        case ("tools", "rk"):
             from util.zeromq import removekey
 
             removekey()
 
-        elif args.tools_command == "agvlog":
+        # -- tools clean --
+        case ("tools", "clean"):
+            import os
+            from util.clean import interactive_clean
+
+            target = getattr(args, "clean_target", None)
+            base = os.path.join(os.path.dirname(os.path.abspath(__file__)), "util", "data")
+            dirs = {
+                "wcslog": os.path.join(base, "wcslog"),
+                "agvlog": os.path.join(base, "agvlog"),
+            }
+            if target in dirs:
+                interactive_clean(dirs[target], label=target)
+            else:
+                print(f"Unknown clean target: {target}")
+                print("  Available: wcslog, agvlog")
+
+        # -- tools wcslog --
+        case ("tools", "wcslog"):
+            from util.parse_wcs_log import run
+            run(args.files, args.code)
+
+        # -- tools agvlog --
+        case ("tools", "agvlog"):
             import asyncio
 
             from util.agvlog import (
@@ -239,16 +298,23 @@ def main():
                 asyncio.run(lsagv(ip_or_carid=args.ip_or_carid, path=args.ls))
             else:
                 print("请指定--pio选项等操作 明确要解析的类型")
-        else:
+
+        # -- unknown subcommand: print group help --
+        case ("build", _):
+            build_parser.print_help()
+        case ("run", _):
+            run_parser.print_help()
+        case ("tools", _):
             tools_parser.print_help()
 
-    else:
-        parser.print_help()
-        print("3秒后启动FastAPI服务器")
-        time.sleep(3)
-        from backend.app import run_api_server
+        # -- unknown command: start default server --
+        case _:
+            parser.print_help()
+            print("3秒后启动FastAPI服务器")
+            time.sleep(3)
+            from backend.app import run_api_server
 
-        run_api_server()
+            run_api_server()
 
 
 if __name__ == "__main__":
