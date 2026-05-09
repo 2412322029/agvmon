@@ -32,22 +32,26 @@ def _build_filter(shortcode: str | None) -> re.Pattern | None:
     )
 
 
-def parse(filepath: str, shortcode: str | None = None) -> Iterator[dict]:
+def parse(filepath: str, shortcode: str | None = None, trayid_hex: str | None = None) -> Iterator[dict]:
     filt = _build_filter(shortcode)
     with open(filepath, encoding="GBK", errors="replace") as f:
         for line in f:
             if filt and not filt.search(line):
                 continue
             m = PATTERN.search(line)
-            if m:
-                yield {
-                    "time": m.group(1),
-                    "task_key": m.group(2),
-                    "action_type": m.group(3),
-                    "request": m.group(4),
-                    "response": m.group(5),
-                    "result": m.group(6),
-                }
+            if not m:
+                continue
+            response = m.group(5)
+            if trayid_hex and trayid_hex.lower() not in response.lower():
+                continue
+            yield {
+                "time": m.group(1),
+                "task_key": m.group(2),
+                "action_type": m.group(3),
+                "request": m.group(4),
+                "response": response,
+                "result": m.group(6),
+            }
 
 
 def _collect_default_files() -> list[str]:

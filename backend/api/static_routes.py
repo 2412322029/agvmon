@@ -1,7 +1,7 @@
 import os
 
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 frontend_dist_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "web", "dist")
@@ -33,9 +33,12 @@ def setup_404_handler(app: FastAPI):
     """设置404错误处理"""
     @app.exception_handler(404)
     async def not_found_handler(request: Request, exc):
-        """处理404错误，返回index.html以支持SPA路由"""
+        """处理404错误：API 路由返回 JSON，其他返回 index.html 以支持 SPA"""
+        if request.url.path.startswith("/api"):
+            return JSONResponse(status_code=404, content={"detail": "Not found"})
+
         frontend_dist_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "web", "dist")
         index_path = os.path.join(frontend_dist_dir, "index.html")
         if os.path.exists(index_path):
             return FileResponse(index_path)
-        return {"message": "Not found"}
+        return JSONResponse(status_code=404, content={"message": "Not found"})

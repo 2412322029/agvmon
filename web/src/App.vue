@@ -3,6 +3,7 @@ import {
   ApiOutlined,
   ControlFilled,
   ExceptionOutlined,
+  FileTextOutlined,
   HomeOutlined,
   LinkOutlined,
   LoginOutlined,
@@ -14,7 +15,6 @@ import {
   SwitcherOutlined,
   ToolOutlined
 } from '@vicons/antd';
-
 import { FileUpload, MapMarkedAlt, Server, Tasks } from "@vicons/fa";
 import {
   darkTheme,
@@ -33,6 +33,7 @@ import {
 import { computed, h, onMounted, onUnmounted, provide, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ribbon } from './composables/ribbon';
+const buildTime = __BUILD_TIME__ || "null";
 const router = useRouter();
 const route = useRoute();
 const clicktimes = ref(Number(localStorage.getItem('clicktimes')) || 3);
@@ -131,6 +132,12 @@ const menuOptions = [
         key: '/exception-records',
         icon: renderIcon(ExceptionOutlined),
         onClick: () => router.push('/exception-records')
+      },
+      {
+        label: '日志分析',
+        key: '/log-parser',
+        icon: renderIcon(FileTextOutlined),
+        onClick: () => router.push('/log-parser')
       },
       {
         label: 'AGV-EQ协议解析',
@@ -274,6 +281,16 @@ onUnmounted(() => {
         <!-- 主要内容区域 -->
         <main id="main-content">
           <router-view />
+          <div class="back-to-top cd-top faa-float animated cd-is-visible" style="top: -900px;"></div>
+          <footer v-if="!(route.path === '/chat')" style="text-align: center;">
+            <p>© 2026 Lolik | Powered by <a href="https://github.com/2412322029/agvmon" target="_blank">agvmon</a>
+              <br>
+              AGV Monitor API <a href="/docs" target="_blank"> swagger-docs</a> / <a href="/redoc"
+                target="_blank">redoc</a>
+              <br>
+              <span style="font-size: 12px; color: #999;">buildTime: {{ buildTime }}</span>
+            </p>
+          </footer>
           <canvas id="cbg" class="rib"
             style="opacity: 0.6; position: fixed; top: 0px; left: 0px; z-index: -2; width: 100%; height: 70%; pointer-events: none;">
           </canvas>
@@ -282,13 +299,15 @@ onUnmounted(() => {
     </n-message-provider>
     <n-global-style />
   </n-config-provider>
-
-  <div class="back-to-top cd-top faa-float animated cd-is-visible" style="top: -900px;"></div>
 </template>
 
 <style scoped>
 /* 全局样式 */
-
+a {
+  color: #1890ff;
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
 #main-content {
   padding: 3px;
   max-width: 1200px;

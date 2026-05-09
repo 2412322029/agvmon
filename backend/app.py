@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.api.agvssh import agv_web_router
+from backend.api.log_parser import log_parser_router
 from backend.api.other import util_web_router, websocket_chat_endpoint
 from backend.api.rcmsapi import rcms_router
 from backend.api.rcswebapi import rcs_web_router
@@ -130,6 +131,8 @@ app.include_router(util_web_router, prefix="/api")
 # 包含WcsApi路由
 app.include_router(wcs_web_router, prefix="/api")
 
+# 包含LogParserApi路由
+app.include_router(log_parser_router, prefix="/api")
 
 # 设置WebSocket路由
 @app.websocket("/ws/robot-status")

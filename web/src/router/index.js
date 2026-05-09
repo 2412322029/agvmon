@@ -72,6 +72,15 @@ const router = createRouter({
       },
       component: () => import('../views/ExceptionRecordsView.vue'),
     },
+    // Log Parser Page
+    {
+      path: '/log-parser',
+      name: 'log-parser',
+      meta: {
+        disc: '日志分析',
+      },
+      component: () => import('../views/LogParser.vue'),
+    },
     // AGV Protocol Parser Page
     {
       path: '/agv-eq-protocol-parser',
