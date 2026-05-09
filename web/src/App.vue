@@ -5,6 +5,7 @@ import {
   ExceptionOutlined,
   FileTextOutlined,
   HomeOutlined,
+  InfoCircleOutlined,
   LinkOutlined,
   LoginOutlined,
   MenuOutlined,
@@ -201,6 +202,12 @@ const menuOptions = [
     key: "/setting",
     icon: renderIcon(SettingOutlined),
     onClick: () => router.push('/setting')
+  },
+  {
+    label: "关于",
+    key: "/about",
+    icon: renderIcon(InfoCircleOutlined),
+    onClick: () => router.push('/about')
   }
 ];
 
