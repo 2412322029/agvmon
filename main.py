@@ -82,14 +82,33 @@ def main():
     tools_clean_subparsers.add_parser("agvlog", help="清理AGV日志文件")
 
     # tools wcslog
-    tools_wcslog_parser = tools_subparsers.add_parser("wcslog", help="解析WCS日志文件")
-    tools_wcslog_parser.add_argument(
+    tools_wcslog_parser = tools_subparsers.add_parser("wcslog", help="WCS日志管理")
+    tools_wcslog_subparsers = tools_wcslog_parser.add_subparsers(
+        dest="wcslog_command", help="WCS子命令"
+    )
+
+    # tools wcslog list
+    tools_wcslog_subparsers.add_parser("list", help="列出远程WCS default.log文件")
+
+    # tools wcslog download
+    wcslog_dl_parser = tools_wcslog_subparsers.add_parser(
+        "download", help="列出远程文件并选择下载"
+    )
+    wcslog_dl_parser.add_argument(
+        "-a", "--all", action="store_true", help="下载所有default.log文件（跳过交互选择）"
+    )
+
+    # tools wcslog parse
+    wcslog_parse_parser = tools_wcslog_subparsers.add_parser(
+        "parse", help="解析本地WCS日志文件"
+    )
+    wcslog_parse_parser.add_argument(
         "files",
         nargs="*",
         default=None,
         help="要解析的日志文件路径，不指定则扫描 ./data/wcslog/",
     )
-    tools_wcslog_parser.add_argument(
+    wcslog_parse_parser.add_argument(
         "-c",
         "--code",
         default=None,
@@ -239,14 +258,96 @@ def main():
             }
             if target in dirs:
                 interactive_clean(dirs[target], label=target)
+            elif target is None:
+                print("Available: wcslog, agvlog")
+                choice = input("Which to clean? [wcslog/agvlog/q]: ").strip().lower()
+                if choice == "q":
+                    print("Cancelled.")
+                elif choice in dirs:
+                    interactive_clean(dirs[choice], label=choice)
+                else:
+                    print(f"Unknown: {choice}")
             else:
                 print(f"Unknown clean target: {target}")
                 print("  Available: wcslog, agvlog")
 
         # -- tools wcslog --
         case ("tools", "wcslog"):
-            from util.parse_wcs_log import run
-            run(args.files, args.code)
+            wcslog_cmd = getattr(args, "wcslog_command", None)
+            if wcslog_cmd == "list":
+                import asyncio
+                from util.parse_wcs_log import list_wcs_logs
+
+                async def _list():
+                    files = await list_wcs_logs()
+                    if not files:
+                        print("未找到 default.log 文件")
+                        return
+                    print(f"{'#':<4} {'文件名':<25} {'时间':<20} {'大小':>8}")
+                    print("-" * 60)
+                    for i, f in enumerate(files, 1):
+                        print(f"{i:<4} {f['filename']:<25} {f['time'].strftime('%Y-%m-%d %H:%M:%S'):<20}")
+                asyncio.run(_list())
+
+            elif wcslog_cmd == "download":
+                import asyncio
+                from util.parse_wcs_log import download_wcs_log, list_wcs_logs
+
+                async def _download():
+                    files = await list_wcs_logs()
+                    if not files:
+                        print("未找到 default.log 文件")
+                        return
+
+                    if args.all:
+                        selected = files
+                    else:
+                        print(f"{'#':<4} {'文件名':<25} {'时间':<20}")
+                        print("-" * 50)
+                        for i, f in enumerate(files, 1):
+                            print(f"{i:<4} {f['filename']:<25} {f['time'].strftime('%Y-%m-%d %H:%M:%S'):<20}")
+                        print("-" * 50)
+                        raw = input("输入序号下载（多个用空格/逗号分隔，回车=全部）: ").strip()
+                        if not raw:
+                            selected = files
+                        else:
+                            idxs = set()
+                            for part in raw.replace(",", " ").split():
+                                try:
+                                    idxs.add(int(part) - 1)
+                                except ValueError:
+                                    print(f"无效序号: {part}，跳过")
+                            selected = [files[i] for i in sorted(idxs) if 0 <= i < len(files)]
+
+                    if not selected:
+                        print("未选择任何文件")
+                        return
+
+                    def _progress(downloaded, total):
+                        pct = downloaded / total * 100
+                        bar_len = 30
+                        filled = int(bar_len * downloaded / total)
+                        bar = "█" * filled + "░" * (bar_len - filled)
+                        print(f"\r  {bar} {pct:.1f}% ({_fmt(downloaded)}/{_fmt(total)})", end="", flush=True)
+
+                    def _fmt(size):
+                        for u in ["B", "KB", "MB", "GB"]:
+                            if size < 1024:
+                                return f"{size:.2f} {u}"
+                            size /= 1024
+                        return f"{size:.2f} TB"
+
+                    for f in selected:
+                        print(f"\n下载: {f['filename']}")
+                        dest = await download_wcs_log(f["filename"], progress_cb=_progress)
+                        print(f"\n  -> {dest}")
+
+                asyncio.run(_download())
+
+            else:  # parse (默认)
+                from util.parse_wcs_log import run
+                run(args.files if hasattr(args, 'files') else None,
+                    args.code if hasattr(args, 'code') else None)
 
         # -- tools agvlog --
         case ("tools", "agvlog"):

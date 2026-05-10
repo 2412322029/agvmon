@@ -1,8 +1,16 @@
+import asyncio
+import inspect
 import logging
 import os
 import re
 import sys
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
+from datetime import datetime
+from typing import Any
+
+import httpx
+
+from util.config import cfg
 
 from util.agv_protocol_parser import AGVProtocolParser
 
@@ -20,6 +28,100 @@ PATTERN = re.compile(
 WCSLOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "wcslog")
 MAX_FILE_SIZE = 15 * 1024 * 1024  # 15 MB
 MAX_FILES = 20
+
+WCS_LOG_BASE = cfg.get("rcms.wcs_log_base")
+
+
+async def list_wcs_logs(client: httpx.AsyncClient | None = None) -> list[dict]:
+    """List default.log files (including .1, .2, ...) from WCS log server.
+
+    Returns a list of dicts with keys: filename, time (datetime), download_url.
+    Sorted by time descending (newest first).
+    """
+    own_client = client is None
+    if own_client:
+        client = httpx.AsyncClient(timeout=httpx.Timeout(10.0))
+    try:
+        resp = await client.get(f"{WCS_LOG_BASE}/logs")
+        resp.raise_for_status()
+        html = resp.text
+
+        sections = re.findall(r'<div id="section">(.*?)</div>', html, re.DOTALL)
+        if len(sections) < 2:
+            raise ValueError("Could not parse log listing page")
+
+        # Section 1: filenames — strip <a> links (dump, log_bak), keep plain text names
+        s1 = re.sub(r'<a[^>]*>.*?</a>', '', sections[0])
+        filenames = re.findall(r'([A-Za-z][^\s<>]*\.log(?:\.\d+)?)', s1)
+
+        # Section 2: timestamps and download hrefs
+        items = re.findall(
+            r'(\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}).*?href="(/logs/download/[^"]+)"',
+            sections[1], re.DOTALL,
+        )
+
+        now = datetime.now()
+        results = []
+        for i, fname in enumerate(filenames):
+            if not fname.startswith("default.log"):
+                continue
+            if i >= len(items):
+                break
+            time_str, href = items[i]
+            # Infer year: if MM-DD is in the future, use previous year
+            parsed = datetime.strptime(time_str, "%m-%d %H:%M:%S")
+            year = now.year
+            if parsed.month > now.month or (parsed.month == now.month and parsed.day > now.day):
+                year -= 1
+            dt = parsed.replace(year=year)
+            results.append({
+                "filename": fname,
+                "time": dt,
+                "download_url": f"{WCS_LOG_BASE}{href}",
+            })
+
+        results.sort(key=lambda r: r["time"], reverse=True)
+        return results
+    finally:
+        if own_client:
+            await client.aclose()
+
+
+async def download_wcs_log(filename: str, save_dir: str | None = None,
+                           client: httpx.AsyncClient | None = None,
+                           progress_cb: Callable[[int, int], Any] | None = None) -> str:
+    """Download a WCS log file to *save_dir* (defaults to util/data/wcslog/).
+
+    If *progress_cb* is given, it is called as ``progress_cb(downloaded, total)``
+    periodically during the download.  Both sync and async callbacks are supported.
+    """
+    if save_dir is None:
+        save_dir = WCSLOG_DIR
+    os.makedirs(save_dir, exist_ok=True)
+
+    own_client = client is None
+    if own_client:
+        client = httpx.AsyncClient(timeout=httpx.Timeout(30.0))
+    try:
+        url = f"{WCS_LOG_BASE}/logs/download/{filename}"
+        dest = os.path.join(save_dir, filename)
+        async with client.stream("GET", url) as resp:
+            resp.raise_for_status()
+            total = int(resp.headers.get("Content-Length", 0))
+            downloaded = 0
+            with open(dest, "wb") as f:
+                async for chunk in resp.aiter_bytes():
+                    f.write(chunk)
+                    downloaded += len(chunk)
+                    if progress_cb and total > 0:
+                        if inspect.iscoroutinefunction(progress_cb):
+                            await progress_cb(downloaded, total)
+                        else:
+                            progress_cb(downloaded, total)
+        return dest
+    finally:
+        if own_client:
+            await client.aclose()
 
 
 def _build_filter(shortcode: str | None) -> re.Pattern | None:
@@ -230,17 +332,21 @@ def run(files: list[str] | None = None, code: str | None = None) -> None:
             print("──" * 70)
         print(f"  ({yes_count} responses yes in {count} matches for {fp })\n")
 
+
+
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        run()
-    else:
-        args = sys.argv[1:]
-        maybe_code = args[-1]
-        files_from_args = [a for a in args if os.path.isfile(a)]
-        code = maybe_code if maybe_code not in files_from_args else None
-        if not files_from_args:
-            print(f"Usage: python {sys.argv[0]} [logfile ...] [detector_code]")
-            print("  Without args, scans ./data/wcslog/ for *default.log* files")
-            print("  detector_code: optional, e.g. 528000 or 5280xx (xx = wildcard)")
-            sys.exit(1)
-        run(files_from_args, code)
+    a = asyncio.run(list_wcs_logs())
+    print(a)
+    # if len(sys.argv) < 2:
+    #     run()
+    # else:
+    #     args = sys.argv[1:]
+    #     maybe_code = args[-1]
+    #     files_from_args = [a for a in args if os.path.isfile(a)]
+    #     code = maybe_code if maybe_code not in files_from_args else None
+    #     if not files_from_args:
+    #         print(f"Usage: python {sys.argv[0]} [logfile ...] [detector_code]")
+    #         print("  Without args, scans ./data/wcslog/ for *default.log* files")
+    #         print("  detector_code: optional, e.g. 528000 or 5280xx (xx = wildcard)")
+    #         sys.exit(1)
+    #     run(files_from_args, code)

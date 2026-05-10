@@ -1,6 +1,8 @@
 import asyncio
 import json
 import os
+
+import httpx
 from datetime import datetime
 from ipaddress import ip_address
 
@@ -299,6 +301,20 @@ def _sse(event_type: str, message: str, extra: dict | None = None) -> str:
     return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
 
+@log_parser_router.post("/agv_logs/pio_local")
+async def api_agvlog_pio_local(
+    filenames: list[str] = Body(..., description="本地 AGV 日志文件名列表"),
+):
+    """对本地已下载的 AGV 日志文件执行 PIO 分析。"""
+    from util.agvlog import get_pio_result
+
+    try:
+        merged = await asyncio.to_thread(get_pio_result, filenames)
+        return {"pio_groups": merged, "count": len(merged), "files": filenames}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ── AGV 远程文件列表 (对应 CLI: tools agvlog <ip> --ls <path>) ──
 
 @log_parser_router.post("/agv_logs/ls")
@@ -328,6 +344,53 @@ async def api_ls_agv(
         return {"output": output or err, "ip": ip, "path": path}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        await ssh.disconnect()
+
+
+@log_parser_router.post("/agv_logs/remote_files")
+async def api_list_remote_agv_files(
+    ip_or_carid: str = Body(..., description="AGV IP address or car ID"),
+):
+    """列出远程 AGV /mnt/agv_log/ 下以 AGV_ 开头的文件，用于下载下拉选择。"""
+    from util.agvlog import getip_from_carid, parse_time_from_filename
+    from util.ssh import SSHManager
+
+    carid = None
+    if "." not in ip_or_carid and 0 < len(ip_or_carid) < 6:
+        carid = ip_or_carid
+        ip = await getip_from_carid(ip_or_carid)
+        if not ip:
+            raise HTTPException(status_code=404, detail=f"未找到 carid={carid} 对应的 AGV IP")
+    else:
+        ip = ip_or_carid
+
+    try:
+        ip_address(ip)
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"无效的 IP 地址: {ip}")
+
+    ssh = SSHManager(ip, username="root", password="")
+    try:
+        await ssh.agv_auto_connect()
+        res = await ssh.list_directory(path="/mnt/agv_log")
+        files = [
+            f for f in res
+            if f.get("is_file") and f.get("name", "").startswith("AGV_")
+        ]
+        files.sort(key=lambda x: parse_time_from_filename(x["name"]), reverse=True)
+        return {
+            "ip": ip,
+            "carid": carid,
+            "files": [{
+                "name": f["name"],
+                "size": f.get("size", 0),
+                "size_str": _format_size(f.get("size", 0)),
+                "mtime": f.get("mtime", ""),
+            } for f in files],
+        }
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=str(e))
     finally:
         await ssh.disconnect()
 
@@ -365,7 +428,7 @@ async def api_list_wcs_log_files():
                 files.append({
                     "filename": f,
                     "size": stat.st_size,
-                    "mtime": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                    "mtime": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M:%S"),
                 })
     files.sort(key=lambda x: x["mtime"], reverse=True)
     return files
@@ -426,7 +489,115 @@ async def api_batch_parse_wcs_log(
     return {"results": results}
 
 
+# ── WCS Remote Logs (对应 CLI: tools wcslog list / download) ───────────
+
+@log_parser_router.get("/wcs_logs/remote")
+async def api_list_remote_wcs_logs():
+    """列出远程 WCS 服务器上的 default.log 文件（含 .1 .2 等轮转文件）。"""
+    from util.parse_wcs_log import list_wcs_logs
+
+    try:
+        files = await list_wcs_logs()
+        return [{
+            "filename": f["filename"],
+            "time": f["time"].strftime("%Y-%m-%d %H:%M:%S"),
+            "download_url": f["download_url"],
+        } for f in files]
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"获取远程文件列表失败: {e}")
+
+
+@log_parser_router.post("/wcs_logs/download")
+async def api_download_wcs_logs(
+    filenames: list[str] = Body(..., description="要下载的文件名列表"),
+):
+    """下载远程 WCS 日志文件，通过 SSE 流式返回每个文件的下载进度。
+    对应 CLI: tools wcslog download
+    """
+    return StreamingResponse(
+        _sse_wcs_download(filenames),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+async def _sse_wcs_download(filenames: list[str]):
+    """SSE 生成器：下载 WCS 日志文件，逐文件报告进度。"""
+    from util.parse_wcs_log import WCSLOG_DIR, download_wcs_log, list_wcs_logs
+
+    # 先获取远程文件列表用于验证文件名
+    try:
+        remote_files = await list_wcs_logs()
+        remote_names = {f["filename"] for f in remote_files}
+    except Exception as e:
+        yield _sse("error", f"无法获取远程文件列表: {e}")
+        return
+
+    not_found = [n for n in filenames if n not in remote_names]
+    if not_found:
+        yield _sse("error", f"以下文件在远程不存在: {not_found}")
+        return
+
+    progress_queue: asyncio.Queue = asyncio.Queue()
+
+    def progress_cb(downloaded, total):
+        pct = round(downloaded / total * 100, 1) if total > 0 else 0
+        progress_queue.put_nowait({
+            "type": "progress",
+            "downloaded": downloaded,
+            "total": total,
+            "percentage": pct,
+            "downloaded_str": _format_size(downloaded),
+            "total_str": _format_size(total),
+        })
+
+    os.makedirs(WCSLOG_DIR, exist_ok=True)
+    success, failed = [], []
+
+    async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
+        for fname in filenames:
+            yield _sse("status", f"开始下载: {fname}", {"filename": fname})
+            try:
+                dest = await download_wcs_log(fname, client=client, progress_cb=progress_cb)
+                # 排空进度事件
+                while not progress_queue.empty():
+                    yield f"data: {json.dumps(progress_queue.get_nowait(), ensure_ascii=False)}\n\n"
+                yield _sse("status", f"下载完成: {fname}", {"filename": fname, "path": dest})
+                success.append(fname)
+            except Exception as e:
+                logger.exception(f"下载WCS日志失败: {fname}")
+                yield _sse("error", f"下载失败 {fname}: {e}")
+                failed.append(fname)
+
+    yield _sse("done", "", {"success": success, "failed": failed})
+
+
 # ── Clean (对应 CLI: tools clean <wcslog|agvlog>) ─────────────────────
+
+@log_parser_router.get("/clean/usage")
+async def api_clean_usage():
+    """返回 agvlog 和 wcslog 目录的磁盘占用概览。"""
+    result = {}
+    for target, directory in CLEAN_DIRS.items():
+        total_size = 0
+        file_count = 0
+        if os.path.isdir(directory):
+            for f in os.listdir(directory):
+                p = os.path.join(directory, f)
+                if os.path.isfile(p):
+                    try:
+                        total_size += os.path.getsize(p)
+                        file_count += 1
+                    except OSError:
+                        pass
+        result[target] = {
+            "directory": directory,
+            "file_count": file_count,
+            "total_size": total_size,
+            "total_size_str": _format_size(total_size),
+        }
+    return result
+
 
 @log_parser_router.get("/clean/{target}")
 async def api_list_clean_files(target: str):
@@ -448,7 +619,7 @@ async def api_list_clean_files(target: str):
                 "filename": f,
                 "size": stat.st_size,
                 "size_str": _format_size(stat.st_size),
-                "mtime": datetime.fromtimestamp(stat.st_mtime).isoformat(),
+                "mtime": datetime.fromtimestamp(stat.st_mtime).strftime("%Y-%m-%d %H:%M:%S"),
             })
 
     entries.sort(key=lambda x: x["mtime"], reverse=True)

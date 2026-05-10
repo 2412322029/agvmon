@@ -5,9 +5,10 @@ zmq_auto = false
 test = false
 
 [rcms]
-host = "https://172.27.6.43:443"
-rcms_rest_api = "http://172.27.6.43:8181"
+host = "http://172.27.6.43:8181"
+rcms_rest_api = "https://172.27.6.43:8181"
 wcs_rest_api = "http://172.27.6.43:8090"
+wcs_log_base = "http://172.27.6.45:8060"
 map_code = "DD"
 hash = "sha256"
 username = "twh"
@@ -24,8 +25,8 @@ port = 8000
 workers = 1
 
 [agv]
-usernames = ["root","root","lolik"]
-passwords = ["hiklinux","Hik@12345","123456"]
+usernames = [ "root", "root", "lolik",]
+passwords = [ "hiklinux", "Hik@12345", "123456",]
 
 [chat]
 expire_days = 7

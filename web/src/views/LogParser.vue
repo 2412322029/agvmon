@@ -1,10 +1,10 @@
 <script setup>
 import {
-  NButton, NCard, NDataTable, NDescriptions, NDescriptionsItem, NDivider,
-  NForm, NFormItem, NInput, NInputNumber, NModal, NPopconfirm, NSelect,
+  NButton, NCard, NCheckbox, NDataTable, NDescriptions, NDescriptionsItem, NDivider,
+  NForm, NFormItem, NInput, NInputNumber, NModal, NPopconfirm, NRadioButton, NRadioGroup, NSelect,
   NSpace, NSpin, NTabPane, NTabs, NTag, NText, useMessage
 } from 'naive-ui';
-import { h, ref } from 'vue';
+import { h, ref, watch } from 'vue';
 import AGVProtocolParser from './AGVProtocolParser.js';
 
 const message = useMessage();
@@ -19,15 +19,20 @@ const agvDownloading = ref(false);
 const agvDownloadLogs = ref([]);
 const agvDownloadFiles = ref([]);
 const agvForm = ref({ ip_or_carid: '', count: 1, filenames: '', prefix: '/mnt/agv_log/' });
+const agvRemoteFiles = ref([]);
+const agvRemoteLoading = ref(false);
+const agvSelectedFiles = ref([]);
 
 // ── PIO 分析 state ────────────────────────────────────────────────────
 const pioResult = ref(null);
 const pioLoading = ref(false);
 const pioDetailModal = ref(false);
 const pioCurrentGroup = ref(null);
+const pioSource = ref('remote');
 const pioInfoMap = ['正常状态', '上仓位', '下仓位', '上料请求', '下料请求', '滚动信号', '完成信号', 'tray盘大小'];
 
 // ── WCS Logs state ────────────────────────────────────────────────────
+const wcsTab = ref('local');
 const wcsFiles = ref([]);
 const wcsFilesLoading = ref(false);
 const wcsParseResult = ref(null);
@@ -37,6 +42,15 @@ const wcsDetailModal = ref(false);
 const wcsDetailRow = ref(null);
 const wcsDetailReq = ref(null);
 const wcsDetailResp = ref(null);
+
+// ── WCS Remote state ───────────────────────────────────────────────────
+const wcsRemoteFiles = ref([]);
+const wcsRemoteLoading = ref(false);
+const wcsDownloading = ref(false);
+const wcsDownloadLogs = ref([]);
+const wcsDownloadFiles = ref([]);
+const wcsSelectAll = ref(false);
+const wcsProgress = ref({ filename: '', percentage: 0, downloaded_str: '', total_str: '' });
 
 // ── Clean state ────────────────────────────────────────────────────────
 const cleanTarget = ref('agvlog');
@@ -95,19 +109,49 @@ async function deleteAllLocalFiles() {
   }
 }
 
+// ── AGV Remote Files ─────────────────────────────────────────────────
+async function loadAgvRemoteFiles() {
+  if (!agvForm.value.ip_or_carid) {
+    message.warning('请先输入AGV IP或carid');
+    return;
+  }
+  agvRemoteLoading.value = true;
+  agvSelectedFiles.value = [];
+  try {
+    const res = await fetch(`${apiBase}/agv_logs/remote_files`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(agvForm.value.ip_or_carid),
+    });
+    const data = await res.json();
+    if (res.ok) {
+      agvRemoteFiles.value = data.files || [];
+      if (!agvRemoteFiles.value.length) message.warning('未找到AGV日志文件');
+    } else {
+      message.error(data.detail || '获取远程文件列表失败');
+    }
+  } catch (e) {
+    message.error('获取远程文件列表失败: ' + e.message);
+  } finally {
+    agvRemoteLoading.value = false;
+  }
+}
+
 // ── AGV Download (SSE) ─────────────────────────────────────────────────
 async function downloadAgvLogs() {
   if (!agvForm.value.ip_or_carid) {
     message.warning('请输入AGV IP或carid');
     return;
   }
+  if (!agvSelectedFiles.value.length) {
+    message.warning('请选择要下载的文件');
+    return;
+  }
   agvDownloading.value = true;
   agvDownloadLogs.value = [];
   agvDownloadFiles.value = [];
 
-  const filenames = agvForm.value.filenames
-    ? agvForm.value.filenames.split(/[,;\s]+/).filter(Boolean)
-    : [];
+  const filenames = [...agvSelectedFiles.value];
 
   const addLog = (text, type = 'info') => agvDownloadLogs.value.push({ text, type, time: Date.now() });
 
@@ -118,8 +162,8 @@ async function downloadAgvLogs() {
       body: JSON.stringify({
         ip_or_carid: agvForm.value.ip_or_carid,
         filenames,
-        prefix: agvForm.value.prefix,
-        count: agvForm.value.count,
+        prefix: '/mnt/agv_log/',
+        count: filenames.length,
       }),
     });
 
@@ -163,61 +207,81 @@ async function downloadAgvLogs() {
 
 // ── PIO 分析 (SSE) ────────────────────────────────────────────────────
 async function runPioAnalysis() {
-  if (!agvForm.value.ip_or_carid) {
-    message.warning('请输入AGV IP或carid');
+  if (!agvSelectedFiles.value.length) {
+    message.warning('请选择要分析的文件');
     return;
   }
   pioLoading.value = true;
   pioResult.value = null;
   agvDownloadLogs.value = [];
 
-  const filenames = agvForm.value.filenames
-    ? agvForm.value.filenames.split(/[,;\s]+/).filter(Boolean)
-    : [];
+  const filenames = [...agvSelectedFiles.value];
 
   const addLog = (text, type = 'info') => agvDownloadLogs.value.push({ text, type, time: Date.now() });
 
+  const isLocal = pioSource.value === 'local';
+
   try {
-    const res = await fetch(`${apiBase}/agv_logs/pio`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ip_or_carid: agvForm.value.ip_or_carid,
-        filenames,
-        count: agvForm.value.count,
-      }),
-    });
+    if (isLocal) {
+      addLog('开始本地PIO分析 ...');
+      const res = await fetch(`${apiBase}/agv_logs/pio_local`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(filenames),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        if (data.pio_groups?.length) {
+          pioResult.value = data.pio_groups;
+          message.success(`PIO分析完成，共 ${data.count} 组`);
+        }
+        addLog(`分析完成，共 ${data.count} 组`, 'success');
+      } else {
+        message.error(data.detail || 'PIO分析失败');
+        addLog(data.detail || 'PIO分析失败', 'error');
+      }
+    } else {
+      const res = await fetch(`${apiBase}/agv_logs/pio`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ip_or_carid: agvForm.value.ip_or_carid,
+          filenames,
+          count: filenames.length,
+        }),
+      });
 
-    const reader = res.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n\n');
-      buffer = lines.pop();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop();
 
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        try {
-          const event = JSON.parse(line.slice(6));
-          if (event.type === 'status') {
-            addLog(event.message);
-          } else if (event.type === 'progress') {
-            addLog(`${event.filename}: ${event.percentage}%`, 'progress');
-          } else if (event.type === 'done') {
-            if (event.pio_groups) {
-              pioResult.value = event.pio_groups;
-              message.success(`PIO分析完成，共 ${event.count} 组`);
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          try {
+            const event = JSON.parse(line.slice(6));
+            if (event.type === 'status') {
+              addLog(event.message);
+            } else if (event.type === 'progress') {
+              addLog(`${event.filename}: ${event.percentage}%`, 'progress');
+            } else if (event.type === 'done') {
+              if (event.pio_groups) {
+                pioResult.value = event.pio_groups;
+                message.success(`PIO分析完成，共 ${event.count} 组`);
+              }
+              addLog('分析完成', 'success');
+            } else if (event.type === 'error') {
+              addLog(event.message, 'error');
+              message.error(event.message);
             }
-            addLog('分析完成', 'success');
-          } else if (event.type === 'error') {
-            addLog(event.message, 'error');
-            message.error(event.message);
-          }
-        } catch (e) { /* ignore */ }
+          } catch (e) { /* ignore */ }
+        }
       }
     }
   } catch (e) {
@@ -263,8 +327,20 @@ function compareBits(resultBin, valueBin) {
 async function loadWcsFiles() {
   wcsFilesLoading.value = true;
   try {
-    const res = await fetch(`${apiBase}/wcs_logs/files`);
-    wcsFiles.value = await res.json();
+    const [localRes, remoteRes] = await Promise.all([
+      fetch(`${apiBase}/wcs_logs/files`),
+      fetch(`${apiBase}/wcs_logs/remote`).catch(() => null),
+    ]);
+    const localFiles = await localRes.json();
+    const remoteMap = {};
+    if (remoteRes?.ok) {
+      const remoteFiles = await remoteRes.json();
+      remoteFiles.forEach(f => { remoteMap[f.filename] = f.time; });
+    }
+    wcsFiles.value = localFiles.map(f => ({
+      ...f,
+      mtime: remoteMap[f.filename] || f.mtime,
+    }));
   } catch (e) {
     message.error('加载WCS日志文件列表失败');
   } finally {
@@ -299,6 +375,98 @@ async function parseWcsLog() {
     message.error('解析请求失败');
   } finally {
     wcsParsing.value = false;
+  }
+}
+
+// ── WCS Remote (SSE) ───────────────────────────────────────────────────
+async function loadWcsRemoteFiles() {
+  wcsRemoteLoading.value = true;
+  try {
+    const res = await fetch(`${apiBase}/wcs_logs/remote`);
+    if (!res.ok) throw new Error((await res.json()).detail || '请求失败');
+    const data = await res.json();
+    wcsRemoteFiles.value = data.map((f, i) => ({ ...f, _checked: false, _idx: i }));
+  } catch (e) {
+    message.error('加载远程WCS文件列表失败: ' + e.message);
+  } finally {
+    wcsRemoteLoading.value = false;
+  }
+}
+
+function toggleWcsSelectAll(val) {
+  wcsRemoteFiles.value.forEach(f => f._checked = val);
+}
+
+function onWcsCheckChange() {
+  const checked = wcsRemoteFiles.value.filter(f => f._checked);
+  wcsSelectAll.value = checked.length === wcsRemoteFiles.value.length && wcsRemoteFiles.value.length > 0;
+}
+
+async function downloadWcsLogs() {
+  const selected = wcsRemoteFiles.value.filter(f => f._checked);
+  if (!selected.length) {
+    message.warning('请先选择要下载的文件');
+    return;
+  }
+  wcsDownloading.value = true;
+  wcsDownloadLogs.value = [];
+  wcsDownloadFiles.value = [];
+
+  const addLog = (text, type = 'info') => wcsDownloadLogs.value.push({ text, type, time: Date.now() });
+  const filenames = selected.map(f => f.filename);
+
+  try {
+    const res = await fetch(`${apiBase}/wcs_logs/download`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(filenames),
+    });
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n\n');
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const event = JSON.parse(line.slice(6));
+          if (event.type === 'status') {
+            addLog(event.message);
+            wcsProgress.value.filename = event.filename || wcsProgress.value.filename;
+          } else if (event.type === 'progress') {
+            wcsProgress.value = {
+              filename: wcsProgress.value.filename,
+              percentage: event.percentage,
+              downloaded_str: event.downloaded_str,
+              total_str: event.total_str,
+            };
+          } else if (event.type === 'done') {
+            wcsDownloadFiles.value = event.success || [];
+            const msg = `完成，成功 ${event.success?.length || 0} 个`;
+            addLog(event.failed?.length ? `${msg}，失败 ${event.failed.length} 个` : msg, 'success');
+            message.success(msg);
+          } else if (event.type === 'error') {
+            addLog(event.message, 'error');
+            message.error(event.message);
+          }
+        } catch (e) { /* ignore parse errors */ }
+      }
+    }
+  } catch (e) {
+    message.error('下载请求失败: ' + e.message);
+  } finally {
+    wcsDownloading.value = false;
+    wcsRemoteFiles.value.forEach(f => f._checked = false);
+    wcsSelectAll.value = false;
+    loadWcsFiles();
+    loadWcsRemoteFiles();
   }
 }
 
@@ -425,6 +593,15 @@ function showWcsDetail(row) {
 }
 
 // ── Clean ──────────────────────────────────────────────────────────────
+const cleanUsage = ref({});
+
+async function loadCleanUsage() {
+  try {
+    const res = await fetch(`${apiBase}/clean/usage`);
+    if (res.ok) cleanUsage.value = await res.json();
+  } catch (e) { /* ignore */ }
+}
+
 const cleanTargetOptions = [
   { label: 'AGV 日志目录', value: 'agvlog' },
   { label: 'WCS 日志目录', value: 'wcslog' },
@@ -458,6 +635,7 @@ async function deleteCleanFiles() {
     if (res.ok) {
       message.success(`已删除 ${data.count} 个文件`);
       loadCleanFiles();
+      loadCleanUsage();
     } else {
       message.error(data.detail || '删除失败');
     }
@@ -466,9 +644,15 @@ async function deleteCleanFiles() {
   }
 }
 
+// ── Watch ──────────────────────────────────────────────────────────────
+watch(wcsTab, (val) => {
+  if (val === 'remote' && !wcsRemoteFiles.value.length) loadWcsRemoteFiles();
+});
+
 // ── Mount ──────────────────────────────────────────────────────────────
 loadAgvLocalFiles();
 loadWcsFiles();
+loadCleanUsage();
 </script>
 
 <template>
@@ -484,21 +668,23 @@ loadWcsFiles();
             <n-card size="small" title="从AGV下载日志文件">
               <n-form :model="agvForm" label-placement="left" label-width="100">
                 <n-form-item label="IP / CarID" required>
-                  <n-input v-model:value="agvForm.ip_or_carid" placeholder="172.26.126.120 或 carid" />
-                </n-form-item>
-                <n-form-item label="远程路径">
-                  <n-input v-model:value="agvForm.prefix" placeholder="/mnt/agv_log/" />
-                </n-form-item>
-                <n-form-item label="下载数量">
-                  <n-input-number v-model:value="agvForm.count" :min="1" :max="20" />
-                  <n-text depth="3" style="margin-left:8px">最新 N 个文件（指定文件名后忽略）</n-text>
-                </n-form-item>
-                <n-form-item label="指定文件名">
-                  <n-input v-model:value="agvForm.filenames" placeholder="多个文件用逗号/空格分隔，指定后下载数量无效" />
-                </n-form-item>
-                <n-form-item>
                   <n-space>
-                    <n-button type="primary" @click="downloadAgvLogs" :loading="agvDownloading">
+                    <n-input v-model:value="agvForm.ip_or_carid" placeholder="172.26.126.120 或 carid" style="width:240px" />
+                    <n-button @click="loadAgvRemoteFiles" :loading="agvRemoteLoading" size="small" secondary>
+                      获取文件列表
+                    </n-button>
+                  </n-space>
+                </n-form-item>
+                <n-form-item v-if="agvRemoteFiles.length" label="选择文件">
+                  <n-select multiple v-model:value="agvSelectedFiles"
+                    :options="agvRemoteFiles.map(f => ({ label: `${f.name}  (${f.size_str}  ${f.mtime})`, value: f.name }))"
+                    placeholder="选择要下载的AGV日志文件" filterable clearable style="min-width:500px" />
+                </n-form-item>
+                <n-form-item v-if="agvRemoteFiles.length">
+                  <n-space>
+                    <n-text depth="3">{{ agvSelectedFiles.length }} / {{ agvRemoteFiles.length }} 个文件</n-text>
+                    <n-button type="primary" @click="downloadAgvLogs" :loading="agvDownloading"
+                      :disabled="!agvSelectedFiles.length">
                       开始下载
                     </n-button>
                   </n-space>
@@ -524,21 +710,52 @@ loadWcsFiles();
 
           <!-- PIO 分析 -->
           <n-tab-pane name="pio" tab="PIO 分析">
-            <n-card size="small" title="PIO 信号分析（自动下载+解析）">
+            <n-card size="small" title="PIO 信号分析">
               <n-form :model="agvForm" label-placement="left" label-width="100">
-                <n-form-item label="IP / CarID" required>
-                  <n-input v-model:value="agvForm.ip_or_carid" placeholder="172.26.126.120 或 carid" />
+                <n-form-item label="文件来源">
+                  <n-radio-group v-model:value="pioSource" name="pioSource">
+                    <n-radio-button value="remote">远程AGV</n-radio-button>
+                    <n-radio-button value="local">本地文件</n-radio-button>
+                  </n-radio-group>
                 </n-form-item>
-                <n-form-item label="文件数量">
-                  <n-input-number v-model:value="agvForm.count" :min="1" :max="20" />
-                </n-form-item>
-                <n-form-item label="指定文件名">
-                  <n-input v-model:value="agvForm.filenames" placeholder="可选，逗号分隔" />
-                </n-form-item>
-                <n-form-item>
-                  <n-button type="primary" @click="runPioAnalysis" :loading="pioLoading">
-                    开始分析
-                  </n-button>
+
+                <!-- 远程模式 -->
+                <template v-if="pioSource === 'remote'">
+                  <n-form-item label="IP / CarID" required>
+                    <n-space>
+                      <n-input v-model:value="agvForm.ip_or_carid" placeholder="172.26.126.120 或 carid" style="width:240px" />
+                      <n-button @click="loadAgvRemoteFiles" :loading="agvRemoteLoading" size="small" secondary>
+                        获取文件列表
+                      </n-button>
+                    </n-space>
+                  </n-form-item>
+                  <n-form-item v-if="agvRemoteFiles.length" label="选择文件">
+                    <n-select multiple v-model:value="agvSelectedFiles"
+                      :options="agvRemoteFiles.map(f => ({ label: `${f.name}  (${f.size_str}  ${f.mtime})`, value: f.name }))"
+                      placeholder="选择要分析的AGV日志文件" filterable clearable style="min-width:500px" />
+                  </n-form-item>
+                </template>
+
+                <!-- 本地模式 -->
+                <template v-if="pioSource === 'local'">
+                  <n-form-item label="选择文件">
+                    <n-space>
+                      <n-select multiple v-model:value="agvSelectedFiles"
+                        :options="agvLocalFiles.filter(f => f.filename.startsWith('AGV_')).map(f => ({ label: `${f.filename}  (${formatSize(f.size)}  ${(f.mtime||'').replace('T',' ').slice(0,19)})`, value: f.filename }))"
+                        placeholder="选择本地AGV日志文件（仅原始 AGV_ 文件）" filterable clearable style="min-width:500px" />
+                      <n-button @click="loadAgvLocalFiles" :loading="agvLocalLoading" size="small" secondary>刷新</n-button>
+                    </n-space>
+                  </n-form-item>
+                </template>
+
+                <n-form-item v-if="agvSelectedFiles.length">
+                  <n-space>
+                    <n-text depth="3">{{ agvSelectedFiles.length }} 个文件</n-text>
+                    <n-button type="primary" @click="runPioAnalysis" :loading="pioLoading"
+                      :disabled="!agvSelectedFiles.length">
+                      开始分析
+                    </n-button>
+                  </n-space>
                 </n-form-item>
               </n-form>
               <div v-if="agvDownloadLogs.length" class="progress-area">
@@ -587,7 +804,7 @@ loadWcsFiles();
                 :columns="[
                   { title: '文件名', key: 'filename', ellipsis: { tooltip: true } },
                   { title: '大小', key: 'size', width: 100, render: (row) => formatSize(row.size) },
-                  { title: '修改时间', key: 'mtime', width: 180, render: (row) => row.mtime?.slice(0, 19) },
+                  { title: '修改时间', key: 'mtime', width: 180, render: (row) => row.mtime?.replace('T', ' ').slice(0, 19) },
                   { title: '操作', key: 'actions', width: 80, render: (row) => h(NPopconfirm, { onPositiveClick: () => deleteLocalFile(row.filename) }, { trigger: () => h(NButton, { size: 'tiny', type: 'error', secondary: true }, { default: () => '删除' }), default: () => '确定删除?' }) },
                 ]"
                 :data="agvLocalFiles" :loading="agvLocalLoading" size="small" :bordered="false"
@@ -599,52 +816,115 @@ loadWcsFiles();
 
       <!-- ═══ WCS 日志 ═══ -->
       <n-tab-pane name="wcs" tab="WCS 日志">
-        <n-card size="small" title="WCS 日志解析">
-          <n-form :model="wcsForm" label-placement="left" label-width="100">
-            <n-form-item label="日志文件">
-              <n-select v-model:value="wcsForm.filename" :options="wcsFiles.map(f => ({ label: f.filename, value: f.filename }))"
-                placeholder="选择WCS日志文件" filterable clearable />
-            </n-form-item>
-            <n-form-item label="短码 / TrayID">
-              <n-space>
-                <n-input v-model:value="wcsForm.shortcode" placeholder="短码: 528000" style="width:180px" clearable />
-                <n-input v-model:value="wcsForm.trayid" placeholder="TrayID" style="width:220px" clearable />
-              </n-space>
-            </n-form-item>
-            <n-form-item>
-              <n-space>
-                <n-button type="primary" @click="parseWcsLog" :loading="wcsParsing">开始解析</n-button>
-                <n-button @click="loadWcsFiles" :loading="wcsFilesLoading" secondary>刷新文件列表</n-button>
-              </n-space>
-            </n-form-item>
-          </n-form>
+        <n-tabs type="card" size="medium" v-model:value="wcsTab">
+          <!-- 本地解析 -->
+          <n-tab-pane name="local" tab="本地解析">
+            <n-card size="small" title="WCS 日志解析">
+              <n-form :model="wcsForm" label-placement="left" label-width="100">
+                <n-form-item label="日志文件">
+                  <n-select v-model:value="wcsForm.filename" :options="wcsFiles.map(f => ({ label: `${f.filename}  (${(f.mtime||'').replace('T', ' ').slice(0,19)})`, value: f.filename }))"
+                    placeholder="选择WCS日志文件" filterable clearable />
+                </n-form-item>
+                <n-form-item label="外设编号 / TrayID">
+                  <n-space>
+                    <n-input v-model:value="wcsForm.shortcode" placeholder="外设编号: 528000" style="width:180px" clearable />
+                    <n-input v-model:value="wcsForm.trayid" placeholder="TrayID" style="width:220px" clearable />
+                  </n-space>
+                </n-form-item>
+                <n-form-item>
+                  <n-space>
+                    <n-button type="primary" @click="parseWcsLog" :loading="wcsParsing">开始解析</n-button>
+                    <n-button @click="loadWcsFiles" :loading="wcsFilesLoading" secondary>刷新文件列表</n-button>
+                  </n-space>
+                </n-form-item>
+              </n-form>
 
-          <div v-if="wcsParseResult" class="wcs-result">
-            <n-divider>解析结果（{{ wcsParseResult.count }} 条）</n-divider>
-            <div class="hover-bar" :class="{ on: hoverTip.show }">
-              <span v-if="hoverTip.show">
-                <span class="hover-bar-title">{{ hoverTip.title }}</span>
-                <span v-for="(l, i) in hoverTip.lines" :key="i" class="hover-bar-line"
-                  :class="{ 'hl-match': l.hl, 'hl-normal': l.hl === false }">{{ l.t ?? l }}</span>
-                <span class="hover-bar-raw" v-if="hoverTip.raw">{{ hoverTip.raw.slice(0, 80) }}…</span>
-              </span> 
-              <span v-else>鼠标悬停在 Request/Response 字段查看解析详情</span>
-            </div>
-            
-            <n-dataTable
-            :columns="[
-              { title: '时间', key: 'time', width: 150 },
-              { title: 'Task Key', key: 'task_key', width: 150, ellipsis: { tooltip: true } },
-              { title: 'Action', key: 'action_type', width: 70 },
-              { title: 'Request', key: 'request', width: 120, render: (r) => renderReqCell(r) },
-              { title: 'Response', key: 'response', width: 120, render: (r) => renderRespCell(r) },
-              { title: 'Result', key: 'result', width: 60, render: (r) => h(NTag, { type: r.result?.toLowerCase() === 'yes' ? 'success' : 'error', size: 'small' }, { default: () => r.result }) },
-              { title: '操作', key: 'actions', width: 55, render: (r) => h(NButton, { size: 'tiny', onClick: () => showWcsDetail(r) }, { default: () => '详情' }) },
-            ]"
-            :data="wcsParseResult.rows" size="small" :bordered="false" max-height="500" virtual-scroll
-            :row-key="(_, i) => i" />
-          </div>
-        </n-card>
+              <div v-if="wcsParseResult" class="wcs-result">
+                <n-divider>解析结果（{{ wcsParseResult.count }} 条）</n-divider>
+                <div class="hover-bar" :class="{ on: hoverTip.show }">
+                  <span v-if="hoverTip.show">
+                    <span class="hover-bar-title">{{ hoverTip.title }}</span>
+                    <span v-for="(l, i) in hoverTip.lines" :key="i" class="hover-bar-line"
+                      :class="{ 'hl-match': l.hl, 'hl-normal': l.hl === false }">{{ l.t ?? l }}</span>
+                    <span class="hover-bar-raw" v-if="hoverTip.raw">{{ hoverTip.raw.slice(0, 80) }}…</span>
+                  </span>
+                  <span v-else>鼠标悬停在 Request/Response 字段查看解析详情</span>
+                </div>
+
+                <n-dataTable
+                :columns="[
+                  { title: '时间', key: 'time', width: 150 },
+                  { title: 'Task Key', key: 'task_key', width: 150, ellipsis: { tooltip: true } },
+                  { title: 'Action', key: 'action_type', width: 70 },
+                  { title: 'Request', key: 'request', width: 120, render: (r) => renderReqCell(r) },
+                  { title: 'Response', key: 'response', width: 120, render: (r) => renderRespCell(r) },
+                  { title: 'Result', key: 'result', width: 60, render: (r) => h(NTag, { type: r.result?.toLowerCase() === 'yes' ? 'success' : 'error', size: 'small' }, { default: () => r.result }) },
+                  { title: '操作', key: 'actions', width: 55, render: (r) => h(NButton, { size: 'tiny', onClick: () => showWcsDetail(r) }, { default: () => '详情' }) },
+                ]"
+                :data="wcsParseResult.rows" size="small" :bordered="false" max-height="500" virtual-scroll
+                :row-key="(_, i) => i" />
+              </div>
+            </n-card>
+          </n-tab-pane>
+
+          <!-- 远程下载 -->
+          <n-tab-pane name="remote" tab="远程下载">
+            <n-card size="small" title="从WCS服务器下载 default.log">
+              <n-space style="margin-bottom:12px">
+                <n-button @click="loadWcsRemoteFiles" :loading="wcsRemoteLoading" size="small">刷新远程列表</n-button>
+                <n-checkbox v-model:checked="wcsSelectAll" @update:checked="toggleWcsSelectAll"
+                  :disabled="!wcsRemoteFiles.length">全选</n-checkbox>
+                <n-text depth="3">{{ wcsRemoteFiles.filter(f => f._checked).length }} / {{ wcsRemoteFiles.length }} 个文件</n-text>
+              </n-space>
+
+              <n-dataTable
+                :columns="[
+                  { title: '文件名', key: 'filename', ellipsis: { tooltip: true } },
+                  { title: '修改时间', key: 'time', width: 170, render: (r) => r.time?.replace('T', ' ').slice(0, 19) },
+                  { type: 'selection' },
+                ]"
+                :data="wcsRemoteFiles" :loading="wcsRemoteLoading" size="small" :bordered="false"
+                :row-key="(r) => r._idx" max-height="320"
+                :checked-row-keys="wcsRemoteFiles.filter(f => f._checked).map(f => f._idx)"
+                @update:checked-row-keys="(keys) => { wcsRemoteFiles.forEach(f => f._checked = keys.includes(f._idx)); onWcsCheckChange(); }" />
+
+              <n-space style="margin-top:12px">
+                <n-button type="primary" @click="downloadWcsLogs" :loading="wcsDownloading"
+                  :disabled="!wcsRemoteFiles.filter(f => f._checked).length">
+                  下载选中文件
+                </n-button>
+                <n-button v-if="wcsDownloadFiles.length" @click="loadWcsFiles" size="small" secondary>
+                  刷新本地文件列表
+                </n-button>
+              </n-space>
+
+              <div v-if="wcsDownloading && wcsProgress.filename" class="wcs-progress-bar" style="margin-top:12px">
+                <n-text depth="3" style="font-size:12px">{{ wcsProgress.filename }}</n-text>
+                <div class="progress-track">
+                  <div class="progress-fill" :style="{ width: wcsProgress.percentage + '%' }"></div>
+                </div>
+                <n-text depth="3" style="font-size:12px">{{ wcsProgress.percentage }}% ({{ wcsProgress.downloaded_str }}/{{ wcsProgress.total_str }})</n-text>
+              </div>
+
+              <div v-if="wcsDownloadLogs.length" class="progress-area" style="margin-top:12px">
+                <n-spin v-if="wcsDownloading" size="small" />
+                <div class="log-lines">
+                  <div v-for="(entry, i) in wcsDownloadLogs" :key="i"
+                    :class="['log-line', entry.type]">
+                    <n-text :depth="entry.type === 'error' ? undefined : entry.type === 'success' ? undefined : 2"
+                      :type="entry.type === 'error' ? 'error' : entry.type === 'success' ? 'success' : undefined">
+                      {{ entry.text }}
+                    </n-text>
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="wcsDownloadFiles.length" class="download-result">
+                <n-tag v-for="f in wcsDownloadFiles" :key="f" type="success" size="small">{{ f }}</n-tag>
+              </div>
+            </n-card>
+          </n-tab-pane>
+        </n-tabs>
 
         <!-- WCS 详情弹窗 -->
         <n-modal v-model:show="wcsDetailModal" title="WCS 指令详情" preset="card" style="width:960px;max-width:98vw">
@@ -706,6 +986,12 @@ loadWcsFiles();
       <!-- ═══ 清理 ═══ -->
       <n-tab-pane name="clean" tab="清理日志">
         <n-card size="small" title="清理日志文件">
+          <n-space v-if="Object.keys(cleanUsage).length" style="margin-bottom:12px">
+            <n-tag v-for="(info, key) in cleanUsage" :key="key" :type="key === cleanTarget ? 'info' : 'default'" size="small">
+              {{ key === 'agvlog' ? 'AGV' : 'WCS' }}: {{ info.total_size_str }} ({{ info.file_count }} 个文件)
+            </n-tag>
+            <n-button text size="tiny" @click="loadCleanUsage">↻</n-button>
+          </n-space>
           <n-space align="center" style="margin-bottom:12px">
             <n-text>目标目录：</n-text>
             <n-select v-model:value="cleanTarget" :options="cleanTargetOptions" style="width:180px"
@@ -718,7 +1004,7 @@ loadWcsFiles();
               { type: 'selection' },
               { title: '文件名', key: 'filename', ellipsis: { tooltip: true } },
               { title: '大小', key: 'size_str', width: 100 },
-              { title: '修改时间', key: 'mtime', width: 180, render: (row) => row.mtime?.slice(0, 19) },
+              { title: '修改时间', key: 'mtime', width: 180, render: (row) => row.mtime?.replace('T', ' ').slice(0, 19) },
             ]"
             :data="cleanFiles" :loading="cleanLoading" size="small" :bordered="false"
             :row-key="(r) => r.index" max-height="400"
@@ -841,5 +1127,23 @@ h2 {
   color: var(--n-text-color-3);
   font-family: monospace;
   font-size: 11px;
+}
+.wcs-progress-bar {
+  padding: 8px 12px;
+  background: var(--n-color-embedded);
+  border-radius: 6px;
+}
+.progress-track {
+  margin: 6px 0;
+  height: 8px;
+  background: var(--n-border-color);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--n-primary-color);
+  border-radius: 4px;
+  transition: width 0.3s ease;
 }
 </style>

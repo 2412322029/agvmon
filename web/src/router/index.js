@@ -153,6 +153,15 @@ const router = createRouter({
       },
       component: () => import('../views/WCSDeviceStatus.vue'),
     },
+    // About Page
+    {
+      path: '/about',
+      name: 'about',
+      meta: {
+        disc: '关于',
+      },
+      component: () => import('../views/About.vue'),
+    },
     {
       path: '/test',
       name: 'test',
