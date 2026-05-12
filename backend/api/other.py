@@ -459,3 +459,32 @@ def redis_info():
         return info
     except Exception as e:
         return {"error": str(e)}
+
+
+@util_web_router.get("/version")
+def get_backend_version():
+    """返回后端版本信息"""
+    try:
+        from util.__version__ import version, build_time, git_hash
+        return {
+            "version": version,
+            "build_time": build_time,
+            "git_hash": git_hash,
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@util_web_router.get("/changelog")
+def get_changelog():
+    """返回git提交历史"""
+    try:
+        import json
+        from pathlib import Path
+
+        history_path = Path(__file__).parent.parent.parent / "util" / "data" / "git_history.json"
+        if history_path.exists():
+            return json.loads(history_path.read_text(encoding="utf-8"))
+        return []
+    except Exception as e:
+        return {"error": str(e)}

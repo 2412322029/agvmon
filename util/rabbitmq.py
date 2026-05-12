@@ -173,7 +173,7 @@ def run_rabbitmq_server(api: RcmsApi):
         queue_name = client.declare_queue(queue_name="test_queue")
 
         # 绑定队列到交换机
-        client.bind_queue(queue_name)
+        # client.bind_queue(queue_name)
 
         # 定义消息处理回调
         def callback(ch, method, properties, body):

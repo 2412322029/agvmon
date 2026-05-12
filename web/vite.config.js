@@ -1,6 +1,5 @@
 import { fileURLToPath, URL } from "node:url";
 
-import { DevTools } from "@vitejs/devtools";
 import vue from "@vitejs/plugin-vue";
 import { defineConfig } from "vite";
 import vueDevTools from "vite-plugin-vue-devtools";
@@ -33,12 +32,18 @@ export default defineConfig({
       },
     }),
     vueDevTools(),
-    DevTools(),
   ],
-  build: {  
-    // rolldownOptions: {
-    //   devtools: {},
-    // },
+  build: {
+    cssCodeSplit: false,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules")) {
+            return "vendor";
+          }
+        },
+      },
+    },
   },
   resolve: {
     alias: {

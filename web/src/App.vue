@@ -35,11 +35,22 @@ import { computed, h, onMounted, onUnmounted, provide, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ribbon } from './composables/ribbon';
 const buildTime = __BUILD_TIME__ || "null";
+const backendVersion = ref("");
+const backendGitHash = ref("");
 const router = useRouter();
 const route = useRoute();
 const clicktimes = ref(Number(localStorage.getItem('clicktimes')) || 3);
 const darkMode = ref(localStorage.getItem('dark_mode') === 'true');
 
+async function fetchBackendVersion() {
+  try {
+    const resp = await fetch("/api/util/version");
+    const data = await resp.json();
+    backendVersion.value = data.version || "";
+    backendGitHash.value = data.git_hash || "";
+  } catch {}
+}
+fetchBackendVersion();
 onMounted(() => {
   document.documentElement.dataset.theme = darkMode.value ? 'dark' : 'light';
   if (clicktimes.value > 0) {
@@ -295,7 +306,11 @@ onUnmounted(() => {
               AGV Monitor API <a href="/docs" target="_blank"> swagger-docs</a> / <a href="/redoc"
                 target="_blank">redoc</a>
               <br>
-              <span style="font-size: 12px; color: #999;">buildTime: {{ buildTime }}</span>
+              <span style="font-size: 12px; color: #999;">
+                v{{ backendVersion || '0.1.0' }}
+                <template v-if="backendGitHash"> | {{ backendGitHash }}</template>
+                | build: {{ buildTime }}
+              </span>
             </p>
           </footer>
           <canvas id="cbg" class="rib"

@@ -8,7 +8,12 @@ logger.setLevel("INFO")
 
 
 def main():
-    parser = argparse.ArgumentParser(description="AGV监控系统命令行界面")
+    from util.__version__ import version, build_time, git_hash
+
+    parser = argparse.ArgumentParser(
+        description="AGV监控系统命令行界面",
+        epilog=f"AGVmon v{version}  build: {build_time}  git: {git_hash}",
+    )
     parser.add_argument("--test", action="store_true", help="测试模式")
 
     # 创建子命令解析器

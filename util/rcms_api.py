@@ -162,6 +162,8 @@ class RcmsApi:
             response = self.client.get(url)
             response.raise_for_status()
             c = response.text
+            if not c.startswith("<"):
+                raise Exception(str(c))
             # print(url,c)
             result = safe_lxml_parse(xml_string=c)
         # 将结果存储到self.data

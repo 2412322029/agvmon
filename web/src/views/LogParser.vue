@@ -327,20 +327,9 @@ function compareBits(resultBin, valueBin) {
 async function loadWcsFiles() {
   wcsFilesLoading.value = true;
   try {
-    const [localRes, remoteRes] = await Promise.all([
-      fetch(`${apiBase}/wcs_logs/files`),
-      fetch(`${apiBase}/wcs_logs/remote`).catch(() => null),
-    ]);
-    const localFiles = await localRes.json();
-    const remoteMap = {};
-    if (remoteRes?.ok) {
-      const remoteFiles = await remoteRes.json();
-      remoteFiles.forEach(f => { remoteMap[f.filename] = f.time; });
-    }
-    wcsFiles.value = localFiles.map(f => ({
-      ...f,
-      mtime: remoteMap[f.filename] || f.mtime,
-    }));
+    const res = await fetch(`${apiBase}/wcs_logs/files`);
+    if (!res.ok) throw new Error('请求失败');
+    wcsFiles.value = await res.json();
   } catch (e) {
     message.error('加载WCS日志文件列表失败');
   } finally {

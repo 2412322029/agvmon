@@ -1,5 +1,20 @@
 <script setup>
+import { h, onMounted, ref } from 'vue';
 import { NCard, NDataTable, NDivider, NTabPane, NTabs, NText } from 'naive-ui';
+
+const backendVersion = ref({ version: "", build_time: "", git_hash: "" });
+const gitHistory = ref([]);
+
+onMounted(async () => {
+  try {
+    const [vResp, hResp] = await Promise.all([
+      fetch("/api/util/version"),
+      fetch("/api/util/changelog"),
+    ]);
+    if (vResp.ok) backendVersion.value = await vResp.json();
+    if (hResp.ok) gitHistory.value = await hResp.json();
+  } catch {}
+});
 </script>
 
 <template>
@@ -10,6 +25,9 @@ import { NCard, NDataTable, NDivider, NTabPane, NTabs, NText } from 'naive-ui';
       <n-text depth="3" class="desc">
         AGV 运维工具集，覆盖机器人状态监控、地图可视化、任务调度、SSH 远程诊断、
         日志分析、协议解析、DataMatrix 编解码等运维需求。
+      </n-text>
+      <n-text v-if="backendVersion.version" depth="3" class="ver">
+        v{{ backendVersion.version }} | {{ backendVersion.build_time }} | {{ backendVersion.git_hash }}
       </n-text>
     </div>
 
@@ -149,6 +167,22 @@ python main.py --test run web</pre>
         </n-card>
       </n-tab-pane>
 
+      <!-- ═══════════════ 版本历史 ═══════════════ -->
+      <n-tab-pane name="changelog" tab="版本历史">
+        <n-card size="small" title="Git 提交历史">
+          <n-dataTable
+            :columns="[
+              { title: 'Hash', key: 'short_hash', width: 90 },
+              { title: '时间', key: 'time', width: 180 },
+              { title: '提交信息', key: 'message', render(row) { return h('pre', { style: { margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontFamily: 'inherit' } }, row.message); } },
+            ]"
+            :data="gitHistory"
+            size="small" :bordered="false"
+            :row-key="(row) => row.hash"
+          />
+        </n-card>
+      </n-tab-pane>
+
       <!-- ═══════════════ 快速开始 ═══════════════ -->
       <n-tab-pane name="start" tab="快速开始">
         <n-card size="small" title="环境要求">
@@ -229,6 +263,12 @@ python build_nuitka.py
   display: block;
   font-size: 13px;
   line-height: 1.7;
+}
+.hero .ver {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  font-family: 'Consolas', 'Courier New', monospace;
 }
 .cli-block {
   font-family: 'Consolas', 'Courier New', monospace;

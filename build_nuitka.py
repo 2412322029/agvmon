@@ -3,7 +3,9 @@
 Nuitka打包脚本，用于构建AGV监控系统可执行文件
 """
 
+import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -11,19 +13,129 @@ from datetime import datetime
 from pathlib import Path
 
 
+def get_version(project_dir):
+    """自动生成版本号: pyproject.toml基版本 + git提交数"""
+    base = "0.1.0"
+    pp = project_dir / "pyproject.toml"
+    if pp.exists():
+        try:
+            text = pp.read_text(encoding="utf-8")
+            m = re.search(r'^version\s*=\s*"([^"]+)"', text, re.MULTILINE)
+            if m:
+                base = m.group(1)
+        except Exception:
+            pass
+    try:
+        result = subprocess.run(
+            ["git", "rev-list", "--count", "HEAD"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            cwd=project_dir, timeout=10,
+        )
+        if result.returncode == 0:
+            count = result.stdout.strip()
+            return f"{base}.{count}"
+    except Exception:
+        pass
+    return base
+
+
+def get_git_hash(project_dir):
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            cwd=project_dir, timeout=10,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return "unknown"
+
+
+def get_git_short_hash(project_dir):
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            cwd=project_dir, timeout=10,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return "unknown"
+
+
+def export_git_history(project_dir):
+    """导出git提交历史到JSON"""
+    try:
+        result = subprocess.run(
+            [
+                "git", "log",
+                "--date=format:%Y-%m-%d %H:%M:%S",
+                "--format=---COMMIT_START---%n%H%n%h%n%ad%n%B",
+            ],
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
+            cwd=project_dir, timeout=30,
+        )
+        if result.returncode != 0:
+            return []
+
+        blocks = result.stdout.strip().split("---COMMIT_START---\n")
+        commits = []
+        for block in blocks:
+            if not block.strip():
+                continue
+            lines = block.strip().split("\n", 3)
+            if len(lines) >= 4:
+                commits.append({
+                    "hash": lines[0],
+                    "short_hash": lines[1],
+                    "time": lines[2],
+                    "message": lines[3].strip(),
+                })
+        return commits
+    except Exception:
+        return []
+
+
 def build_with_nuitka():
     """
     使用Nuitka构建可执行文件
     """
-    # 获取项目根目录
     project_dir = Path(__file__).parent
     main_py = project_dir / "main.py"
     venv_dir = project_dir / ".venv"
 
-    # 检查主文件是否存在
     if not main_py.exists():
         print(f"错误：找不到主文件 {main_py}")
         sys.exit(1)
+
+    # 获取git信息
+    version = get_version(project_dir)
+    git_hash = get_git_hash(project_dir)
+    git_short = get_git_short_hash(project_dir)
+    build_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    print(f"Version: {version}")
+    print(f"Git Hash: {git_short}")
+    print(f"Build Time: {build_time}")
+
+    # 更新 __version__.py
+    version_file = project_dir / "util" / "__version__.py"
+    with open(version_file, "w", encoding="utf-8") as f:
+        f.write(f'version = "{version}"\n')
+        f.write(f'build_time = "{build_time}"\n')
+        f.write(f'git_hash = "{git_short}"\n')
+    print(f"已更新 {version_file}")
+
+    # 导出git提交历史
+    git_history = export_git_history(project_dir)
+    history_path = project_dir / "util" / "data" / "git_history.json"
+    with open(history_path, "w", encoding="utf-8") as f:
+        json.dump(git_history, f, ensure_ascii=False, indent=2)
+    print(f"已导出 git 历史 ({len(git_history)} 条) 到 {history_path}")
 
     libdmtx_dll = venv_dir / "Lib" / "site-packages" / "pylibdmtx" / "libdmtx-64.dll"
 
@@ -31,34 +143,29 @@ def build_with_nuitka():
         sys.executable,
         "-m",
         "nuitka",
-        # "--verbose",  # 显示详细输出
-        "--standalone",  # 创建独立的应用程序
-        "--plugin-enable=pyzmq",  # 启用pyzmq插件
-        "--include-data-dir=web/dist=./web/dist",  # 包含web/dist目录
-        "--include-data-dir=static=./static",  # 包含static目录
-        "--include-data-dir=util/data/cache=./util/data/cache",  # 包含cache目录
-        "--include-data-dir=util/data/fake=./util/data/fake",  # 包含fake目录
-        "--include-data-dir=util/data/map_img=./util/data/map_img",  # 包含map_img目录
-        "--include-data-dir=util/data/robot_img=./util/data/robot_img",  # 包含robot_img目录
-        "--include-data-files=util/config.toml=./util/config.toml",  # 包含config.toml文件
-        "--include-data-files=util/data/Alarminfo.json=./util/data/Alarminfo.json",  # 包含Alarminfo.json
-        "--include-data-files=util/data/AmrStatusInfo.json=./util/data/AmrStatusInfo.json",  # 包含AmrStatusInfo.json
-        "--output-dir=dist",  # 输出目录
-        # "--follow-imports",
-        # "--show-memory",  # 显示内存使用
-        # "--lto=yes",  # 启用LTO优化
-        "--nofollow-import-to=tkinter",  # 不跟踪tkinter导入
-        "--nofollow-import-to=ttk",  # 不跟踪ttk导入
-        "--output-filename=agvmon.exe",  # 输出文件名
-        # "--windows-console-mode=attach",  # Windows控制台模式
-        str(main_py),  # 主文件路径,
+        "--standalone",
+        "--plugin-enable=pyzmq",
+        "--include-data-dir=web/dist=./web/dist",
+        "--include-data-dir=static=./static",
+        "--include-data-dir=util/data/cache=./util/data/cache",
+        "--include-data-dir=util/data/fake=./util/data/fake",
+        "--include-data-dir=util/data/map_img=./util/data/map_img",
+        "--include-data-dir=util/data/robot_img=./util/data/robot_img",
+        "--include-data-files=util/config.toml=./util/config.toml",
+        "--include-data-files=util/data/Alarminfo.json=./util/data/Alarminfo.json",
+        "--include-data-files=util/data/AmrStatusInfo.json=./util/data/AmrStatusInfo.json",
+        "--include-data-files=util/data/git_history.json=./util/data/git_history.json",
+        "--output-dir=dist",
+        "--nofollow-import-to=tkinter",
+        "--nofollow-import-to=ttk",
+        "--output-filename=agvmon.exe",
+        str(main_py),
     ]
 
-    print("开始构建AGV监控系统可执行文件...")
+    print("\n开始构建AGV监控系统可执行文件...")
     print(f"构建命令: {' '.join(nuitka_cmd)}")
 
     try:
-        # 执行Nuitka构建命令
         return_code = os.system(" ".join(nuitka_cmd))
         if return_code != 0:
             print(f"命令执行失败: {' '.join(nuitka_cmd)}\n退出代码: {return_code}")
@@ -94,10 +201,8 @@ def build_with_nuitka():
             zip_name = f"agvmon_{timestamp}.zip"
             zip_path = project_dir / "dist" / zip_name
 
-            # 尝试查找7z命令
             seven_zip = shutil.which("7z") or shutil.which("7za") or shutil.which("7zz")
             if not seven_zip:
-                # 常见安装路径
                 common_paths = [
                     "C:\\Program Files\\7-Zip\\7z.exe",
                     "C:\\Program Files (x86)\\7-Zip\\7z.exe",
