@@ -14,7 +14,8 @@ import {
   RadiusSettingOutlined,
   SettingOutlined,
   SwitcherOutlined,
-  ToolOutlined
+  ToolOutlined,
+  WifiOutlined,
 } from '@vicons/antd';
 import { FileUpload, MapMarkedAlt, Server, Tasks } from "@vicons/fa";
 import {
@@ -29,11 +30,13 @@ import {
   NIcon,
   NMenu,
   NMessageProvider,
+  NNotificationProvider,
   zhCN
 } from 'naive-ui';
 import { computed, h, onMounted, onUnmounted, provide, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { ribbon } from './composables/ribbon';
+import GossipNotifToast from './components/GossipNotifToast.vue';
 const buildTime = __BUILD_TIME__ || "null";
 const backendVersion = ref("");
 const backendGitHash = ref("");
@@ -174,6 +177,12 @@ const menuOptions = [
         key: '/dmdtx-decode',
         icon: renderIcon(QrcodeOutlined),
         onClick: () => router.push('/dmdtx-decode')
+      },
+      {
+        label: '局域网',
+        key: '/gossip',
+        icon: renderIcon(WifiOutlined),
+        onClick: () => router.push('/gossip')
       }
     ]
   },
@@ -276,8 +285,10 @@ onUnmounted(() => {
 <template>
 
   <n-config-provider :locale="zhCN" :date-locale="dateZhCN" :theme="theme">
+    <n-notification-provider>
     <n-message-provider>
       <n-dialog-provider>
+        <GossipNotifToast />
         <!-- 顶部导航 -->
         <div class="top-nav">
           <!-- 桌面端显示完整菜单 -->
@@ -319,6 +330,7 @@ onUnmounted(() => {
         </main>
       </n-dialog-provider>
     </n-message-provider>
+    </n-notification-provider>
     <n-global-style />
   </n-config-provider>
 </template>

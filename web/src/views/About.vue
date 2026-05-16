@@ -1,6 +1,6 @@
 <script setup>
-import { h, onMounted, ref } from 'vue';
 import { NCard, NDataTable, NDivider, NTabPane, NTabs, NText } from 'naive-ui';
+import { h, onMounted, ref } from 'vue';
 
 const backendVersion = ref({ version: "", build_time: "", git_hash: "" });
 const gitHistory = ref([]);
@@ -13,7 +13,7 @@ onMounted(async () => {
     ]);
     if (vResp.ok) backendVersion.value = await vResp.json();
     if (hResp.ok) gitHistory.value = await hResp.json();
-  } catch {}
+  } catch { }
 });
 </script>
 
@@ -33,86 +33,87 @@ onMounted(async () => {
 
     <n-divider />
 
-    <n-tabs type="line" size="large" default-value="overview">
+    <n-tabs type="line" size="large" default-value="changelog">
+      <!-- ═══════════════ 版本历史 ═══════════════ -->
+      <n-tab-pane name="changelog" tab="版本历史">
+        <n-card size="small" title="Git 提交历史">
+          <n-dataTable :columns="[
+            { title: 'Hash', key: 'short_hash', width: 90, render(row) { return h('a', { href: `https://github.com/2412322029/agvmon/commit/${row.hash}`, target: '_blank', style: { fontFamily: 'monospace', color: 'green' } }, row.short_hash); } },
+            { title: '时间', key: 'time', width: 180 },
+            { title: '提交信息', key: 'message', render(row) { return h('pre', { style: { margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontFamily: 'inherit' } }, row.message); } },
+          ]" :data="gitHistory" size="small" :bordered="false" :row-key="(row) => row.hash" />
+        </n-card>
+      </n-tab-pane>
       <!-- ═══════════════ 概览 ═══════════════ -->
       <n-tab-pane name="overview" tab="概览">
         <n-card size="small" title="技术栈">
-          <n-dataTable
-            :columns="[
-              { title: '组件', key: 'name', width: 140 },
-              { title: '技术', key: 'tech' },
-            ]"
-            :data="[
-              { name: '后端框架', tech: 'Python 3.12+ / FastAPI' },
-              { name: 'ASGI 服务器', tech: 'uvicorn' },
-              { name: '前端', tech: 'Vue 3 + Vite + Naive UI' },
-              { name: '消息队列', tech: 'ZeroMQ（实时状态）、RabbitMQ（任务队列）' },
-              { name: '缓存/存储', tech: 'Redis / SQLite' },
-              { name: '数据解析', tech: 'lxml (XML)、orjson (JSON)' },
-              { name: 'SSH', tech: 'asyncssh' },
-              { name: '图像处理', tech: 'Pillow、pylibdmtx' },
-              { name: '打包发布', tech: 'Nuitka → 独立 exe' },
-            ]"
-            size="small" :bordered="false" />
+          <n-dataTable :columns="[
+            { title: '组件', key: 'name', width: 140 },
+            { title: '技术', key: 'tech' },
+          ]" :data="[
+            { name: '后端框架', tech: 'Python 3.12+ / FastAPI' },
+            { name: 'ASGI 服务器', tech: 'uvicorn' },
+            { name: '前端', tech: 'Vue 3 + Vite + Naive UI' },
+            { name: '消息队列', tech: 'ZeroMQ（实时状态）、RabbitMQ（任务队列）' },
+            { name: '缓存/存储', tech: 'Redis / SQLite' },
+            { name: '数据解析', tech: 'lxml (XML)、orjson (JSON)' },
+            { name: 'SSH', tech: 'asyncssh' },
+            { name: '图像处理', tech: 'Pillow、pylibdmtx' },
+            { name: '打包发布', tech: 'Nuitka → 独立 exe' },
+          ]" size="small" :bordered="false" />
         </n-card>
 
         <n-divider />
 
         <n-card size="small" title="功能模块">
-          <n-dataTable
-            :columns="[
-              { title: '模块', key: 'name', width: 160 },
-              { title: '说明', key: 'desc' },
-            ]"
-            :data="[
-              { name: '实时监控仪表盘', desc: '机器人状态概览（位置、电量、速度、载货、告警），路径可视化，WebSocket 实时推送' },
-              { name: '地图系统', desc: 'RCMS 共享地图生成 PNG/SVG，实时机器人位置叠加，区域标签与设备标记' },
-              { name: '任务管理', desc: '任务查询与详情（含子任务），暂停/恢复/取消/强制取消/释放，滚动状态检测' },
-              { name: 'WCS 设备状态', desc: '按设备类型（Buffer/Machine/CMS）查询实时状态与仓储位置信息' },
-              { name: 'SSH 远程诊断', desc: '异步 SSH 连接 AGV，文件浏览/上传/下载/预览，YUV 转 PNG，命令注入防护' },
-              { name: '日志分析', desc: 'AGV 日志下载（SSE 进度）+ PIO 位对比分析；WCS 日志按短码/TrayID 过滤 + hover 协议解析' },
-              { name: 'AGV/EQ 协议解析', desc: '十六进制协议数据解析，支持 AGV 控制指令 + EQ 设备状态双向解析' },
-              { name: 'DataMatrix 编解码', desc: '条码编码（SVG 输出）、解码识别，适配 AGV 路径物理标记' },
-              { name: '文件上传管理', desc: '文件上传至 Redis（TTL 自动过期），集中管理查看' },
-              { name: '异常日志记录', desc: 'SQLite 持久化存储异常事件，支持查询追溯' },
-              { name: '公共聊天室', desc: 'WebSocket 多人实时通信，支持 Markdown 渲染与代码语法高亮' },
-              { name: '暗色模式', desc: '全局暗色主题，跟随系统或手动切换' },
-              { name: '离线文档', desc: '自托管 Swagger UI / ReDoc，离线可用' },
-            ]"
-            size="small" :bordered="false" />
+          <n-dataTable :columns="[
+            { title: '模块', key: 'name', width: 160 },
+            { title: '说明', key: 'desc' },
+          ]" :data="[
+            { name: '实时监控仪表盘', desc: '机器人状态概览（位置、电量、速度、载货、告警），路径可视化，WebSocket 实时推送' },
+            { name: '地图系统', desc: 'RCMS 共享地图生成 PNG/SVG，实时机器人位置叠加，区域标签与设备标记' },
+            { name: '任务管理', desc: '任务查询与详情（含子任务），暂停/恢复/取消/强制取消/释放，滚动状态检测' },
+            { name: 'WCS 设备状态', desc: '按设备类型（Buffer/Machine/CMS）查询实时状态与仓储位置信息' },
+            { name: 'SSH 远程诊断', desc: '异步 SSH 连接 AGV，文件浏览/上传/下载/预览，YUV 转 PNG，命令注入防护' },
+            { name: '日志分析', desc: 'AGV 日志下载（SSE 进度）+ PIO 位对比分析；WCS 日志按短码/TrayID 过滤 + hover 协议解析' },
+            { name: 'AGV/EQ 协议解析', desc: '十六进制协议数据解析，支持 AGV 控制指令 + EQ 设备状态双向解析' },
+            { name: 'DataMatrix 编解码', desc: '条码编码（SVG 输出）、解码识别，适配 AGV 路径物理标记' },
+            { name: '文件上传管理', desc: '文件上传至 Redis（TTL 自动过期），集中管理查看' },
+            { name: '异常日志记录', desc: 'SQLite 持久化存储异常事件，支持查询追溯' },
+            { name: '公共聊天室', desc: 'WebSocket 多人实时通信，支持 Markdown 渲染与代码语法高亮' },
+            { name: '暗色模式', desc: '全局暗色主题，跟随系统或手动切换' },
+            { name: '离线文档', desc: '自托管 Swagger UI / ReDoc，离线可用' },
+          ]" size="small" :bordered="false" />
         </n-card>
       </n-tab-pane>
 
       <!-- ═══════════════ 界面功能 ═══════════════ -->
       <n-tab-pane name="pages" tab="界面功能">
         <n-card size="small" title="页面导航">
-          <n-dataTable
-            :columns="[
-              { title: '页面', key: 'name', width: 150 },
-              { title: '路由', key: 'path', width: 160 },
-              { title: '功能说明', key: 'desc' },
-            ]"
-            :data="[
-              { name: '首页', path: '/', desc: '机器人实时状态仪表盘，卡片式布局展示在线/离线/告警数量，快速跳转各功能' },
-              { name: '服务管理', path: '/service', desc: '系统服务状态总览，管理缓存构建任务' },
-              { name: '从缓存构建', path: '/service/build_from_cache', desc: '从本地缓存重建数据模型与地图' },
-              { name: '从原始数据构建', path: '/service/build_from_raw', desc: '从 RCMS API 拉取原始数据并构建缓存' },
-              { name: '地图', path: '/map', desc: 'SVG/PNG 地图交互查看，支持缩放拖拽，实时机器人位置叠加' },
-              { name: '任务查询', path: '/task-query', desc: '多条件任务查询，子任务详情展开，任务控制操作' },
-              { name: 'RCS Web 登录', path: '/rcs-web-login', desc: 'RCS2000 Web 管理后台内嵌登录' },
-              { name: '异常记录', path: '/exception-records', desc: '异常事件列表查询，按时间/类型筛选' },
-              { name: '日志分析', path: '/log-parser', desc: 'AGV 日志下载与 PIO 分析 + WCS 日志解析（短码/trayid 过滤、协议拆解）' },
-              { name: 'AGV-EQ 协议解析', path: '/agv-eq-protocol-parser', desc: '十六进制协议解析，AGV/EQ 字段级翻译，支持示例数据' },
-              { name: 'SSH 文件管理', path: '/ssh', desc: 'AGV 远程文件浏览、文本预览、YUV 图片转换预览' },
-              { name: 'SSH 连接管理', path: '/ssh-mgr', desc: '已连接 AGV 列表，批量管理 SSH 会话' },
-              { name: '文件上传管理', path: '/file-upload', desc: '上传文件至 Redis，TTL 管理，文件列表查看' },
-              { name: 'DM 编解码', path: '/dmdtx-decode', desc: 'DataMatrix 条码编码生成（SVG）与解码识别' },
-              { name: '聊天室', path: '/chat', desc: 'WebSocket 多人实时聊天，支持 Markdown 与代码高亮' },
-              { name: 'WCS 设备状态', path: '/wcs-status', desc: '按设备类型查询设备状态与 CMS 仓储位置信息' },
-              { name: '设置', path: '/setting', desc: '全局偏好设置（主题等）' },
-              { name: '关于', path: '/about', desc: '本页面' },
-            ]"
-            size="small" :bordered="false" />
+          <n-dataTable :columns="[
+            { title: '页面', key: 'name', width: 150 },
+            { title: '路由', key: 'path', width: 160 },
+            { title: '功能说明', key: 'desc' },
+          ]" :data="[
+            { name: '首页', path: '/', desc: '机器人实时状态仪表盘，卡片式布局展示在线/离线/告警数量，快速跳转各功能' },
+            { name: '服务管理', path: '/service', desc: '系统服务状态总览，管理缓存构建任务' },
+            { name: '从缓存构建', path: '/service/build_from_cache', desc: '从本地缓存重建数据模型与地图' },
+            { name: '从原始数据构建', path: '/service/build_from_raw', desc: '从 RCMS API 拉取原始数据并构建缓存' },
+            { name: '地图', path: '/map', desc: 'SVG/PNG 地图交互查看，支持缩放拖拽，实时机器人位置叠加' },
+            { name: '任务查询', path: '/task-query', desc: '多条件任务查询，子任务详情展开，任务控制操作' },
+            { name: 'RCS Web 登录', path: '/rcs-web-login', desc: 'RCS2000 Web 管理后台内嵌登录' },
+            { name: '异常记录', path: '/exception-records', desc: '异常事件列表查询，按时间/类型筛选' },
+            { name: '日志分析', path: '/log-parser', desc: 'AGV 日志下载与 PIO 分析 + WCS 日志解析（短码/trayid 过滤、协议拆解）' },
+            { name: 'AGV-EQ 协议解析', path: '/agv-eq-protocol-parser', desc: '十六进制协议解析，AGV/EQ 字段级翻译，支持示例数据' },
+            { name: 'SSH 文件管理', path: '/ssh', desc: 'AGV 远程文件浏览、文本预览、YUV 图片转换预览' },
+            { name: 'SSH 连接管理', path: '/ssh-mgr', desc: '已连接 AGV 列表，批量管理 SSH 会话' },
+            { name: '文件上传管理', path: '/file-upload', desc: '上传文件至 Redis，TTL 管理，文件列表查看' },
+            { name: 'DM 编解码', path: '/dmdtx-decode', desc: 'DataMatrix 条码编码生成（SVG）与解码识别' },
+            { name: '聊天室', path: '/chat', desc: 'WebSocket 多人实时聊天，支持 Markdown 与代码高亮' },
+            { name: 'WCS 设备状态', path: '/wcs-status', desc: '按设备类型查询设备状态与 CMS 仓储位置信息' },
+            { name: '设置', path: '/setting', desc: '全局偏好设置（主题等）' },
+            { name: '关于', path: '/about', desc: '本页面' },
+          ]" size="small" :bordered="false" />
         </n-card>
       </n-tab-pane>
 
@@ -167,37 +168,20 @@ python main.py --test run web</pre>
         </n-card>
       </n-tab-pane>
 
-      <!-- ═══════════════ 版本历史 ═══════════════ -->
-      <n-tab-pane name="changelog" tab="版本历史">
-        <n-card size="small" title="Git 提交历史">
-          <n-dataTable
-            :columns="[
-              { title: 'Hash', key: 'short_hash', width: 90 },
-              { title: '时间', key: 'time', width: 180 },
-              { title: '提交信息', key: 'message', render(row) { return h('pre', { style: { margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontFamily: 'inherit' } }, row.message); } },
-            ]"
-            :data="gitHistory"
-            size="small" :bordered="false"
-            :row-key="(row) => row.hash"
-          />
-        </n-card>
-      </n-tab-pane>
 
-      <!-- ═══════════════ 快速开始 ═══════════════ -->
-      <n-tab-pane name="start" tab="快速开始">
+
+      <!-- ═══════════════ 开发 ═══════════════ -->
+      <n-tab-pane name="start" tab="开发">
         <n-card size="small" title="环境要求">
-          <n-dataTable
-            :columns="[
-              { title: '依赖', key: 'item', width: 160 },
-              { title: '版本要求', key: 'ver' },
-            ]"
-            :data="[
-              { item: 'Python', ver: '>= 3.12' },
-              { item: 'Node.js', ver: '>= 20.19（前端开发/构建）' },
-              { item: 'Redis', ver: '运行中（缓存服务）' },
-              { item: 'uv（可选）', ver: 'Python 包管理器替代 pip' },
-            ]"
-            size="small" :bordered="false" />
+          <n-dataTable :columns="[
+            { title: '依赖', key: 'item', width: 160 },
+            { title: '版本要求', key: 'ver' },
+          ]" :data="[
+            { item: 'Python', ver: '>= 3.12' },
+            { item: 'Node.js', ver: '>= 20.19（前端开发/构建）' },
+            { item: 'Redis', ver: '运行中（缓存服务）' },
+            { item: 'uv（可选）', ver: 'Python 包管理器替代 pip' },
+          ]" size="small" :bordered="false" />
         </n-card>
 
         <n-divider />
@@ -243,33 +227,43 @@ python build_nuitka.py
 </template>
 
 <style scoped>
+a {
+  color: green;
+}
+
 .about-container {
   padding: 12px;
   max-width: 900px;
 }
+
 .hero {
   margin-bottom: 8px;
 }
+
 .hero h2 {
   margin-bottom: 4px;
   font-size: 28px;
 }
+
 .hero .subtitle {
   display: block;
   font-size: 15px;
   margin-bottom: 8px;
 }
+
 .hero .desc {
   display: block;
   font-size: 13px;
   line-height: 1.7;
 }
+
 .hero .ver {
   display: block;
   margin-top: 6px;
   font-size: 12px;
   font-family: 'Consolas', 'Courier New', monospace;
 }
+
 .cli-block {
   font-family: 'Consolas', 'Courier New', monospace;
   font-size: 13px;
@@ -280,6 +274,7 @@ python build_nuitka.py
   white-space: pre;
   overflow-x: auto;
 }
+
 .footer {
   font-size: 12px;
 }

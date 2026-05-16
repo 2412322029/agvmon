@@ -153,6 +153,15 @@ const router = createRouter({
       },
       component: () => import('../views/WCSDeviceStatus.vue'),
     },
+    // Gossip Network Page
+    {
+      path: '/gossip',
+      name: 'gossip',
+      meta: {
+        disc: '局域网',
+      },
+      component: () => import('../views/GossipView.vue'),
+    },
     // About Page
     {
       path: '/about',

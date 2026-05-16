@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.api.agvssh import agv_web_router
+from backend.api.gossip import gossip_router, websocket_gossip_endpoint
 from backend.api.log_parser import log_parser_router
 from backend.api.other import util_web_router, websocket_chat_endpoint
 from backend.api.rcmsapi import rcms_router
@@ -134,6 +135,9 @@ app.include_router(wcs_web_router, prefix="/api")
 # 包含LogParserApi路由
 app.include_router(log_parser_router, prefix="/api")
 
+# 包含GossipApi路由
+app.include_router(gossip_router, prefix="/api")
+
 # 设置WebSocket路由
 @app.websocket("/ws/robot-status")
 async def websocket_robot_status(websocket: WebSocket):
@@ -146,6 +150,12 @@ async def websocket_robot_status(websocket: WebSocket):
 async def websocket_chat(websocket: WebSocket):
     """公共聊天WebSocket接口"""
     await websocket_chat_endpoint(websocket)
+
+
+@app.websocket("/ws/gossip")
+async def websocket_gossip(websocket: WebSocket):
+    """Gossip通知WebSocket接口"""
+    await websocket_gossip_endpoint(websocket)
 
 
 def run_api_server():
