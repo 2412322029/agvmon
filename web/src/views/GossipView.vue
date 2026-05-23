@@ -17,7 +17,7 @@ import {
 } from 'naive-ui';
 import { UAParser } from 'ua-parser-js';
 import { computed, h, ref } from 'vue';
-import { gossipBssidMap, gossipLocalInfo, gossipNotifications, gossipPeers } from '../composables/gossipNotif';
+import { gossipBssidMap, gossipLocalInfo, gossipNotifications, gossipPeers, gossipWsStatus, disconnectGossipWs, reconnectGossipWs } from '../composables/gossipNotif';
 const parseUA = (uaString) => {
   if (!uaString) return { browser: '未知', os: '未知', device: '未知' }
   const parser = new UAParser(uaString)
@@ -32,6 +32,17 @@ const message = useMessage();
 const localInfo = gossipLocalInfo;
 const peers = gossipPeers;
 const count = computed(() => peers.value.length);
+
+const wsStatusType = computed(() => {
+  if (gossipWsStatus.value === 'connected') return 'success';
+  if (gossipWsStatus.value === 'connecting') return 'warning';
+  return 'error';
+});
+const wsStatusText = computed(() => {
+  if (gossipWsStatus.value === 'connected') return 'WS 已连接';
+  if (gossipWsStatus.value === 'connecting') return 'WS 连接中...';
+  return 'WS 已断开';
+});
 
 // ---- 通知广播 ----
 const notifyMessage = ref('');
@@ -58,16 +69,17 @@ const peerColumns = [
   {
     title: '主机名/IP', key: 'hostname', width: 170,
     render(row) {
+      const tip = `${row.hostname}\n节点ID: ${row.node_id || '-'}\n版本: ${row.version || '-'}\n构建: ${row.build_time || '-'}\nGit: ${row.git_hash || '-'}`;
       if (row.ip && row.web_port) {
         const url = `http://${row.ip}:${row.web_port}`;
         return h('a', {
           href: url,
           target: '_blank',
           style: { color: '#1890ff', textDecoration: 'none', fontSize: '12px' },
-          title: `打开 ${row.hostname} 的 Web 界面`,
+          title: tip,
         }, `${row.hostname} (${row.ip})`);
       }
-      return h('span', { style: { fontSize: '12px' } }, `${row.hostname} (${row.ip})`);
+      return h('span', { style: { fontSize: '12px' }, title: tip }, `${row.hostname} (${row.ip})`);
     }
   },
   { title: 'SSID', key: 'ssid', width: 130 },
@@ -156,10 +168,19 @@ function bssidLabel(bssid) {
 <template>
   <div class="gossip-container">
     <div class="hero">
-      <h2>局域网</h2>
-      <n-text depth="2" class="subtitle">
-        Gossip(流言传播)基于 UDP 广播的局域网节点自动发现 — 每 3 秒广播自身信息，无中心服务器依赖
-      </n-text>
+      <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+        <div>
+          <h2>局域网</h2>
+          <n-text depth="2" class="subtitle">
+            Gossip(流言传播)基于 UDP 广播的局域网节点自动发现 — 每 3 秒广播自身信息，无中心服务器依赖
+          </n-text>
+        </div>
+        <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+          <n-tag :type="wsStatusType" size="tiny" round>{{ wsStatusText }}</n-tag>
+          <n-button v-if="gossipWsStatus === 'disconnected'" size="tiny" @click="reconnectGossipWs()">重连</n-button>
+          <n-button v-else size="tiny" @click="disconnectGossipWs()">断开</n-button>
+        </div>
+      </div>
     </div>
 
     <n-divider />
@@ -226,7 +247,7 @@ function bssidLabel(bssid) {
       <div class="topology-tree">
         <!-- 本机 -->
         <div class="tree-branch">
-          <div class="tree-node-head">
+          <div class="tree-node-head" :title="`节点ID: ${localInfo.node_id}\n版本: ${localInfo.version}\n构建: ${localInfo.build_time}\nGit: ${localInfo.git_hash}`">
             <n-tag type="info" size="small" round>本机</n-tag>
             <strong>{{ localInfo.hostname }}</strong>
             <code class="tree-addr">{{ localInfo.ip }}{{ localInfo.web_port ? ':' + localInfo.web_port : '' }}</code>
@@ -245,11 +266,11 @@ function bssidLabel(bssid) {
         </div>
         <!-- 对等节点（平级） -->
         <div v-for="p in peers" :key="p.node_id" class="tree-branch">
-          <div class="tree-node-head">
+          <div class="tree-node-head" :title="`节点ID: ${p.node_id || '-'}\n版本: ${p.version || '-'}\n构建: ${p.build_time || '-'}\nGit: ${p.git_hash || '-'}`">
             <n-tag type="success" size="small" round>节点</n-tag>
             <strong>{{ p.hostname }}</strong>
             <code class="tree-addr">{{ p.ip }}{{ p.web_port ? ':' + p.web_port : '' }}</code>
-            [位于 {{ bssidLabel(localInfo.bssid) || '-' }}]
+            [位于 {{ bssidLabel(p.bssid) || '-' }}]
             <n-tag :type="p.age < 6 ? 'success' : p.age < 12 ? 'warning' : 'error'" size="tiny" round>{{ p.age
               }}s</n-tag>
           </div>
@@ -411,5 +432,31 @@ function bssidLabel(bssid) {
   color: var(--n-text-3);
   flex-shrink: 0;
   margin-left: auto;
+}
+
+/* ---- 本机信息紧凑布局 ---- */
+.local-info-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  font-size: 13px;
+  line-height: 1.8;
+}
+
+.li-item {
+  white-space: nowrap;
+}
+
+.li-sep {
+  color: var(--n-text-3);
+  margin: 0 4px;
+  user-select: none;
+}
+
+.li-loc {
+  color: var(--n-text-3);
+  font-size: 11px;
+  margin-left: 2px;
 }
 </style>

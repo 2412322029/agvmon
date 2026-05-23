@@ -157,7 +157,7 @@ def build_with_nuitka():
         "--include-data-files=util/data/git_history.json=./util/data/git_history.json",
         "--output-dir=dist",
         "--nofollow-import-to=tkinter",
-        "--nofollow-import-to=ttk",
+        "--nofollow-import-to=ttk --experimental=debug-report-traceback",
         "--output-filename=agvmon.exe",
         str(main_py),
     ]
