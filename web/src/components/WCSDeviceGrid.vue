@@ -5,26 +5,11 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 const message = useMessage()
 
 const props = defineProps({
-  deviceType: {
-    type: String,
-    default: 'BUFFER'
-  },
-  dName: {
-    type: String,
-    default: ''
-  },
-  cmsIndex: {
-    type: String,
-    default: ''
-  },
-  statusData: {
-    type: Array,
-    default: () => []
-  },
-  isPinned: {
-    type: Boolean,
-    default: false
-  }
+  deviceType: { type: String, default: 'BUFFER' },
+  dName: { type: String, default: '' },
+  cmsIndex: { type: String, default: '' },
+  statusData: { type: Array, default: () => [] },
+  isPinned: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['refresh', 'unpin', 'pin'])
@@ -35,19 +20,11 @@ let interval = null
 
 onMounted(() => {
   lastUpdateTime.value = new Date()
-  if (props.isPinned) {
-    interval = setInterval(() => {
-      currentTime.value = new Date()
-    }, 1000)
-  }
-
+  interval = setInterval(() => { currentTime.value = new Date() }, 1000)
 })
 
 onBeforeUnmount(() => {
-  if (interval) {
-    clearInterval(interval)
-    interval = null
-  }
+  if (interval) { clearInterval(interval); interval = null }
 })
 
 const timeDifference = computed(() => {
@@ -56,8 +33,7 @@ const timeDifference = computed(() => {
   const seconds = Math.floor(diff / 1000)
   if (seconds < 60) return `（${seconds}秒前）`
   const minutes = Math.floor(seconds / 60)
-  const remainingSeconds = seconds % 60
-  return `（${minutes}分${remainingSeconds}秒前）`
+  return `（${minutes}分${seconds % 60}秒前）`
 })
 
 const onRefresh = () => {
@@ -65,54 +41,91 @@ const onRefresh = () => {
   emit('refresh')
 }
 
+const onUnpin = () => emit('unpin')
+const onPin = () => emit('pin')
+
 const getStatusColor = (status) => {
   if (!status) return '#999'
-  const service = status.service || ''
-
-  if (service === 'IN') {
-    return '#52c41a'
-  } else if (service === 'OUT') {
-    return '#ff4d4f'
-  }
+  if (status.service === 'IN') return '#52c41a'
+  if (status.service === 'OUT') return '#ff4d4f'
   return '#999'
 }
+
 const getpresentColor = (status) => {
   if (!status) return '#999'
   const present = status.present || ''
   const trayId = status.trayId || ''
-
-  if ((present === 'ON' && trayId) || (present === 'OFF' && !trayId)) {
-    return '#52c41a'
-  } else if ((present === 'ON' && !trayId) || (present === 'OFF' && trayId)) {
-    return '#ff4d4f'
-  }
+  if ((present === 'ON' && trayId) || (present === 'OFF' && !trayId)) return '#52c41a'
+  if ((present === 'ON' && !trayId) || (present === 'OFF' && trayId)) return '#ff4d4f'
   return '#999'
 }
-const getArrowDirection = (portPos, trayId) => {
-  return trayId ? '📦' : ''
+
+const isCacheMismatch = (item) => item.cacheMatch === false
+const isLocked = (item) => !!item.lockSource
+const hasBothIds = (item) => !!(item.trayId && item.cacheCarrierId)
+
+const selectedItem = ref(null)
+
+const onCellClick = (item) => {
+  selectedItem.value = selectedItem.value?.cmsIndex === item.cmsIndex && selectedItem.value?.portPos === item.portPos ? null : item
 }
 
-const onUnpin = () => {
-  emit('unpin')
+const formatRelativeTime = (dateStr) => {
+  if (!dateStr) return ''
+  const now = new Date()
+  const target = new Date(dateStr.replace(' ', 'T'))
+  const diffMs = now - target
+  if (diffMs < 0) return '0h'
+  const hours = diffMs / 3600000
+  if (hours < 1) return `${(hours * 60).toFixed(0)}m`
+  return `${hours.toFixed(1)}h`
 }
-
-const onPin = () => {
-  emit('pin')
-}
-
 
 const groupedData = computed(() => {
   const groups = {}
   props.statusData.forEach(item => {
     const key = item.portPos || 'UNKNOWN'
-    if (!groups[key]) {
-      groups[key] = []
-    }
+    if (!groups[key]) groups[key] = []
     groups[key].push(item)
   })
   return groups
 })
 
+const WCS_KEYS = ['cmsIndex', 'portPos', 'present', 'service', 'trayId', 'traySize', 'manualOp', 'eqRequest']
+const SKIP_KEYS = ['cacheMatch']
+
+const showMappingTable = ref(false)
+
+const toggleMappingTable = () => {
+  showMappingTable.value = !showMappingTable.value
+}
+
+const allMappingFields = computed(() => {
+  const fields = new Set()
+  props.statusData.forEach(item => {
+    for (const [key, value] of Object.entries(item)) {
+      if (!WCS_KEYS.includes(key) && !SKIP_KEYS.includes(key) && (value || value === 0 || value === false)) {
+        fields.add(key)
+      }
+    }
+  })
+  return [...fields]
+})
+
+const selectedDetail = computed(() => {
+  if (!selectedItem.value) return { wcs: [], port: [] }
+  const wcs = []
+  const port = []
+  for (const [key, value] of Object.entries(selectedItem.value)) {
+    if (SKIP_KEYS.includes(key)) continue
+    if (WCS_KEYS.includes(key)) {
+      wcs.push({ key, value })
+    } else if (value || value === 0 || value === false) {
+      port.push({ key, value })
+    }
+  }
+  return { wcs, port }
+})
 </script>
 
 <template>
@@ -126,118 +139,142 @@ const groupedData = computed(() => {
       </template>
       <template #header-extra>
         <span class="header-extra">{{ deviceType }} - {{ cmsIndex }} </span>
-        <NButton v-if="isPinned" type="default" size="small" @click="onRefresh" :loading="false" circle
-          style="margin: 0 5px;">
+        <NButton size="tiny" @click="toggleMappingTable" :type="showMappingTable ? 'primary' : 'default'" style="margin-right: 6px;">映射</NButton>
+        <NButton type="default" size="small" @click="onRefresh" circle style="margin-right: 6px;">
           <template #icon>
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-              <path d="M3 3v5h5" />
-              <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
-              <path d="M16 21h5v-5" />
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" /><path d="M16 21h5v-5" />
             </svg>
           </template>
         </NButton>
         <NButton v-if="isPinned" type="default" size="small" @click="onUnpin" circle>
           <template #icon>
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M18 6 6 18" />
-              <path d="m6 6 12 12" />
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 6 6 18" /><path d="m6 6 12 12" />
             </svg>
           </template>
         </NButton>
         <NButton v-if="!isPinned" type="default" size="small" @click="onPin" circle style="margin: 0 5px;">
           <template #icon>
-            <svg t="1772969854733" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg"
-              p-id="2076" width="20" height="20">
-              <path
-                d="M648.728381 130.779429a73.142857 73.142857 0 0 1 22.674286 15.433142l191.561143 191.756191a73.142857 73.142857 0 0 1-22.137905 118.564571l-67.876572 30.061715-127.341714 127.488-10.093714 140.239238a73.142857 73.142857 0 0 1-124.684191 46.445714l-123.66019-123.782095-210.724572 211.699809-51.833904-51.614476 210.846476-211.821714-127.926857-128.024381a73.142857 73.142857 0 0 1 46.299428-124.635429l144.237715-10.776381 125.074285-125.220571 29.379048-67.779048a73.142857 73.142857 0 0 1 96.207238-38.034285z m-29.086476 67.120761l-34.913524 80.530286-154.087619 154.331429-171.398095 12.751238 303.323428 303.542857 12.044191-167.399619 156.233143-156.428191 80.384-35.59619-191.585524-191.73181z"
-                p-id="2077" fill="#7EE8C5"></path>
+            <svg t="1772969854733" class="icon" viewBox="0 0 1024 1024" version="1.1" xmlns="http://www.w3.org/2000/svg" p-id="2076" width="20" height="20">
+              <path d="M648.728381 130.779429a73.142857 73.142857 0 0 1 22.674286 15.433142l191.561143 191.756191a73.142857 73.142857 0 0 1-22.137905 118.564571l-67.876572 30.061715-127.341714 127.488-10.093714 140.239238a73.142857 73.142857 0 0 1-124.684191 46.445714l-123.66019-123.782095-210.724572 211.699809-51.833904-51.614476 210.846476-211.821714-127.926857-128.024381a73.142857 73.142857 0 0 1 46.299428-124.635429l144.237715-10.776381 125.074285-125.220571 29.379048-67.779048a73.142857 73.142857 0 0 1 96.207238-38.034285z m-29.086476 67.120761l-34.913524 80.530286-154.087619 154.331429-171.398095 12.751238 303.323428 303.542857 12.044191-167.399619 156.233143-156.428191 80.384-35.59619-191.585524-191.73181z" p-id="2077" fill="#7EE8C5"></path>
             </svg>
           </template>
         </NButton>
       </template>
+
       <div v-if="statusData.length > 0" class="grid-wrapper">
 
+        <!-- UP 层 -->
         <div v-if="groupedData.UP && groupedData.UP.length > 0" class="grid-section">
+          <div class="section-label">UP</div>
           <div class="grid-content">
-
-            <div v-for="item in groupedData.UP" :key="item.cmsIndex + item.portPos" class="device-cell">
+            <div v-for="item in groupedData.UP" :key="item.cmsIndex + item.portPos" class="device-cell"
+              :class="{ 'cell-mismatch': isCacheMismatch(item), 'cell-locked': isLocked(item), 'cell-selected': selectedItem?.cmsIndex === item.cmsIndex && selectedItem?.portPos === item.portPos }"
+              @click="onCellClick(item)">
               <div class="device-icon"
                 :style="{ backgroundColor: getStatusColor(item), border: '4px solid ' + getpresentColor(item) + '' }">
-                <span class="arrow">{{ item.present === 'ON' && item.trayId ? '📦' : '' }}</span>
+                <!-- 匹配状态 -->
+                <span v-if="hasBothIds(item) && !isCacheMismatch(item)" class="match-icon match-ok">✓</span>
+                <span v-if="isCacheMismatch(item)" class="match-icon match-fail">✗</span>
+                <span v-if="!hasBothIds(item) && item.trayId && !item.cacheCarrierId" class="match-icon match-arrow">📦</span>
+                <!-- 锁定 -->
+                <span v-if="isLocked(item)" class="lock-icon" :title="item.lockSource">🔒</span>
               </div>
-              <div class="device-number">{{ item.cmsIndex }}</div>
-              <div class="device-hover-info">
-                <div class="hover-info-item">
-                  <span class="hover-label">service:</span>
-                  <span class="hover-value">{{ item.service }}</span>
-                </div>
-                <div class="hover-info-item">
-                  <span class="hover-label">present:</span>
-                  <span class="hover-value">{{ item.present }}</span>
-                </div>
-                <div v-if="item.trayId" class="hover-info-item">
-                  <span class="hover-label">trayId:</span>
-                  <span class="hover-value">{{ item.trayId }}</span>
-                </div>
-                <div v-if="item.traySize" class="hover-info-item">
-                  <span class="hover-label">traySize:</span>
-                  <span class="hover-value">{{ item.traySize }}</span>
-                </div>
-                <div v-if="item.manualOp" class="hover-info-item">
-                  <span class="hover-label">manualOp:</span>
-                  <span class="hover-value">{{ item.manualOp }}</span>
-                </div>
-                <div v-if="item.eqRequest" class="hover-info-item">
-                  <span class="hover-label">eq请求:</span>
-                  <span class="hover-value">{{ item.eqRequest }}</span>
-                </div>
-              </div>
+              <div class="device-number" :title="item.cmsIndex">{{ item.bufPort || item.cmsIndex.slice(-2) }}</div>
+              <div v-if="item.dateChg" class="device-datechg">{{ formatRelativeTime(item.dateChg) }}</div>
             </div>
           </div>
         </div>
-        <!-- <div class="section-title">下层</div> -->
-        <div v-if="groupedData.DOWN && groupedData.DOWN.length > 0" class="grid-section">
-          <div class="grid-content">
 
-            <div v-for="item in groupedData.DOWN" :key="item.cmsIndex + item.portPos" class="device-cell">
+        <!-- DOWN 层 -->
+        <div v-if="groupedData.DOWN && groupedData.DOWN.length > 0" class="grid-section">
+          <div class="section-header">
+            <span class="section-label">DOWN</span>
+          </div>
+          <div class="grid-content">
+            <div v-for="item in groupedData.DOWN" :key="item.cmsIndex + item.portPos" class="device-cell"
+              :class="{ 'cell-mismatch': isCacheMismatch(item), 'cell-locked': isLocked(item), 'cell-selected': selectedItem?.cmsIndex === item.cmsIndex && selectedItem?.portPos === item.portPos }"
+              @click="onCellClick(item)">
               <div class="device-icon"
                 :style="{ backgroundColor: getStatusColor(item), border: '4px solid ' + getpresentColor(item) + '' }">
-                <span class="arrow">{{ getArrowDirection(item.portPos, item.trayId) }}</span>
+                <span v-if="hasBothIds(item) && !isCacheMismatch(item)" class="match-icon match-ok">✓</span>
+                <span v-if="isCacheMismatch(item)" class="match-icon match-fail">✗</span>
+                <span v-if="!hasBothIds(item) && item.trayId && !item.cacheCarrierId" class="match-icon match-arrow">📦</span>
+                <span v-if="isLocked(item)" class="lock-icon" :title="item.lockSource">🔒</span>
               </div>
-              <div class="device-number">{{ item.cmsIndex }}</div>
-              <div class="device-hover-info">
-                <div class="hover-info-item">
-                  <span class="hover-label">service:</span>
-                  <span class="hover-value">{{ item.service }}</span>
-                </div>
-                <div class="hover-info-item">
-                  <span class="hover-label">present:</span>
-                  <span class="hover-value">{{ item.present }}</span>
-                </div>
-                <div v-if="item.trayId" class="hover-info-item">
-                  <span class="hover-label">trayId:</span>
-                  <span class="hover-value">{{ item.trayId }}</span>
-                </div>
-                <div v-if="item.traySize" class="hover-info-item">
-                  <span class="hover-label">traySize:</span>
-                  <span class="hover-value">{{ item.traySize }}</span>
-                </div>
-                <div v-if="item.manualOp" class="hover-info-item">
-                  <span class="hover-label">manualOp:</span>
-                  <span class="hover-value">{{ item.manualOp }}({{ item.manualOp === '00' ? '自动' : '手动' }})</span>
-                </div>
-                <div v-if="item.eqRequest" class="hover-info-item">
-                  <span class="hover-label">eq请求:</span>
-                  <span class="hover-value">{{ item.eqRequest }}</span>
-                </div>
+              <div class="device-number" :title="item.cmsIndex">{{ item.bufPort || item.cmsIndex.slice(-2) }}</div>
+              <div v-if="item.dateChg" class="device-datechg">{{ formatRelativeTime(item.dateChg) }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 映射列表弹窗 -->
+        <div v-if="showMappingTable" class="mapping-modal" @click.self="showMappingTable = false">
+          <div class="mapping-modal-content">
+            <div class="mapping-modal-header">
+              <span>{{ dName || deviceType }} 全部映射 ({{ statusData.length }}项)</span>
+              <NButton size="tiny" @click="showMappingTable = false" circle>✕</NButton>
+            </div>
+            <div class="mapping-modal-body">
+              <table>
+                <thead>
+                  <tr>
+                    <th>port</th>
+                    <th>cmsIndex</th>
+                    <th>pos</th>
+                    <th>trayId</th>
+                    <th>carrierId</th>
+                    <th v-if="allMappingFields.includes('lockSource')">lock</th>
+                    <th v-if="allMappingFields.includes('dateChg')">修改时间</th>
+                    <th v-if="allMappingFields.includes('present')">present</th>
+                    <th v-if="allMappingFields.includes('service')">service</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="item in statusData" :key="item.cmsIndex + item.portPos"
+                    :class="{ 'row-mismatch': isCacheMismatch(item), 'row-locked': isLocked(item) }">
+                    <td>{{ item.bufPort || '-' }}</td>
+                    <td>{{ item.cmsIndex }}</td>
+                    <td>{{ item.portPos }}</td>
+                    <td :class="{ 'text-mismatch': isCacheMismatch(item) }">{{ item.trayId || '-' }}</td>
+                    <td :class="{ 'text-mismatch': isCacheMismatch(item) }">{{ item.cacheCarrierId || '-' }}</td>
+                    <td v-if="allMappingFields.includes('lockSource')" class="text-locked">{{ item.lockSource || '-' }}</td>
+                    <td v-if="allMappingFields.includes('dateChg')">{{ item.dateChg || '-' }}</td>
+                    <td v-if="allMappingFields.includes('present')">{{ item.present || '-' }}</td>
+                    <td v-if="allMappingFields.includes('service')">{{ item.service || '-' }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- 详情面板 -->
+        <div v-if="selectedItem" class="detail-panel">
+          <div class="detail-header">
+            <span>{{ selectedItem.cmsIndex }} / {{ selectedItem.portPos }}</span>
+            <NButton size="tiny" @click="selectedItem = null" circle>✕</NButton>
+          </div>
+          <div class="detail-body">
+            <div class="detail-section">
+              <div class="detail-section-title">实时信息 (WCS)</div>
+              <div v-for="field in selectedDetail.wcs" :key="field.key" class="detail-row">
+                <span class="dl">{{ field.key }}</span>
+                <span class="dv" :class="{ 'text-mismatch': field.key === 'trayId' && isCacheMismatch(selectedItem) }">{{ field.value || '-' }}</span>
+              </div>
+            </div>
+            <div class="detail-section">
+              <div class="detail-section-title">映射信息 (Port)</div>
+              <div v-for="field in selectedDetail.port" :key="field.key" class="detail-row">
+                <span class="dl">{{ field.key }}</span>
+                <span class="dv" :class="{ 'text-mismatch': field.key === 'cacheCarrierId' && isCacheMismatch(selectedItem), 'text-locked': field.key === 'lockSource' && selectedItem.lockSource }">{{ field.value ?? '-' }}</span>
               </div>
             </div>
           </div>
         </div>
       </div>
+
       <div v-else class="empty-grid">
         <div class="empty-grid-text">暂无设备数据</div>
       </div>
@@ -246,419 +283,155 @@ const groupedData = computed(() => {
 </template>
 
 <style scoped>
-.device-grid-wrapper {
-  margin-bottom: 20px;
-}
-
-.grid-wrapper {
-  display: flex;
-  flex-direction: column;
-  gap: 0px;
-}
-
-.grid-section {
-  background: var(--n-card-color);
-  border-radius: 8px;
-  padding: 5px;
-}
-
-.section-title {
-  font-size: 16px;
-  font-weight: 600;
-  margin-bottom: 15px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--n-divider-color);
-  color: var(--n-text-color);
-}
-
-.grid-content {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
-  width: 100%;
-}
+.device-grid-wrapper { margin-bottom: 20px; }
+.grid-wrapper { display: flex; flex-direction: column; gap: 0px; }
+.grid-section { background: var(--n-card-color); border-radius: 8px; padding: 5px; }
+.section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+.section-label { font-size: 12px; font-weight: 600; color: var(--n-text-color-2); padding-left: 2px; }
+.grid-content { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-start; width: 100%; }
 
 .device-cell {
-  flex: 1 1 auto;
-  max-width: 60px;
-  min-width: 40px;
-  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   cursor: pointer;
-  transition: all 0.3s ease;
+  padding: 2px;
+  border-radius: 6px;
+  border: 2px solid transparent;
+  transition: all 0.2s ease;
+  min-width: 44px;
 }
+.device-cell:hover { background: var(--n-item-color-hover); }
+.device-cell.cell-selected { border-color: #1890ff; background: rgba(24,144,255,0.08); }
+.device-cell.cell-mismatch { background: rgba(255,77,79,0.06); }
+.device-cell.cell-locked { background: rgba(250,173,20,0.06); }
 
 .device-icon {
-  width: 40px;
-  height: 40px;
-  /* border-radius: 6px; */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0 auto;
+  width: 40px; height: 40px;
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
   transition: all 0.3s ease;
 }
 
-.device-icon .arrow {
-  font-size: 20px;
-  font-weight: bold;
-}
+.match-icon { font-size: 18px; font-weight: bold; line-height: 1; }
+.match-ok { color: #1890ff; }
+.match-fail { color: #ff4d4f; animation: pulse 1s ease-in-out infinite; }
+.match-arrow { font-size: 20px; }
 
-.device-cms {
-  font-size: 12px;
-  text-align: center;
-  color: var(--n-text-color);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.device-cms {
-  font-size: 12px;
-  text-align: center;
-  color: var(--n-text-color);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.lock-icon {
+  position: absolute; top: -6px; right: -6px;
+  font-size: 11px; line-height: 1;
 }
 
 .device-number {
-  font-size: 11px;
-  text-align: center;
-  color: var(--n-text-color);
-  margin-top: 4px;
-  font-weight: 500;
+  font-size: 13px; text-align: center; color: var(--n-text-color);
+  margin-top: 2px; font-weight: 600;
+}
+.device-datechg {
+  font-size: 10px; text-align: center; color: var(--n-text-color-2);
+  margin-top: 1px; white-space: nowrap;
+  max-width: 60px; overflow: hidden; text-overflow: ellipsis;
 }
 
-.device-hover-info {
-  position: absolute;
-  top: 100%;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 180px;
-  background: rgb(255, 255, 255);
-  color: black;
-  backdrop-filter: blur(15px);
-  border: 1px solid green;
+/* 详情面板 */
+.detail-panel {
+  margin-top: 12px;
+  border: 1px solid #1890ff;
   border-radius: 8px;
-  padding: 8px;
-  z-index: 10;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-  display: none;
-  margin-top: 6px;
+  background: var(--n-card-color);
+  overflow: hidden;
 }
-
-.device-hover-info::before {
-  content: '';
-  position: absolute;
-  top: -8px;
-  left: 50%;
-  transform: translateX(-50%);
-  border-width: 6px 6px 0;
-  border-style: solid;
-  border-color: var(--n-text-color);
-
+.detail-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 12px;
+  background: rgba(24,144,255,0.08);
+  border-bottom: 1px solid var(--n-divider-color);
+  font-weight: 600; font-size: 14px;
 }
-
-.device-cell:hover .device-hover-info {
-  display: block;
+/* 映射列表弹窗 */
+.mapping-modal {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.5); z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
 }
-
-.hover-info-item {
-  display: flex;
-  margin-bottom: 4px;
-  font-size: 12px;
+.mapping-modal-content {
+  background: #fff; border-radius: 12px;
+  width: 92vw; max-width: 960px; max-height: 85vh;
+  display: flex; flex-direction: column; box-shadow: 0 12px 48px rgba(0,0,0,0.25);
 }
-
-.hover-label {
-  width: 70px;
-  margin-right: 6px;
+[data-theme="dark"] .mapping-modal-content { background: #1a1a1a; }
+.mapping-modal-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 20px; border-bottom: 1px solid #e8e8e8;
+  font-weight: 600; font-size: 16px;
 }
-
-.hover-value {
-  flex: 1;
-  word-break: break-all;
+[data-theme="dark"] .mapping-modal-header { border-bottom-color: #333; }
+.mapping-modal-body { overflow: auto; padding: 12px 16px; }
+.mapping-modal-body table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.mapping-modal-body th {
+  position: sticky; top: 0; background: #fafafa;
+  padding: 8px 10px; text-align: left; border-bottom: 2px solid #e8e8e8;
+  white-space: nowrap; z-index: 1; font-weight: 600;
 }
-
-.empty-grid {
-  padding: 40px 20px;
-  text-align: center;
-  color: var(--n-text-color-2);
+[data-theme="dark"] .mapping-modal-body th { background: #222; border-bottom-color: #333; }
+.mapping-modal-body td {
+  padding: 6px 10px; border-bottom: 1px solid #f0f0f0;
+  white-space: nowrap; max-width: 160px; overflow: hidden; text-overflow: ellipsis;
 }
-
-.empty-grid-text {
-  font-size: 14px;
+[data-theme="dark"] .mapping-modal-body td { border-bottom-color: #2a2a2a; }
+.mapping-modal-body tbody tr:hover { background: rgba(24,144,255,0.04); }
+.row-mismatch { background: rgba(255,77,79,0.06); }
+.row-locked { background: rgba(250,173,20,0.06); }
+.row-mismatch.row-locked { background: rgba(255,77,79,0.10); }
+.detail-body { display: flex; gap: 0; flex-wrap: wrap; }
+.detail-section {
+  flex: 1; min-width: 260px; padding: 10px 12px;
 }
-
-@media (max-width: 768px) {
-  .device-grid-wrapper {
-    margin-bottom: 10px;
-  }
-
-  .grid-wrapper {
-    gap: 15px;
-  }
-
-  .grid-section {
-    padding: 10px;
-  }
-
-  .section-title {
-    font-size: 14px;
-    margin-bottom: 10px;
-  }
-
-  .grid-content {
-    gap: 6px;
-  }
-
-  .device-cell {
-    flex: 0 0 40px;
-    max-width: 40px;
-  }
-
-  .device-icon {
-    width: 32px;
-    height: 32px;
-  }
-
-  .device-icon .arrow {
-    font-size: 16px;
-  }
-
-  .device-number {
-    font-size: 10px;
-    margin-top: 3px;
-  }
-
-  .device-hover-info {
-    width: 160px;
-    padding: 6px;
-    margin-top: 4px;
-  }
-
-  .hover-info-item {
-    margin-bottom: 3px;
-    font-size: 11px;
-  }
-
-  .hover-label {
-    width: 35px;
-    font-size: 11px;
-  }
-
-  .hover-value {
-    font-size: 11px;
-  }
-
-  .device-hover-info::before {
-    border-width: 5px 5px 0;
-  }
+.detail-section + .detail-section {
+  border-left: 1px solid var(--n-divider-color);
 }
-
-@media (max-width: 480px) {
-  .device-cell {
-    flex: 0 0 35px;
-    max-width: 35px;
-  }
-
-  .device-icon {
-    width: 28px;
-    height: 28px;
-  }
-
-  .device-icon .arrow {
-    font-size: 14px;
-  }
-
-  .device-number {
-    font-size: 9px;
-    margin-top: 2px;
-  }
-
-  .device-hover-info {
-    width: 140px;
-    padding: 5px;
-    margin-top: 3px;
-  }
-
-  .hover-info-item {
-    margin-bottom: 2px;
-    font-size: 10px;
-  }
-
-  .hover-label {
-    width: 30px;
-    font-size: 10px;
-  }
-
-  .hover-value {
-    font-size: 10px;
-  }
-
-  .device-hover-info::before {
-    border-width: 4px 4px 0;
-  }
+.detail-section-title {
+  font-size: 13px; font-weight: 600; color: var(--n-primary-color);
+  margin-bottom: 8px; padding-bottom: 4px;
+  border-bottom: 1px dashed var(--n-divider-color);
 }
+.detail-row { display: flex; margin-bottom: 3px; font-size: 12px; }
+.dl { width: 90px; flex-shrink: 0; color: var(--n-text-color-2); }
+.dv { flex: 1; word-break: break-all; color: var(--n-text-color); }
 
-.present-icon {
-  position: absolute;
-  bottom: 2px;
-  right: 2px;
-  width: 12px;
-  height: 12px;
-}
+.text-mismatch { color: #ff4d4f; font-weight: 600; }
+.text-locked { color: #faad14; font-weight: 600; }
 
-.present-icon svg {
-  width: 100%;
-  height: 100%;
+.empty-grid { padding: 40px 20px; text-align: center; color: var(--n-text-color-2); }
+.empty-grid-text { font-size: 14px; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
 }
 
 @media (max-width: 768px) {
-  .device-grid-wrapper {
-    margin-bottom: 10px;
-  }
-
-  .grid-wrapper {
-    gap: 12px;
-  }
-
-  .grid-section {
-    padding: 8px;
-  }
-
-  .section-title {
-    font-size: 13px;
-    margin-bottom: 8px;
-  }
-
-  .grid-content {
-    gap: 5px;
-  }
-
-  .device-cell {
-    flex: 0 0 36px;
-    max-width: 36px;
-  }
-
-  .device-icon {
-    width: 28px;
-    height: 28px;
-    border-width: 3px;
-  }
-
-  .device-icon .arrow {
-    font-size: 14px;
-  }
-
-  .present-icon {
-    width: 10px;
-    height: 10px;
-    bottom: 1px;
-    right: 1px;
-  }
-
-  .device-number {
-    font-size: 9px;
-    margin-top: 2px;
-  }
-
-  .device-hover-info {
-    width: 150px;
-    padding: 5px;
-    margin-top: 3px;
-    font-size: 11px;
-  }
-
-  .hover-info-item {
-    margin-bottom: 2px;
-  }
-
-  .hover-label {
-    width: 45px;
-    font-size: 10px;
-  }
-
-  .hover-value {
-    font-size: 10px;
-  }
-
-  .device-hover-info::before {
-    border-width: 4px 4px 0;
-  }
+  .device-grid-wrapper { margin-bottom: 10px; }
+  .grid-section { padding: 8px; }
+  .grid-content { gap: 4px; }
+  .device-cell { min-width: 36px; }
+  .device-icon { width: 32px; height: 32px; }
+  .device-icon .match-icon { font-size: 14px; }
+  .match-arrow { font-size: 16px; }
+  .device-number { font-size: 11px; }
+  .device-datechg { font-size: 9px; }
+  .detail-body { flex-direction: column; }
+  .detail-section + .detail-section { border-left: none; border-top: 1px solid var(--n-divider-color); }
 }
 
 @media (max-width: 480px) {
-  .device-grid-wrapper {
-    margin-bottom: 8px;
-  }
-
-  .grid-wrapper {
-    gap: 10px;
-  }
-
-  .grid-section {
-    padding: 6px;
-  }
-
-  .section-title {
-    font-size: 12px;
-    margin-bottom: 6px;
-  }
-
-  .grid-content {
-    gap: 4px;
-  }
-
-  .device-cell {
-    flex: 0 0 32px;
-    max-width: 32px;
-  }
-
-  .device-icon {
-    width: 24px;
-    height: 24px;
-    border-width: 2px;
-  }
-
-  .device-icon .arrow {
-    font-size: 12px;
-  }
-
-  .present-icon {
-    width: 8px;
-    height: 8px;
-    bottom: 0;
-    right: 0;
-  }
-
-  .device-number {
-    font-size: 8px;
-    margin-top: 1px;
-  }
-
-  .device-hover-info {
-    width: 130px;
-    padding: 4px;
-    margin-top: 2px;
-    font-size: 10px;
-  }
-
-  .hover-info-item {
-    margin-bottom: 1px;
-  }
-
-  .hover-label {
-    width: 40px;
-    font-size: 9px;
-  }
-
-  .hover-value {
-    font-size: 9px;
-  }
-
-  .device-hover-info::before {
-    border-width: 3px 3px 0;
-  }
+  .device-cell { min-width: 30px; }
+  .device-icon { width: 28px; height: 28px; }
+  .device-icon .match-icon { font-size: 12px; }
+  .match-arrow { font-size: 14px; }
+  .device-number { font-size: 10px; }
+  .device-datechg { font-size: 8px; }
+  .detail-row { font-size: 11px; }
+  .dl { width: 70px; }
 }
 </style>

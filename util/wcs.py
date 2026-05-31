@@ -36,8 +36,8 @@ class Wcs:
             return data
         except httpx.ReadTimeout:
             return {"code": -1, "message": "访问超时"}
-        except Exception as e:
-            return {"code": -1, "message": str(e)}
+        # except Exception as e:
+        #     return {"code": -1, "message": str(e)}
 
 
 test = {

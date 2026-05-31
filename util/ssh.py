@@ -179,9 +179,10 @@ class SSHManager:
             else:
                 raise Exception(f"检查ip是否正确,用户名和密码是否正确,错误信息:{why}")
         else:
-            logger.error("所有用户名和密码均失败，添加更多用户名和密码到配置文件 config.toml")
-            return False
-        return True
+            msg = "所有用户名和密码均失败，添加更多用户名和密码到配置文件 config.toml"
+            logger.error(msg)
+            return False, msg
+        return True, None
     async def disconnect(self):
         """断开SSH连接"""
         if self.connection:
@@ -564,7 +565,7 @@ class SSHManager:
 
 
 async def main():
-    host = "192.168.9.70"
+    host = "172.27.145.183"
     username = "root"
     password = "hiklinux"
 
@@ -576,7 +577,7 @@ async def main():
             logger.error(f"连接失败: {error}")
             return
         _, o = await ssh_manager.run_command(
-            "sh -c 'export PATH=$PATH:/usr/sbin && castor_refresh_record'"
+            "sh -c 'export PATH=$PATH:/usr/sbin && castor_show_log_record_monitor'"
         )
         print(o)
     finally:

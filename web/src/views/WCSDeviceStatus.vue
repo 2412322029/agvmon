@@ -138,6 +138,7 @@ const pinnedStatusData = ref({})
 const loading = ref(false)
 const refreshInterval = ref(null)
 const cmsSearchText = ref('')
+const lastFetchTime = ref(null)
 
 
 // watch(cmsSearchText, (newVal) => {
@@ -146,6 +147,57 @@ const cmsSearchText = ref('')
 watch(loading, (newVal) => {
     console.log(loading.value);
 })
+
+const BUFFER_PORT_TYPES = ['BUFFER', 'CV', 'NO_POWER_BUFFER', 'S_CV', 'VS']
+
+const getPortType = (deviceType) => {
+  return BUFFER_PORT_TYPES.includes(deviceType) ? 'bufferPort' : 'machinePort'
+}
+
+const fetchPortMapping = async (cmsIndex, buforeq) => {
+  const prefix = cmsIndex.substring(0, 4)
+  const response = await fetch('/api/rcs_web/getPort', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      start: 1, limit: 1000, cmsIndex: prefix, buforeq
+    })
+  })
+  return await response.json()
+}
+
+const mergePortCache = (statusList, portData) => {
+  const portMap = new Map()
+  const pData = portData?.data || []
+  pData.forEach(p => {
+    const key = `${p.cmsIndex}_${p.upDown}`
+    portMap.set(key, p)
+  })
+  return statusList.map(status => {
+    const key = `${status.cmsIndex}_${status.portPos}`
+    const p = portMap.get(key)
+    const cacheCarrierId = p?.carrierId || ''
+    return {
+      ...status,
+      cacheCarrierId,
+      cacheMatch: !cacheCarrierId || cacheCarrierId === status.trayId,
+      lockSource: p?.lockSource || '',
+      dateChg: p?.dateChg || '',
+      bufferName: p?.bufferName || '',
+      bufPort: p?.port || '',
+      zoneName: p?.zoneName || '',
+      mapDataCode: p?.mapDataCode || '',
+      parkFlag: p?.parkFlag || '',
+      isEnable: p?.isEnable,
+      splicingStr: p?.splicingStr || '',
+      bufType: p?.type || '',
+      carrierLoc: p?.carrierLoc || '',
+      eqName: p?.eqName || '',
+      connectPort: p?.connectPort || '',
+      linkConnectPort: p?.linkConnectPort || '',
+    }
+  })
+}
 
 const fetchStatusData = async ({ index, deviceType } = {}) => {
   if (!deviceType) deviceType = selectedDeviceType.value
@@ -162,11 +214,27 @@ const fetchStatusData = async ({ index, deviceType } = {}) => {
     const response = await fetch(`/api/wcs/searchDeviceStatusInfo?cms_index=${index}&device_type=${deviceType}`)
     const data = await response.json()
 
+    let statusList = null
     if (data && data.params && data.params.status) {
+      statusList = data.params.status
+    }
+
+    // 查询端口映射信息并合并（bufferPort: BUFFER/CV/NO_POWER_BUFFER/S_CV/VS, machinePort: EQ/STK 等）
+    if (statusList) {
+      try {
+        const buforeq = getPortType(deviceType)
+        const portData = await fetchPortMapping(index, buforeq)
+        statusList = mergePortCache(statusList, portData)
+      } catch (e) {
+        console.error('获取端口映射失败:', e)
+      }
+    }
+
+    if (statusList) {
       const key = `${index}_${deviceType}`
-      pinnedStatusData.value[key] = data.params.status
+      pinnedStatusData.value[key] = statusList
       if (!isItemPinned(index, deviceType)) {
-        statusData.value = data.params.status
+        statusData.value = statusList
       }
     } else {
       const key = `${index}_${deviceType}`
@@ -180,6 +248,7 @@ const fetchStatusData = async ({ index, deviceType } = {}) => {
     } else {
       message.error(`${deviceType} ${index} 数据刷新失败: ${data.message}`)
     }
+    lastFetchTime.value = new Date()
   } catch (error) {
     console.error('获取状态数据失败:', error)
     message.error('获取数据失败')
@@ -190,6 +259,29 @@ const fetchStatusData = async ({ index, deviceType } = {}) => {
     }
   } finally {
     loading.value = false
+  }
+}
+
+const refreshMappingOnly = async (cmsIndex, deviceType) => {
+  const key = `${cmsIndex}_${deviceType}`
+  const current = pinnedStatusData.value[key] || statusData.value
+  if (!current || current.length === 0) {
+    message.error('无数据，请先刷新')
+    return
+  }
+  try {
+    const buforeq = getPortType(deviceType)
+    const portData = await fetchPortMapping(cmsIndex, buforeq)
+    const merged = mergePortCache(current, portData)
+    pinnedStatusData.value[key] = merged
+    if (!isItemPinned(cmsIndex, deviceType)) {
+      statusData.value = merged
+    }
+    lastFetchTime.value = new Date()
+    message.success(`${deviceType} ${cmsIndex} 映射刷新成功`)
+  } catch (e) {
+    console.error('刷新映射失败:', e)
+    message.error('刷新映射失败')
   }
 }
 
@@ -286,7 +378,8 @@ onBeforeUnmount(() => {
         <div style="margin-top: 20px;">
           <WCSDeviceGrid :device-type="selectedDeviceType" :d-name="selectlable" :cms-index="cmsSearchText"
             :status-data="pinnedStatusData[`${cmsSearchText}_${selectedDeviceType}`] || statusData"
-            :is-pinned="false" @pin="onPinClick" />
+            :is-pinned="false"
+            @pin="onPinClick" @refresh="fetchStatusData()" />
         </div>
         <div style="border: 1px solid green;">
           <div v-for="item in pinnedItems" :key="`${item.cmsIndex}_${item.deviceType}`" style="margin-top: 20px;"
