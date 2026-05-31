@@ -1,7 +1,0 @@
-{
-  "rabbitmpUser": "root",
-  "rabbitmqExchange": "exchangeMsg",
-  "rabbitmqIp": "172.18.2.82",
-  "rabbitmqPassword": "HIKhik123++",
-  "rabbitmqPort": "5672"
-}
