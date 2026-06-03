@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import threading
 
 from fastapi import FastAPI
@@ -9,6 +10,8 @@ from backend.api.rcmsapi import rapi
 from backend.api.websocket import broadcast_robot_status, start_zeromq_management_task
 from util.config import cfg
 from util.gossip import get_local_info, get_node, stop_default
+
+logger = logging.getLogger("gossip.state")
 
 # 通知桥接：gossip 线程 -> asyncio WebSocket 广播
 gossip_notification_queue: asyncio.Queue = asyncio.Queue(maxsize=200)

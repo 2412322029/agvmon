@@ -163,7 +163,11 @@ const fetchPortMapping = async (cmsIndex, buforeq) => {
       start: 1, limit: 1000, cmsIndex: prefix, buforeq
     })
   })
-  return await response.json()
+  const result = await response.json()
+  if (!result.success) {
+    throw new Error(result.message || '端口映射获取失败')
+  }
+  return result
 }
 
 const mergePortCache = (statusList, portData) => {
@@ -219,17 +223,7 @@ const fetchStatusData = async ({ index, deviceType } = {}) => {
       statusList = data.params.status
     }
 
-    // 查询端口映射信息并合并（bufferPort: BUFFER/CV/NO_POWER_BUFFER/S_CV/VS, machinePort: EQ/STK 等）
-    if (statusList) {
-      try {
-        const buforeq = getPortType(deviceType)
-        const portData = await fetchPortMapping(index, buforeq)
-        statusList = mergePortCache(statusList, portData)
-      } catch (e) {
-        console.error('获取端口映射失败:', e)
-      }
-    }
-
+    // 先显示实时 WCS 数据，不等端口映射
     if (statusList) {
       const key = `${index}_${deviceType}`
       pinnedStatusData.value[key] = statusList
@@ -243,6 +237,22 @@ const fetchStatusData = async ({ index, deviceType } = {}) => {
         statusData.value = []
       }
     }
+
+    // 异步加载端口映射，加载完成后自动更新合并数据
+    if (statusList) {
+      fetchPortMapping(index, getPortType(deviceType)).then(portData => {
+        const merged = mergePortCache(statusList, portData)
+        const key = `${index}_${deviceType}`
+        pinnedStatusData.value[key] = merged
+        if (!isItemPinned(index, deviceType)) {
+          statusData.value = merged
+        }
+      }).catch(e => {
+        console.error('获取端口映射失败:', e)
+        message.error(`${deviceType} ${index} 端口映射获取失败`)
+      })
+    }
+
     if (data.code === 0) {
       message.success(`${deviceType} ${index} 数据刷新成功`)
     } else {

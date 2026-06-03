@@ -346,6 +346,13 @@ class RcsWebApi:
             },
         )
 
+    # http://172.27.6.43:8181/rcms/web/eqpInfo/getOtherDevices.action
+    async def wcsgetOtherDevices(self):
+        """查询WCS OtherDevices"""
+        return await self._request(
+            "/eqpInfo/getOtherDevices.action",
+        )
+
     async def saveagvinfo(self):
         """缓存AGV信息到本地文件"""
         file_path = self.current_cache_path / "agvinfo.json"

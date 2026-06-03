@@ -11,6 +11,17 @@ let _onNewCallback = null;
 
 export function connectGossipWs(onNew) {
   if (onNew) _onNewCallback = onNew;
+
+  // 避免重复创建连接
+  if (gossipWs) {
+    if (gossipWs.readyState === WebSocket.OPEN || gossipWs.readyState === WebSocket.CONNECTING) {
+      gossipWsStatus.value = 'connected';
+      return;
+    }
+    // 旧连接已失效，清理后重新创建
+    gossipWs = null;
+  }
+
   _manualDisconnect = false;
   gossipWsStatus.value = 'connecting';
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -48,6 +59,20 @@ export function connectGossipWs(onNew) {
       setTimeout(() => connectGossipWs(), 5000);
     }
   };
+}
+
+// 页面可见性变化时自动重连（解决后台标签页 WebSocket 断连后重连不及时的问题）
+function _onVisibilityChange() {
+  if (document.visibilityState === 'visible') {
+    const needReconnect = !gossipWs || gossipWs.readyState === WebSocket.CLOSED || gossipWs.readyState === WebSocket.CLOSING
+    if (needReconnect) {
+      connectGossipWs()
+    }
+  }
+}
+
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', _onVisibilityChange)
 }
 
 export function disconnectGossipWs() {

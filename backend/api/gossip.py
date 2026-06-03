@@ -1,11 +1,14 @@
 import asyncio
 import json
+import logging
 import time
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
 from util.gossip import get_local_info, get_node
+
+logger = logging.getLogger("gossip.ws")
 
 gossip_router = APIRouter(prefix="/gossip", tags=["gossip"])
 
@@ -132,10 +135,17 @@ class GossipConnectionManager:
         }
         self.active_connections.append(entry)
         self._sync_to_gossip()
+        logger.info("WS 连接: ip=%s ua=%s 当前连接数=%d",
+                     entry["ip"], entry["ua"][:60], len(self.active_connections))
 
     def disconnect(self, websocket: WebSocket):
+        ip = websocket.client.host if websocket.client else "?"
+        before = len(self.active_connections)
         self.active_connections = [c for c in self.active_connections if c["ws"] != websocket]
+        after = len(self.active_connections)
         self._sync_to_gossip()
+        if before != after:
+            logger.info("WS 断开: ip=%s 剩余连接数=%d", ip, after)
 
     def _sync_to_gossip(self):
         """将当前客户端列表同步到 gossip 节点。"""
@@ -153,7 +163,8 @@ class GossipConnectionManager:
         for conn in self.active_connections[:]:
             try:
                 await conn["ws"].send_text(message)
-            except Exception:
+            except Exception as e:
+                logger.warning("WS 广播失败: ip=%s err=%s", conn.get("ip", "?"), e)
                 self.disconnect(conn["ws"])
 
 

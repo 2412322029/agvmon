@@ -481,6 +481,33 @@ async def get_device_type_options():
     """
     return rcs_api.get_device_type_options()
 
+@rcs_web_router.post("/wcs_task_state")
+@handle_rcs_exception()
+async def wcs_task_state_api(
+    start: int = Body(1, description="起始页"),
+    limit: int = Body(100, description="每页数量"),
+    deviceType: str = Body("lift", description="设备类型"),
+    deviceIndex: str = Body("", description="设备索引"),
+):
+    async with rcs_api:
+        result = await rcs_api.wcsTaskState(
+            start=start,
+            limit=limit,
+            deviceType=deviceType,
+            deviceIndex=deviceIndex,
+        )
+    return result
+
+
+@rcs_web_router.post("/wcs_get_other_devices")
+@handle_rcs_exception()
+async def wcs_get_other_devices_api():
+    """查询WCS OtherDevices"""
+    async with rcs_api:
+        result = await rcs_api.wcsgetOtherDevices()
+    return result
+
+
 @handle_rcs_exception()
 def refresh_rcs_api():
     """
