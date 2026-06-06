@@ -2,88 +2,73 @@ import logging
 import os
 import pathlib
 import sys
-from logging.handlers import TimedRotatingFileHandler
+
+from loguru import logger
 
 from .config import cfg
 
+__all__ = ["logger"]
+
 log_path = pathlib.Path(os.path.join(os.path.dirname(__file__), "../log"))
-if not log_path.exists():
-    log_path.mkdir()
+log_path.mkdir(exist_ok=True)
 
-# 定义颜色代码
-class ColorCodes:
-    RESET = "\033[0m"
-    RED = "\033[31m"
-    GREEN = "\033[32m"
-    YELLOW = "\033[33m"
-    BLUE = "\033[34m"
-    MAGENTA = "\033[35m"
-    CYAN = "\033[36m"
-    WHITE = "\033[37m"
-    
-    # 背景颜色
-    BG_RED = "\033[41m"
-    BG_GREEN = "\033[42m"
-    BG_YELLOW = "\033[43m"
-    BG_BLUE = "\033[44m"
+# logging 包的目录路径，用于判断帧是否在 logging 内部
+_logging_dir = os.path.dirname(logging.__file__)
 
-# 创建彩色日志格式类
-class ColoredFormatter(logging.Formatter):
-    def __init__(self, fmt=None, datefmt=None):
-        super().__init__(fmt, datefmt)
-        self.level_colors = {
-            logging.DEBUG: ColorCodes.CYAN,
-            logging.INFO: ColorCodes.GREEN,
-            logging.WARNING: ColorCodes.YELLOW,
-            logging.ERROR: ColorCodes.RED,
-            logging.CRITICAL: ColorCodes.BG_RED + ColorCodes.WHITE
-        }
-    
-    def format(self, record):
-        # 调用父类的format方法获取格式化后的输出
-        formatted_output = super().format(record)
-        
-        # 只对日志级别名称应用颜色
-        levelname = record.levelname
-        if record.levelno in self.level_colors:
-            # 查找并替换级别名称
-            colored_levelname = f"{self.level_colors[record.levelno]}{levelname}{ColorCodes.RESET}"
-            formatted_output = formatted_output.replace(levelname, colored_levelname)
-        
-        return formatted_output
 
-# 创建普通日志格式（用于文件日志）
-file_formatter = logging.Formatter(
-    "%(asctime)s - %(name)s - %(funcName)s(line %(lineno)d) - %(levelname)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
-)
+class InterceptHandler(logging.Handler):
+    """将标准库 logging 重定向到 Loguru，正确显示原始调用方"""
 
-# 创建彩色日志格式（用于控制台日志）
-console_formatter = ColoredFormatter(
-    "%(asctime)s (%(thread)d) - %(name)s - %(funcName)s(line %(lineno)d) - %(levelname)s - %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S"
-)
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            level = logger.level(record.levelname).name
+        except ValueError:
+            level = record.levelno
 
-def init_logger(file_name="main.log"):
-    # 创建控制台处理器
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(console_formatter)
+        # 向上遍历调用栈，跳过 emit 自身 + logging 包全部内部帧 + loguru 帧
+        frame = logging.currentframe()
+        depth = 0
+        while frame:
+            fname = frame.f_code.co_filename
+            if (fname == __file__  # emit 自身
+                    or fname.startswith(_logging_dir)  # logging 包内部
+                    or 'loguru' in fname):  # loguru 内部
+                frame = frame.f_back
+                depth += 1
+            else:
+                break
 
-    # 创建带时间轮换的文件处理器
-    file_handler = TimedRotatingFileHandler(
-        filename=log_path / file_name,
-        when="D",
-        backupCount=5,
-        encoding="utf-8"
+        logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
+
+
+def _setup_logger(file_name: str = "main.log") -> None:
+    logger.remove()
+
+    # 控制台 — Loguru 默认格式（自带彩色）
+    logger.add(
+        sys.stdout,
+        level=cfg.get("log_level"),
+        colorize=True,
     )
-    file_handler.setFormatter(file_formatter)
 
-    # 配置根日志记录器
-    root_logger = logging.getLogger()
-    root_logger.setLevel(logging.getLevelName(cfg.get("log_level")))
-    root_logger.addHandler(console_handler)
-    root_logger.addHandler(file_handler)
+    # 文件 — 每天轮转，保留 5 天
+    logger.add(
+        log_path / file_name,
+        level=cfg.get("log_level"),
+        rotation="1 day",
+        retention=5,
+        encoding="utf-8",
+    )
 
-    return root_logger
+    # 将标准 logging 全部重定向到 Loguru
+    logging.root.handlers = [InterceptHandler()]
+    logging.root.setLevel(0)
 
-logger = init_logger("main.log")
+    # 抑制 uvicorn 自带的 logger handler，避免重复输出
+    for name in ("uvicorn", "uvicorn.access", "uvicorn.error", "fastapi"):
+        lg = logging.getLogger(name)
+        lg.handlers = []
+        lg.propagate = True
+
+
+_setup_logger("main.log")

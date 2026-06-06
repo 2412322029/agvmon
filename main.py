@@ -4,7 +4,7 @@ import time
 from util.config import cfg
 from util.logger import logger
 
-logger.setLevel("INFO")
+#logger.setLevel("INFO")
 
 
 def main():

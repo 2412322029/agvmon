@@ -37,11 +37,22 @@ onMounted(async () => {
       <!-- ═══════════════ 版本历史 ═══════════════ -->
       <n-tab-pane name="changelog" tab="版本历史">
         <n-card size="small" title="Git 提交历史">
-          <n-dataTable :columns="[
-            { title: 'Hash', key: 'short_hash', width: 90, render(row) { return h('a', { href: `https://github.com/2412322029/agvmon/commit/${row.hash}`, target: '_blank', style: { fontFamily: 'monospace', color: 'green' } }, row.short_hash); } },
-            { title: '时间', key: 'time', width: 180 },
-            { title: '提交信息', key: 'message', render(row) { return h('pre', { style: { margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontFamily: 'inherit' } }, row.message); } },
-          ]" :data="gitHistory" size="small" :bordered="false" :row-key="(row) => row.hash" />
+          <div class="git-history-desktop">
+            <n-dataTable :columns="[
+              { title: 'Hash', key: 'short_hash', width: 90, render(row) { return h('a', { href: `https://github.com/2412322029/agvmon/commit/${row.hash}`, target: '_blank', style: { fontFamily: 'monospace', color: 'green' } }, row.short_hash); } },
+              { title: '时间', key: 'time', width: 180 },
+              { title: '提交信息', key: 'message', render(row) { return h('pre', { style: { margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontFamily: 'inherit', width: '100%' } }, row.message); } },
+            ]" :data="gitHistory" size="small" :bordered="false" :row-key="(row) => row.hash" />
+          </div>
+          <div class="git-history-mobile">
+            <div v-for="row in gitHistory" :key="row.hash" class="git-card">
+              <div class="git-header">
+                <a :href="`https://github.com/2412322029/agvmon/commit/${row.hash}`" target="_blank" class="git-hash">{{ row.short_hash }}</a>
+                <span class="git-time">{{ row.time }}</span>
+              </div>
+              <pre class="git-message">{{ row.message }}</pre>
+            </div>
+          </div>
         </n-card>
       </n-tab-pane>
       <!-- ═══════════════ 概览 ═══════════════ -->
@@ -277,5 +288,72 @@ a {
 
 .footer {
   font-size: 12px;
+}
+
+.git-history-desktop {
+  display: block;
+}
+
+.git-history-mobile {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .git-history-desktop {
+    display: none;
+  }
+
+  .git-history-mobile {
+    display: block;
+  }
+
+  .git-card {
+    border: 1px solid var(--n-border-color);
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 12px;
+    background-color: var(--n-color);
+  }
+
+  .git-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    gap: 8px;
+  }
+
+  .git-hash {
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 12px;
+    font-weight: 600;
+    color: green;
+    text-decoration: none;
+    word-break: break-all;
+    flex-shrink: 0;
+  }
+
+  .git-hash:hover {
+    text-decoration: underline;
+  }
+
+  .git-time {
+    font-size: 12px;
+    color: var(--n-text-color-2);
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  .git-message {
+    margin: 0;
+    font-family: 'Consolas', 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+    background-color: var(--n-color-embedded);
+    padding: 8px;
+    border-radius: 4px;
+  }
 }
 </style>
