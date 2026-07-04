@@ -28,5 +28,20 @@ workers = 1
 usernames = [ "root", "root", "lolik",]
 passwords = [ "hiklinux", "Hik@12345", "123456",]
 
+[webshell]
+# 全局启用/禁用 Web Shell（设为 false 则隐藏菜单、拒绝所有连接）
+enabled = true
+# Web Shell 允许访问的 IP 列表，默认仅本机
+allowed_hosts = ["127.0.0.1", "::1", "localhost"]
+# 最大并发会话数
+max_sessions = 8
+# 输出历史缓冲区大小 (KB)，刷新页面时回放终端记录
+buffer_size_kb = 256
+# 断开连接后保留进程的时间 (秒)，在此期间刷新页面可恢复会话
+disconnect_timeout = 10
+# 默认终端行列
+cols = 120
+rows = 40
+
 [chat]
 expire_days = 7

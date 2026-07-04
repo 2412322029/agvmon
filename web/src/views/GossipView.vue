@@ -17,7 +17,9 @@ import {
 } from 'naive-ui';
 import { UAParser } from 'ua-parser-js';
 import { computed, h, ref } from 'vue';
-import { gossipBssidMap, gossipLocalInfo, gossipNotifications, gossipPeers, gossipWsStatus, disconnectGossipWs, reconnectGossipWs } from '../composables/gossipNotif';
+import { disconnectGossipWs, gossipBssidMap, gossipLocalInfo, gossipNotifications, gossipPeers, gossipWsStatus, pagePaths, reconnectGossipWs } from '../composables/gossipNotif';
+import router from '../router';
+
 const parseUA = (uaString) => {
   if (!uaString) return { browser: '未知', os: '未知', device: '未知' }
   const parser = new UAParser(uaString)
@@ -27,6 +29,13 @@ const parseUA = (uaString) => {
   let browser_str = browser.name ? `${browser.name} ${browser.version}` : '未知'
   let os_str = os.name ? `${os.name} ${os.version}` : '未知'
   return `${os_str} | ${browser_str}`
+}
+
+/** 根据路由路径获取友好页面名称 */
+function pageName(path) {
+  if (!path) return '-'
+  const route = router.getRoutes().find(r => r.path === path)
+  return route?.meta?.disc || path
 }
 const message = useMessage();
 const localInfo = gossipLocalInfo;
@@ -163,6 +172,30 @@ function bssidLabel(bssid) {
   if (!e) return '';
   return e.notes ? `${e.location} — ${e.notes}` : e.location;
 }
+
+/** 从 pagePaths 中实时查找客户端当前页面（比 localClients 更即时） */
+function getClientPage(client) {
+  // 仅按 client_id 精确匹配，绝不回退到 IP（同 IP 多标签页会冲突）
+  if (!client.client_id) return ''
+  const found = pagePaths.value.find(p => p.client_id === client.client_id)
+  return found ? found.path : ''
+}
+
+/** 获取客户端当前页面名称（实时版） */
+function clientPageName(client) {
+  // 优先用 pagePaths 即时数据（有 client_id 时），退回到 localClients 的 current_page
+  const path = getClientPage(client) || client.current_page || ''
+  return path ? pageName(path) : ''
+}
+
+/** 客户端 tab 标识（同 IP 下区分不同标签页） */
+function clientTabLabel(client) {
+  if (client.client_id) {
+    // 取 client_id 前 4 位作为短标识
+    return `#${client.client_id.substring(0, 4)}`
+  }
+  return ''
+}
 </script>
 
 <template>
@@ -216,6 +249,8 @@ function bssidLabel(bssid) {
           :title="`节点ID: ${localInfo.node_id}\n构建: ${localInfo.build_time || '-'}\nGit: ${localInfo.git_hash || '-'}`">
           版本 {{ localInfo.version || '-' }}
         </span>
+        <span class="li-sep"> | </span>
+        <span class="li-item tree-page">📄 {{ pageName(router.currentRoute.value.path) }}</span>
       </div>
     </n-card>
 
@@ -257,9 +292,11 @@ function bssidLabel(bssid) {
             <div v-for="(c, i) in localClients" :key="'lc-' + i" class="tree-item">
               <n-tag size="tiny" type="warning" round>客户端</n-tag>
               <code>{{ c.ip }}</code>
+              <n-tag v-if="clientTabLabel(c)" size="tiny" type="default" round>{{ clientTabLabel(c) }}</n-tag>
               <span class="tree-ua" :title="c.ua || '-'">
                 {{ parseUA(c.ua) || '-' }}
               </span>
+              <span v-if="clientPageName(c)" class="tree-page" :title="getClientPage(c) || c.current_page">📄 {{ clientPageName(c) }}</span>
               <span class="tree-time">{{ formatTime(c.connected_at) }}</span>
             </div>
           </div>
@@ -278,9 +315,11 @@ function bssidLabel(bssid) {
             <div v-for="(c, i) in (p.extra?.clients || [])" :key="'pc-' + i" class="tree-item">
               <n-tag size="tiny" type="warning" round>客户端</n-tag>
               <code>{{ c.ip }}</code>
-              <span class="tree-ua" :title="c.ua || '-'">
+              <n-tag v-if="clientTabLabel(c)" size="tiny" type="default" round>{{ clientTabLabel(c) }}</n-tag>
+              <span class="tree-ua" :title="c.ua || '- '">
                 {{ parseUA(c.ua) || '-' }}
               </span>
+              <span v-if="clientPageName(c)" class="tree-page" :title="getClientPage(c) || c.current_page">📄 {{ clientPageName(c) }}</span>
               <span class="tree-time">{{ formatTime(c.connected_at) }}</span>
             </div>
           </div>
@@ -432,6 +471,16 @@ function bssidLabel(bssid) {
   color: var(--n-text-3);
   flex-shrink: 0;
   margin-left: auto;
+}
+
+.tree-page {
+  font-size: 11px;
+  color: var(--n-primary-color, #18a058);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* ---- 本机信息紧凑布局 ---- */

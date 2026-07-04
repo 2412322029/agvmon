@@ -25,6 +25,7 @@ from backend.api.static_routes import (
     setup_static_files,
 )
 from backend.api.wcsapi import wcs_web_router
+from backend.api.webshell import shell_router, websocket_shell_endpoint, websocket_shell_monitor
 from backend.api.websocket import websocket_robot_status_endpoint
 from util.config import cfg
 
@@ -53,8 +54,9 @@ async def add_security_headers(request: Request, call_next):
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "geolocation=(), microphone=()"
     response.headers["Content-Security-Policy"] = (
-        "script-src 'self' https: 'unsafe-inline'; "
+        "script-src 'self' https: 'unsafe-inline' blob:; "
         "style-src 'self' https: 'unsafe-inline'; "
+        "worker-src blob:; "
     )
     content_type = response.headers.get("content-type", "")
     if "javascript" in content_type or "css" in content_type or "image" in content_type:
@@ -138,6 +140,9 @@ app.include_router(log_parser_router, prefix="/api")
 # 包含GossipApi路由
 app.include_router(gossip_router, prefix="/api")
 
+# 包含WebShell REST路由
+app.include_router(shell_router)
+
 # 设置WebSocket路由
 @app.websocket("/ws/robot-status")
 async def websocket_robot_status(websocket: WebSocket):
@@ -156,6 +161,18 @@ async def websocket_chat(websocket: WebSocket):
 async def websocket_gossip(websocket: WebSocket):
     """Gossip通知WebSocket接口"""
     await websocket_gossip_endpoint(websocket)
+
+
+@app.websocket("/ws/shell/{session_id}")
+async def websocket_shell(websocket: WebSocket, session_id: str):
+    """Web Shell WebSocket接口 — 指定会话（仅本机可访问）"""
+    await websocket_shell_endpoint(websocket, session_id)
+
+
+@app.websocket("/ws/shell-monitor")
+async def websocket_shell_monitor_ws(websocket: WebSocket):
+    """会话列表实时推送"""
+    await websocket_shell_monitor(websocket)
 
 
 def run_api_server():

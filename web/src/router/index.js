@@ -135,6 +135,13 @@ const router = createRouter({
       },
       component: () => import('../views/ChatView.vue'),
     },
+    // Web Shell Page
+    {
+      path: '/shell',
+      name: 'shell',
+      meta: { disc: 'Web Shell' },
+      component: () => import('../views/WebShellView.vue'),
+    },
     // Setting View Page
     {
       path: '/setting',

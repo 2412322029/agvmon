@@ -18,6 +18,7 @@ dependencies = [
     "pillow>=12.1.0",
     "pylibdmtx>=0.1.10",
     "python-multipart>=0.0.22",
+    "pywinpty>=3.0.5",
     "pyzmq>=27.1.0",
     "redis",
     "setuptools>=82.0.1",
@@ -55,5 +56,3 @@ output-dir = "dist"
 remove-output = true
 windows-console-mode = "attach"
 
-[project.scripts]
-agvmon = "main:main"

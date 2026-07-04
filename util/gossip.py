@@ -25,7 +25,7 @@ logger = logging.getLogger("gossip")
 GOSSIP_PORT = 27777
 BROADCAST_INTERVAL = 3  # 广播间隔（秒）
 PEER_TTL = 15  # 对等节点超时（秒），超过此时间未收到广播则认为离线
-MAX_PACKET = 2048
+MAX_PACKET = 50000
 
 # ============================================================
 # 本机信息采集

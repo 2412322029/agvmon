@@ -1,3 +1,3 @@
-version = "0.1.0.78"
-build_time = "2026-05-16 17:21:10"
-git_hash = "085108f"
+version = "0.1.0.83"
+build_time = "2026-06-06 21:19:06"
+git_hash = "de6a46a"

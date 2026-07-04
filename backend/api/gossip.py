@@ -120,6 +120,8 @@ def _make_client_entry(websocket: WebSocket) -> dict:
         "ip": websocket.client.host if websocket.client else "",
         "ua": websocket.headers.get("user-agent", ""),
         "connected_at": time.time(),
+        "client_id": "",
+        "current_page": "",
     }
 
 
@@ -152,7 +154,13 @@ class GossipConnectionManager:
         try:
             node = get_node()
             clients = [
-                {"ip": c["ip"], "ua": c["ua"], "connected_at": c["connected_at"]}
+                {
+                    "ip": c["ip"],
+                    "ua": c["ua"],
+                    "connected_at": c["connected_at"],
+                    "client_id": c.get("client_id", ""),
+                    "current_page": c.get("current_page", ""),
+                }
                 for c in self.active_connections
             ]
             node.set_connected_clients(clients)
@@ -174,10 +182,39 @@ gossip_manager = GossipConnectionManager()
 async def websocket_gossip_endpoint(websocket: WebSocket):
     """Gossip 通知 WebSocket 端点。"""
     await gossip_manager.connect(websocket)
+    client_ip = websocket.client.host if websocket.client else ""
     try:
         while True:
             try:
-                await asyncio.wait_for(websocket.receive_text(), timeout=25)
+                data = await asyncio.wait_for(websocket.receive_text(), timeout=25)
+                # 处理前端发来的消息
+                try:
+                    msg = json.loads(data)
+                    if msg.get("type") == "page_path":
+                        path = msg.get("path", "")
+                        client_id = msg.get("client_id", "")
+                        # 更新此客户端的页面路径和 client_id
+                        for conn in gossip_manager.active_connections:
+                            if conn["ws"] == websocket:
+                                conn["current_page"] = path
+                                if client_id:
+                                    conn["client_id"] = client_id
+                                break
+                        gossip_manager._sync_to_gossip()
+                        # 立即广播到所有客户端
+                        page_update = {
+                            "type": "page_path_update",
+                            "data": {
+                                "ip": client_ip,
+                                "client_id": client_id,
+                                "path": path,
+                                "sender": get_node()._hostname,
+                                "timestamp": time.time(),
+                            }
+                        }
+                        await gossip_manager.broadcast_to_all(json.dumps(page_update))
+                except json.JSONDecodeError:
+                    pass
             except asyncio.TimeoutError:
                 try:
                     await websocket.send_text(json.dumps({"type": "heartbeat"}))

@@ -1,6 +1,7 @@
 <script setup>
 import {
   ApiOutlined,
+  CodeOutlined,
   ControlFilled,
   ExceptionOutlined,
   FileTextOutlined,
@@ -35,8 +36,27 @@ import {
 } from 'naive-ui';
 import { computed, h, onMounted, onUnmounted, provide, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ribbon } from './composables/ribbon';
 import GossipNotifToast from './components/GossipNotifToast.vue';
+import ShellPanel from './components/ShellPanel.vue';
+import { sendPagePath } from './composables/gossipNotif';
+import { ribbon } from './composables/ribbon';
+import { useShellStore } from './composables/useShellStore';
+
+const shellStore = useShellStore();
+shellStore.checkEnabled();
+
+// 快速终端抽屉 ref
+const shellPanelRef = ref(null);
+
+// Ctrl+` 切换快速终端
+function onGlobalKeydown(e) {
+  if (e.ctrlKey && e.key === '`') {
+    e.preventDefault();
+    shellPanelRef.value?.toggle();
+  }
+}
+onMounted(() => document.addEventListener('keydown', onGlobalKeydown));
+onUnmounted(() => document.removeEventListener('keydown', onGlobalKeydown));
 const buildTime = __BUILD_TIME__ || "null";
 const backendVersion = ref("");
 const backendGitHash = ref("");
@@ -93,6 +113,7 @@ watch(darkMode, (newVal) => {
 watch(route, (newRoute) => {
   const title = newRoute.meta.disc || 'AGV监控系统';
   document.title = title;
+  sendPagePath(newRoute.path);
 }, { immediate: true });
 
 provide('darkMode', darkMode);
@@ -105,7 +126,7 @@ const renderIcon = (icon) => {
 };
 
 // Menu structure for desktop with submenus and icons
-const menuOptions = [
+const menuOptions = computed(() => [
   {
     label: '首页',
     key: '/',
@@ -178,6 +199,12 @@ const menuOptions = [
         icon: renderIcon(QrcodeOutlined),
         onClick: () => router.push('/dmdtx-decode')
       },
+      ...(shellStore.enabled.value ? [{
+        label: 'Web Shell',
+        key: '/shell',
+        icon: renderIcon(CodeOutlined),
+        onClick: () => { router.push('/shell'); }
+      }] : []),
       {
         label: '局域网',
         key: '/gossip',
@@ -229,10 +256,11 @@ const menuOptions = [
     icon: renderIcon(InfoCircleOutlined),
     onClick: () => router.push('/about')
   }
-];
+]);
 
 // Mobile menu options without icons to simplify mobile view
-const mobileMenuOptions = JSON.parse(JSON.stringify(menuOptions)).map(item => {
+const mobileMenuOptions = computed(() =>
+  JSON.parse(JSON.stringify(menuOptions.value)).map(item => {
   const newItem = { ...item };
   // Remove icons from mobile menu for cleaner appearance
   delete newItem.icon;
@@ -244,7 +272,7 @@ const mobileMenuOptions = JSON.parse(JSON.stringify(menuOptions)).map(item => {
     });
   }
   return newItem;
-});
+}));
 
 // 处理移动端菜单选择
 const handleMobileMenuSelect = (key) => {
@@ -328,6 +356,9 @@ onUnmounted(() => {
             style="opacity: 0.6; position: fixed; top: 0px; left: 0px; z-index: -2; width: 100%; height: 70%; pointer-events: none;">
           </canvas>
         </main>
+
+        <!-- 全局终端面板 — 所有页面共享 -->
+        <ShellPanel ref="shellPanelRef" v-if="shellStore.enabled.value" />
       </n-dialog-provider>
     </n-message-provider>
     </n-notification-provider>
