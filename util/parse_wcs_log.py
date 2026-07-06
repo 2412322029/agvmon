@@ -10,9 +10,8 @@ from typing import Any
 
 import httpx
 
-from util.config import cfg
-
 from util.agv_protocol_parser import AGVProtocolParser
+from util.config import cfg
 
 logger = logging.getLogger(__name__)
 _parser = AGVProtocolParser()
@@ -20,6 +19,7 @@ PATTERN = re.compile(
     r"(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d+).*?"
     r"task_key\s*=\s*'([^']*)'.*?"
     r"action_type\s*=\s*'([^']*)'.*?"
+    r"(?:task_step\s*=\s*'([^']*)'.*?)?"
     r"request\s*=\s*'([^']*)'.*?"
     r"response\s*=\s*'([^']*)'.*?"
     r"result\s*=\s*'([^']*)'"
@@ -124,18 +124,47 @@ async def download_wcs_log(filename: str, save_dir: str | None = None,
             await client.aclose()
 
 
-def _build_filter(shortcode: str | None) -> re.Pattern | None:
-    if not shortcode:
+def _build_filter(shortcode: str | None, taskid: str | None,
+                  device_type: str | None) -> re.Pattern | None:
+    """Build a regex to filter WCS log lines.
+
+    task_key format: <device_type>_<shortcode>_<taskid>
+    e.g. Detector_514000_9F59603FFD2E8_324FA059DD00_WCS
+
+    All three parameters are optional and can be combined freely.
+    """
+    if not shortcode and not taskid and not device_type:
         return None
-    escaped = re.escape(shortcode)
-    escaped = escaped.replace(r"x", r".")
+
+    # Segment 1: device type (Detector/Rotate/...) or any
+    if device_type:
+        key_pattern = re.escape(device_type)
+    else:
+        key_pattern = r"[^_]+"
+
+    # Segment 2: shortcode (设备外设编号) or any
+    if shortcode:
+        escaped = re.escape(shortcode)
+        escaped = escaped.replace(r"x", r".")  # x → wildcard
+        key_pattern = rf"{key_pattern}_{escaped}"
+    else:
+        key_pattern = rf"{key_pattern}_[^_]+"
+
+    # Remainder: taskid (任务id) or any trailing chars
+    if taskid:
+        escaped_taskid = re.escape(taskid)
+        key_pattern = rf"{key_pattern}.*{escaped_taskid}"
+    else:
+        key_pattern = rf"{key_pattern}.*"
+
     return re.compile(
-        rf"<ReadDeviceState>,task_key = 'Detector_{escaped}", re.IGNORECASE
+        rf">,task_key = '{key_pattern}'", re.IGNORECASE
     )
 
 
-def parse(filepath: str, shortcode: str | None = None, trayid_hex: str | None = None) -> Iterator[dict]:
-    filt = _build_filter(shortcode)
+def parse(filepath: str, shortcode: str | None = None, trayid_hex: str | None = None,
+          taskid: str | None = None, device_type: str | None = None) -> Iterator[dict]:
+    filt = _build_filter(shortcode, taskid, device_type)
     with open(filepath, encoding="GBK", errors="replace") as f:
         for line in f:
             if filt and not filt.search(line):
@@ -143,16 +172,17 @@ def parse(filepath: str, shortcode: str | None = None, trayid_hex: str | None = 
             m = PATTERN.search(line)
             if not m:
                 continue
-            response = m.group(5)
+            response = m.group(6)
             if trayid_hex and trayid_hex.lower() not in response.lower():
                 continue
             yield {
                 "time": m.group(1),
                 "task_key": m.group(2),
                 "action_type": m.group(3),
-                "request": m.group(4),
+                "task_step": m.group(4) or "",
+                "request": m.group(5),
                 "response": response,
-                "result": m.group(6),
+                "result": m.group(7),
             }
 
 
@@ -286,7 +316,8 @@ def _fmt_eq_status(hex_str: str) -> list[str]:
         return [f"({hex_str[:20]}...)"]
 
 
-def run(files: list[str] | None = None, code: str | None = None) -> None:
+def run(files: list[str] | None = None, code: str | None = None,
+        taskid: str | None = None, device_type: str | None = None) -> None:
     """Parse WCS log files and print results. If files is empty, scans ./data/wcslog/."""
     file_list = list(files) if files else _collect_default_files()
 
@@ -311,7 +342,7 @@ def run(files: list[str] | None = None, code: str | None = None) -> None:
         print(f"--- {os.path.basename(fp)} ---")
         count = 0
         yes_count = 0
-        for row in parse(fp, code):
+        for row in parse(fp, code, taskid=taskid, device_type=device_type):
             result_color = _G if row['result'].lower() == 'yes' else _RED
             print(
                 f"{_TM}{row['time']}{_R} {_S}|{_R} "
@@ -321,14 +352,13 @@ def run(files: list[str] | None = None, code: str | None = None) -> None:
                 f"{row['response'][:20]:<20}... {_S}|{_R} "
                 f"{result_color}{row['result']}{_R}"
             )
-            if row["task_key"].startswith("Detector_"):
-                for line in _fmt_agv_cmd(row["request"]):
-                    print(f"  req → {line}")
-                if row['result'].lower() == 'yes':
-                    yes_count += 1
-                    for line in _fmt_eq_status(row["response"]):
-                        print(f"  resp → {line}")
-                count += 1
+            for line in _fmt_agv_cmd(row["request"]):
+                print(f"  req → {line}")
+            if row['result'].lower() == 'yes':
+                yes_count += 1
+            for line in _fmt_eq_status(row["response"]):
+                print(f"  resp → {line}")
+            count += 1
             print("──" * 70)
         print(f"  ({yes_count} responses yes in {count} matches for {fp })\n")
 

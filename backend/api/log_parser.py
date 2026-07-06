@@ -437,8 +437,10 @@ async def api_list_wcs_log_files():
 @log_parser_router.post("/wcs_logs/parse")
 async def api_parse_wcs_log(
     filename: str = Body(..., description="WCS log 文件名（仅文件名，不含路径）"),
-    shortcode: str | None = Body(None, description="Detector shortcode filter, e.g. 528000 or 5280xx"),
+    shortcode: str | None = Body(None, description="设备外设编号过滤, e.g. 528000 or 5280xx"),
     trayid: str | None = Body(None, description="TrayID 过滤，在 Response 中搜索"),
+    taskid: str | None = Body(None, description="任务ID过滤, e.g. 324FA059DD00_WCS"),
+    device_type: str | None = Body(None, description="设备类型过滤, e.g. Detector, Rotate"),
 ):
     filepath = _resolve_wcs_path(filename)
     if not os.path.isfile(filepath):
@@ -450,7 +452,7 @@ async def api_parse_wcs_log(
 
     try:
         tid_hex = _trayid_to_hex(trayid) if trayid else None
-        rows = list(parse(filepath, shortcode, tid_hex))
+        rows = list(parse(filepath, shortcode, tid_hex, taskid=taskid, device_type=device_type))
         return {"count": len(rows), "rows": rows}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -459,8 +461,10 @@ async def api_parse_wcs_log(
 @log_parser_router.post("/wcs_logs/batch_parse")
 async def api_batch_parse_wcs_log(
     filenames: list[str] = Body(..., description="WCS log 文件名列表（仅文件名），max 20"),
-    shortcode: str | None = Body(None, description="Detector shortcode filter"),
+    shortcode: str | None = Body(None, description="设备外设编号过滤"),
     trayid: str | None = Body(None, description="TrayID 过滤，在 Response 中搜索"),
+    taskid: str | None = Body(None, description="任务ID过滤"),
+    device_type: str | None = Body(None, description="设备类型过滤, e.g. Detector, Rotate"),
 ):
     if len(filenames) > MAX_FILES:
         raise HTTPException(status_code=400, detail=f"Too many files, max {MAX_FILES}")
@@ -481,7 +485,7 @@ async def api_batch_parse_wcs_log(
             results[fn] = {"error": f"File exceeds 15MB limit ({size / 1024 / 1024:.1f} MB)"}
             continue
         try:
-            rows = list(parse(fp, shortcode, tid_hex))
+            rows = list(parse(fp, shortcode, tid_hex, taskid=taskid, device_type=device_type))
             results[fn] = {"count": len(rows), "rows": rows}
         except Exception as e:
             results[fn] = {"error": str(e)}

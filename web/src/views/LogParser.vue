@@ -1,8 +1,9 @@
 <script setup>
 import {
-  NButton, NCard, NCheckbox, NDataTable, NDescriptions, NDescriptionsItem, NDivider,
-  NForm, NFormItem, NInput, NInputNumber, NModal, NPopconfirm, NRadioButton, NRadioGroup, NSelect,
-  NSpace, NSpin, NTabPane, NTabs, NTag, NText, useMessage
+  NAutoComplete, NButton, NCard, NCheckbox, NCollapse, NCollapseItem, NDataTable,
+  NDescriptions, NDescriptionsItem, NDivider, NForm, NFormItem, NInput,
+  NModal, NPopconfirm, NRadioButton, NRadioGroup, NSelect, NSpace, NSpin, NTabPane,
+  NTabs, NTag, NText, useMessage
 } from 'naive-ui';
 import { h, ref, watch } from 'vue';
 import AGVProtocolParser from './AGVProtocolParser.js';
@@ -37,11 +38,13 @@ const wcsFiles = ref([]);
 const wcsFilesLoading = ref(false);
 const wcsParseResult = ref(null);
 const wcsParsing = ref(false);
-const wcsForm = ref({ filename: '', shortcode: '', trayid: '' });
+const wcsForm = ref({ filename: '', shortcode: '', trayid: '', taskid: '', device_type: '' });
+const deviceTypeOptions = ['Detector', 'Rotate', 'Pallet', 'Cargo', 'Lift', 'Door'];
 const wcsDetailModal = ref(false);
 const wcsDetailRow = ref(null);
 const wcsDetailReq = ref(null);
 const wcsDetailResp = ref(null);
+const wcsDetailCollapse = ref(['resp']);
 
 // ── WCS Remote state ───────────────────────────────────────────────────
 const wcsRemoteFiles = ref([]);
@@ -348,6 +351,8 @@ async function parseWcsLog() {
     const body = { filename: wcsForm.value.filename };
     if (wcsForm.value.shortcode) body.shortcode = wcsForm.value.shortcode;
     if (wcsForm.value.trayid) body.trayid = wcsForm.value.trayid;
+    if (wcsForm.value.taskid) body.taskid = wcsForm.value.taskid;
+    if (wcsForm.value.device_type) body.device_type = wcsForm.value.device_type;
     const res = await fetch(`${apiBase}/wcs_logs/parse`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -496,36 +501,25 @@ function _cellSpan(raw, color) {
   }, raw.slice(0, 16) + '…');
 }
 
-function _isDetector(row) {
-  return (row.task_key || '').startsWith('Detector_');
-}
-
 function renderReqCell(row) {
   const raw = row.request || '';
-  if (!_isDetector(row)) {
-    return h('span', {
-      style: 'color:var(--n-text-color-3);cursor:default;font-size:12px',
-      onMouseenter: (e) => _showTip(e, raw, '原始数据 (非Detector)', []),
-      onMouseleave: _hideTip,
-    }, raw.slice(0, 16) + '…');
-  }
+  const isEqQuery = raw.toUpperCase().startsWith('0506E002');
   const p = cachedParseAGV(raw);
   if (!p?.isValid) {
     return h('span', {
-      style: 'color:var(--n-text-color-3);cursor:default;font-size:12px',
-      onMouseenter: (e) => _showTip(e, raw, '解析失败', []),
+      style: `color:${isEqQuery ? '#e6a23c' : 'var(--n-text-color-3)'};cursor:default;font-size:12px`,
+      onMouseenter: (e) => _showTip(e, raw, '原始数据', []),
       onMouseleave: _hideTip,
     }, raw.slice(0, 16) + '…');
   }
+  const trayLabel = p.command.traySize === 1 ? '小' : p.command.traySize === 2 ? '大' : p.command.traySize;
   const lines = [
     `${p.command.commandTypeText} | ${p.command.layerText}`,
     `Port1: ${p.command.port1 ? '✓' : '✗'}  Port2: ${p.command.port2 ? '✓' : '✗'}`,
-    `到位: ${p.command.agvArrived ? '✓' : '✗'}  滚动: ${p.command.rollerAction ? '✓' : '✗'}`,
-    `TrayOk: ${p.command.agvTrayOk ? '✓' : '✗'}  离开: ${p.command.agvLeave ? '✓' : '✗'}`,
-    `Tray: ${p.command.traySize === 1 ? '小' : p.command.traySize === 2 ? '大' : p.command.traySize}  ID: ${p.trayId || '-'}`,
+    `到位: ${p.command.agvArrived ? '✓' : '✗'}  Tray: ${trayLabel}  ID: ${p.trayId || '-'}`,
   ];
   return h('span', {
-    style: 'color:var(--n-primary-color);cursor:default;font-size:12px',
+    style: `color:${isEqQuery ? '#e6a23c' : 'var(--n-primary-color)'};cursor:default;font-size:12px`,
     onMouseenter: (e) => _showTip(e, raw, 'AGV 控制指令', lines),
     onMouseleave: _hideTip,
   }, raw.slice(0, 16) + '…');
@@ -533,20 +527,7 @@ function renderReqCell(row) {
 
 function renderRespCell(row) {
   const raw = row.response || '';
-  if (!_isDetector(row)) {
-    return h('span', {
-      style: 'color:var(--n-text-color-3);cursor:default;font-size:12px',
-      onMouseenter: (e) => _showTip(e, raw, '原始数据 (非Detector)', []),
-      onMouseleave: _hideTip,
-    }, raw.slice(0, 16) + '…');
-  }
-  if (row.result?.toLowerCase() !== 'yes') {
-    return h('span', {
-      style: 'color:var(--n-text-color-3);cursor:default;font-size:12px',
-      onMouseenter: (e) => _showTip(e, raw, '原始数据 (result!=yes)', []),
-      onMouseleave: _hideTip,
-    }, raw.slice(0, 16) + '…');
-  }
+  const ok = row.result?.toLowerCase() === 'yes';
   const p = cachedParseEQ(raw);
   if (!p?.isValid) {
     return h('span', {
@@ -558,14 +539,17 @@ function renderRespCell(row) {
   const lo = p.gratingStatus?.lowerGrating?.text || '?';
   const up = p.gratingStatus?.upperGrating?.text || '?';
   const tid = wcsForm.value.trayid || '';
+  const half = Math.ceil(p.ports.length / 2);
   const lines = [{ t: `${p.portCount} 个Port | 光栅: ${lo} / ${up}` }];
-  for (const port of p.ports) {
-    const match = !!(tid && port.trayId && port.trayId.includes(tid));
-    lines.push({ t: port.trayId, hl: match });
+  if (p.ports.length) {
+    const lowerIds = p.ports.slice(0, half).map(po => po.trayId).filter(Boolean).join(' ');
+    const upperIds = p.ports.slice(half).map(po => po.trayId).filter(Boolean).join(' ');
+    if (lowerIds) lines.push({ t: `下层: ${lowerIds}` });
+    if (upperIds) lines.push({ t: `上层: ${upperIds}` });
   }
   return h('span', {
-    style: 'color:var(--n-success-color);cursor:default;font-size:12px',
-    onMouseenter: (e) => _showTip(e, raw, 'EQ 状态', lines, tid),
+    style: `color:${ok ? 'var(--n-success-color)' : 'var(--n-warning-color)'};cursor:default;font-size:12px`,
+    onMouseenter: (e) => _showTip(e, raw, `EQ 状态${ok ? '' : ' (result!=yes)'}`, lines, tid),
     onMouseleave: _hideTip,
   }, raw.slice(0, 16) + '…');
 }
@@ -573,11 +557,7 @@ function renderRespCell(row) {
 function showWcsDetail(row) {
   wcsDetailRow.value = row;
   try { wcsDetailReq.value = agvParser.parseAGVCommand(row.request); } catch (e) { wcsDetailReq.value = { error: e.message }; }
-  if (row.result?.toLowerCase() === 'yes') {
-    try { wcsDetailResp.value = agvParser.parseEQStatus(row.response); } catch (e) { wcsDetailResp.value = { error: e.message }; }
-  } else {
-    wcsDetailResp.value = null;
-  }
+  try { wcsDetailResp.value = agvParser.parseEQStatus(row.response); } catch (e) { wcsDetailResp.value = { error: e.message }; }
   wcsDetailModal.value = true;
 }
 
@@ -814,10 +794,12 @@ loadCleanUsage();
                   <n-select v-model:value="wcsForm.filename" :options="wcsFiles.map(f => ({ label: `${f.filename}  (${(f.mtime||'').replace('T', ' ').slice(0,19)})`, value: f.filename }))"
                     placeholder="选择WCS日志文件" filterable clearable />
                 </n-form-item>
-                <n-form-item label="外设编号 / TrayID">
+                <n-form-item label="过滤条件">
                   <n-space>
-                    <n-input v-model:value="wcsForm.shortcode" placeholder="外设编号: 528000" style="width:180px" clearable />
-                    <n-input v-model:value="wcsForm.trayid" placeholder="TrayID" style="width:220px" clearable />
+                    <n-auto-complete v-model:value="wcsForm.device_type" :options="deviceTypeOptions" placeholder="设备类型" style="width:130px" clearable />
+                    <n-input v-model:value="wcsForm.shortcode" placeholder="外设编号: 528000" style="width:160px" clearable />
+                    <n-input v-model:value="wcsForm.taskid" placeholder="任务ID" style="width:320px" clearable />
+                    <n-input v-model:value="wcsForm.trayid" placeholder="TrayID" style="width:210px" clearable />
                   </n-space>
                 </n-form-item>
                 <n-form-item>
@@ -842,13 +824,14 @@ loadCleanUsage();
 
                 <n-dataTable
                 :columns="[
-                  { title: '时间', key: 'time', width: 150 },
+                  { title: '时间', key: 'time', width: 130 },
                   { title: 'Task Key', key: 'task_key', width: 150, ellipsis: { tooltip: true } },
-                  { title: 'Action', key: 'action_type', width: 70 },
-                  { title: 'Request', key: 'request', width: 120, render: (r) => renderReqCell(r) },
-                  { title: 'Response', key: 'response', width: 120, render: (r) => renderRespCell(r) },
-                  { title: 'Result', key: 'result', width: 60, render: (r) => h(NTag, { type: r.result?.toLowerCase() === 'yes' ? 'success' : 'error', size: 'small' }, { default: () => r.result }) },
-                  { title: '操作', key: 'actions', width: 55, render: (r) => h(NButton, { size: 'tiny', onClick: () => showWcsDetail(r) }, { default: () => '详情' }) },
+                  { title: 'Action', key: 'action_type', width: 100 },
+                  { title: 'Step', key: 'task_step', width: 120 },
+                  { title: 'Request', key: 'request', width: 90, render: (r) => renderReqCell(r) },
+                  { title: 'Response', key: 'response', width: 90, render: (r) => renderRespCell(r) },
+                  { title: 'Result', key: 'result', width: 45, render: (r) => h(NTag, { type: r.result?.toLowerCase() === 'yes' ? 'success' : 'error', size: 'small' }, { default: () => r.result }) },
+                  { title: '操作', key: 'actions', width: 45, render: (r) => h(NButton, { size: 'tiny', onClick: () => showWcsDetail(r) }, { default: () => '详情' }) },
                 ]"
                 :data="wcsParseResult.rows" size="small" :bordered="false" max-height="500" virtual-scroll
                 :row-key="(_, i) => i" />
@@ -919,55 +902,61 @@ loadCleanUsage();
         <n-modal v-model:show="wcsDetailModal" title="WCS 指令详情" preset="card" style="width:960px;max-width:98vw">
           <div v-if="wcsDetailRow">
             <n-text depth="2">
-              {{ wcsDetailRow.time }} | {{ wcsDetailRow.task_key }} | {{ wcsDetailRow.action_type }}
+              {{ wcsDetailRow.time }} | {{ wcsDetailRow.task_key }} | {{ wcsDetailRow.action_type }} | {{ wcsDetailRow.task_step }}
             </n-text>
-            <n-divider>Request (AGV 控制指令)</n-divider>
-            <div v-if="wcsDetailReq?.isValid">
-              <n-descriptions :column="2" bordered size="small">
-                <n-descriptions-item label="指令类型">{{ wcsDetailReq.command.commandTypeText }}</n-descriptions-item>
-                <n-descriptions-item label="层级">{{ wcsDetailReq.command.layerText }}</n-descriptions-item>
-                <n-descriptions-item label="Port1">
-                  <n-tag :type="wcsDetailReq.command.port1 ? 'info' : 'default'" size="small">{{ wcsDetailReq.command.port1 ? '是' : '否' }}</n-tag>
-                </n-descriptions-item>
-                <n-descriptions-item label="Port2">
-                  <n-tag :type="wcsDetailReq.command.port2 ? 'info' : 'default'" size="small">{{ wcsDetailReq.command.port2 ? '是' : '否' }}</n-tag>
-                </n-descriptions-item>
-                <n-descriptions-item label="AGV 到位">{{ wcsDetailReq.command.agvArrived ? '是' : '否' }}</n-descriptions-item>
-                <n-descriptions-item label="滚动动作">{{ wcsDetailReq.command.rollerAction ? '是' : '否' }}</n-descriptions-item>
-                <n-descriptions-item label="AGV TrayOk">{{ wcsDetailReq.command.agvTrayOk ? '是' : '否' }}</n-descriptions-item>
-                <n-descriptions-item label="AGV 离开">{{ wcsDetailReq.command.agvLeave ? '是' : '否' }}</n-descriptions-item>
-                <n-descriptions-item label="Tray 大小">{{ wcsDetailReq.command.traySize === 1 ? '小' : wcsDetailReq.command.traySize === 2 ? '大' : wcsDetailReq.command.traySize }}</n-descriptions-item>
-                <n-descriptions-item label="TrayID">{{ wcsDetailReq.trayId || '无' }}</n-descriptions-item>
-              </n-descriptions>
-            </div>
-            <n-text v-else type="error" depth="3">{{ wcsDetailReq?.error || '解析失败' }}</n-text>
-            <n-divider />
-            <n-text depth="3" style="font-family:monospace;font-size:12px;word-break:break-all">RAW: {{ wcsDetailRow.request }}</n-text>
+            <n-collapse v-model="wcsDetailCollapse">
+              <n-collapse-item title="Request (AGV 控制指令)" name="req">
+                <div v-if="wcsDetailReq?.isValid" style="font-size:12px;line-height:1.8">
+                  <n-text>
+                    指令类型: {{ wcsDetailReq.command.commandTypeText }} |
+                    层级: {{ wcsDetailReq.command.layerText }} |
+                    Port1: <n-tag :type="wcsDetailReq.command.port1 ? 'info' : 'default'" size="tiny">{{ wcsDetailReq.command.port1 ? '是' : '否' }}</n-tag>
+                    Port2: <n-tag :type="wcsDetailReq.command.port2 ? 'info' : 'default'" size="tiny">{{ wcsDetailReq.command.port2 ? '是' : '否' }}</n-tag>
+                    到位: {{ wcsDetailReq.command.agvArrived ? '✓' : '✗' }}
+                    滚动: {{ wcsDetailReq.command.rollerAction ? '✓' : '✗' }}
+                    TrayOk: {{ wcsDetailReq.command.agvTrayOk ? '✓' : '✗' }}
+                    离开: {{ wcsDetailReq.command.agvLeave ? '✓' : '✗' }}
+                    Tray: {{ wcsDetailReq.command.traySize === 1 ? '小' : wcsDetailReq.command.traySize === 2 ? '大' : wcsDetailReq.command.traySize }}
+                    TrayID: {{ wcsDetailReq.trayId || '无' }}
+                  </n-text>
+                </div>
+                <n-text v-else type="error" depth="3">{{ wcsDetailReq?.error || '解析失败' }}</n-text>
+              </n-collapse-item>
+            </n-collapse>
 
-            <n-divider>Response (EQ 状态)</n-divider>
-            <div v-if="wcsDetailResp?.isValid">
-              <n-descriptions :column="2" bordered size="small">
-                <n-descriptions-item label="下层光栅">{{ wcsDetailResp.gratingStatus.lowerGrating.text }}</n-descriptions-item>
-                <n-descriptions-item label="上层光栅">{{ wcsDetailResp.gratingStatus.upperGrating.text }}</n-descriptions-item>
-              </n-descriptions>
-              <n-divider>Port 口状态</n-divider>
-              <n-dataTable
-                :columns="[
-                  { title: '位置', key: 'portPosition', width: 100 },
-                  { title: '就绪', key: 'ready', width: 80, render: (r) => r.status.readyStatus.text },
-                  { title: 'TrayOk', key: 'trayOk', width: 80, render: (r) => r.status.trayOkStatus.text },
-                  { title: '在线', key: 'online', width: 80, render: (r) => r.status.onlineStatus.text },
-                  { title: 'Tray盘', key: 'present', width: 80, render: (r) => r.status.trayPresentStatus.text },
-                  { title: '滚动', key: 'roller', width: 80, render: (r) => r.status.rollerStartStatus.text },
-                  { title: '尺寸', key: 'size', width: 60, render: (r) => r.status.traySize.text },
-                  { title: 'TrayID', key: 'trayId', width: 80 },
-                ]"
-                :data="wcsDetailResp.ports" size="small" :bordered="false" />
+            <n-collapse v-model="wcsDetailCollapse">
+              <n-collapse-item title="Response (EQ 状态)" name="resp">
+                <div v-if="wcsDetailResp?.isValid">
+                  <n-descriptions :column="2" size="small">
+                    <n-descriptions-item label="下层光栅">{{ wcsDetailResp.gratingStatus.lowerGrating.text }}</n-descriptions-item>
+                    <n-descriptions-item label="上层光栅">{{ wcsDetailResp.gratingStatus.upperGrating.text }}</n-descriptions-item>
+                  </n-descriptions>
+                  <n-dataTable
+                    :columns="[
+                      { title: '层', key: 'layer', width: 50, render: (_, i) => i < Math.ceil(wcsDetailResp.ports.length / 2) ? '下' : '上' },
+                      { title: '位置', key: 'portPosition', width: 100 },
+                      { title: '就绪', key: 'ready', width: 80, render: (r) => r.status.readyStatus.text },
+                      { title: 'TrayOk', key: 'trayOk', width: 80, render: (r) => r.status.trayOkStatus.text },
+                      { title: '在线', key: 'online', width: 80, render: (r) => r.status.onlineStatus.text },
+                      { title: 'Tray盘', key: 'present', width: 80, render: (r) => r.status.trayPresentStatus.text },
+                      { title: '滚动', key: 'roller', width: 80, render: (r) => r.status.rollerStartStatus.text },
+                      { title: '尺寸', key: 'size', width: 60, render: (r) => r.status.traySize.text },
+                      { title: 'TrayID', key: 'trayId', width: 80 },
+                    ]"
+                    :data="wcsDetailResp.ports" size="small" :bordered="false" style="margin-top:4px" />
+                </div>
+                <n-text v-else-if="wcsDetailResp" type="error" depth="3">{{ wcsDetailResp.error || '解析失败' }}</n-text>
+              </n-collapse-item>
+            </n-collapse>
+
+            <div style="font-family:monospace;font-size:11px;word-break:break-all;margin-top:8px">
+              <span style="color:var(--n-primary-color);font-weight:600">RAW Request:</span>
+              <n-text depth="3"> {{ wcsDetailRow.request }}</n-text>
             </div>
-            <n-text v-else-if="wcsDetailResp" type="error" depth="3">{{ wcsDetailResp.error || '解析失败' }}</n-text>
-            <n-text v-else depth="3">result 非 yes，无 Response 解析</n-text>
-            <n-divider />
-            <n-text depth="3" style="font-family:monospace;font-size:12px;word-break:break-all">RAW: {{ wcsDetailRow.response }}</n-text>
+            <div style="font-family:monospace;font-size:11px;word-break:break-all;margin-top:4px">
+              <span style="color:var(--n-success-color);font-weight:600">RAW Response:</span>
+              <n-text depth="3"> {{ wcsDetailRow.response }}</n-text>
+            </div>
           </div>
         </n-modal>
       </n-tab-pane>
@@ -1041,6 +1030,10 @@ loadCleanUsage();
 <style scoped>
 .log-parser-container {
   padding: 12px;
+  max-width: 100%;
+}
+.log-parser-container :deep(.n-data-table td) {
+  white-space: nowrap;
 }
 h2 {
   margin-bottom: 16px;

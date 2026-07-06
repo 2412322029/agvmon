@@ -117,7 +117,17 @@ def main():
         "-c",
         "--code",
         default=None,
-        help="探测器短码过滤，如 528000 或 5280xx (xx=通配符)",
+        help="设备外设编号过滤，如 528000 或 5280xx (xx=通配符)",
+    )
+    wcslog_parse_parser.add_argument(
+        "--taskid",
+        default=None,
+        help="任务ID过滤，如 324FA059DD00_WCS",
+    )
+    wcslog_parse_parser.add_argument(
+        "--device-type",
+        default="Detector",
+        help="设备类型过滤，默认 Detector",
     )
 
     # tools agvlog
@@ -352,7 +362,9 @@ def main():
             else:  # parse (默认)
                 from util.parse_wcs_log import run
                 run(args.files if hasattr(args, 'files') else None,
-                    args.code if hasattr(args, 'code') else None)
+                    args.code if hasattr(args, 'code') else None,
+                    taskid=getattr(args, 'taskid', None),
+                    device_type=getattr(args, 'device_type', None))
 
         # -- tools agvlog --
         case ("tools", "agvlog"):
