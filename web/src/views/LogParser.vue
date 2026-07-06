@@ -1,7 +1,7 @@
 <script setup>
 import {
   NAutoComplete, NButton, NCard, NCheckbox, NCollapse, NCollapseItem, NDataTable,
-  NDescriptions, NDescriptionsItem, NDivider, NForm, NFormItem, NInput,
+  NDivider, NForm, NFormItem, NInput,
   NModal, NPopconfirm, NRadioButton, NRadioGroup, NSelect, NSpace, NSpin, NTabPane,
   NTabs, NTag, NText, useMessage
 } from 'naive-ui';
@@ -899,12 +899,12 @@ loadCleanUsage();
         </n-tabs>
 
         <!-- WCS 详情弹窗 -->
-        <n-modal v-model:show="wcsDetailModal" title="WCS 指令详情" preset="card" style="width:960px;max-width:98vw">
+        <n-modal v-model:show="wcsDetailModal" title="WCS 指令详情" preset="card" style="width:1200px;max-width:98vw">
           <div v-if="wcsDetailRow">
             <n-text depth="2">
               {{ wcsDetailRow.time }} | {{ wcsDetailRow.task_key }} | {{ wcsDetailRow.action_type }} | {{ wcsDetailRow.task_step }}
             </n-text>
-            <n-collapse v-model="wcsDetailCollapse">
+            <n-collapse v-model="wcsDetailCollapse" :default-expanded-names="['req']" style="margin-top:8px">
               <n-collapse-item title="Request (AGV 控制指令)" name="req">
                 <div v-if="wcsDetailReq?.isValid" style="font-size:12px;line-height:1.8">
                   <n-text>
@@ -922,28 +922,27 @@ loadCleanUsage();
                 </div>
                 <n-text v-else type="error" depth="3">{{ wcsDetailReq?.error || '解析失败' }}</n-text>
               </n-collapse-item>
+              <hr>
             </n-collapse>
 
             <n-collapse v-model="wcsDetailCollapse">
-              <n-collapse-item title="Response (EQ 状态)" name="resp">
+              <n-collapse-item title="Response (EQ 状态)" name="resp" style="">
                 <div v-if="wcsDetailResp?.isValid">
-                  <n-descriptions :column="2" size="small">
-                    <n-descriptions-item label="下层光栅">{{ wcsDetailResp.gratingStatus.lowerGrating.text }}</n-descriptions-item>
-                    <n-descriptions-item label="上层光栅">{{ wcsDetailResp.gratingStatus.upperGrating.text }}</n-descriptions-item>
-                  </n-descriptions>
+                    下层光栅：{{ wcsDetailResp.gratingStatus.lowerGrating.text }} ； 
+                    上层光栅：{{ wcsDetailResp.gratingStatus.upperGrating.text }}
                   <n-dataTable
                     :columns="[
-                      { title: '层', key: 'layer', width: 50, render: (_, i) => i < Math.ceil(wcsDetailResp.ports.length / 2) ? '下' : '上' },
-                      { title: '位置', key: 'portPosition', width: 100 },
-                      { title: '就绪', key: 'ready', width: 80, render: (r) => r.status.readyStatus.text },
+                      { title: '层', key: 'layer', width: 20, render: (_, i) => i < Math.ceil(wcsDetailResp.ports.length / 2) ? '下' : '上' },
+                      { title: '位置', key: 'portPosition', width: 80 },
+                      { title: '就绪', key: 'ready', width: 60, render: (r) => r.status.readyStatus.text },
                       { title: 'TrayOk', key: 'trayOk', width: 80, render: (r) => r.status.trayOkStatus.text },
-                      { title: '在线', key: 'online', width: 80, render: (r) => r.status.onlineStatus.text },
-                      { title: 'Tray盘', key: 'present', width: 80, render: (r) => r.status.trayPresentStatus.text },
+                      { title: '在线', key: 'online', width: 120, render: (r) => r.status.onlineStatus.text },
+                      { title: 'Tray盘', key: 'present', width: 120, render: (r) => r.status.trayPresentStatus.text },
                       { title: '滚动', key: 'roller', width: 80, render: (r) => r.status.rollerStartStatus.text },
                       { title: '尺寸', key: 'size', width: 60, render: (r) => r.status.traySize.text },
-                      { title: 'TrayID', key: 'trayId', width: 80 },
+                      { title: 'TrayID', key: 'trayId', width: 140 },
                     ]"
-                    :data="wcsDetailResp.ports" size="small" :bordered="false" style="margin-top:4px" />
+                    :data="wcsDetailResp.ports" size="small" :bordered="false" style="margin-top:4px;" />
                 </div>
                 <n-text v-else-if="wcsDetailResp" type="error" depth="3">{{ wcsDetailResp.error || '解析失败' }}</n-text>
               </n-collapse-item>

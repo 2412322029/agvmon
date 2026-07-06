@@ -47,8 +47,8 @@ class AGVProtocolParser {
       // Roller start状态
       rollerStartStatus: {
         0x00: '未滚动',
-        0x01: '机台接料已滚动',
-        0x02: '机台送料已滚动'
+        0x01: '接料已滚动',
+        0x02: '送料已滚动'
       },
       // 人工操作
       manualOperation: {
@@ -108,7 +108,7 @@ class AGVProtocolParser {
       const ports = [];
       for (let i = 0; i < portCount; i++) {
         const portOffset = portDataStart + (i * this.protocolConfig.portStructure.totalBytesPerPort);
-        const portData = this._parsePortData(buffer, portOffset, i + 1);
+        const portData = this._parsePortData(buffer, portOffset, i + 1, portCount);
         ports.push(portData);
       }
 
@@ -180,9 +180,10 @@ class AGVProtocolParser {
    * @param {Uint8Array} buffer - 数据缓冲区
    * @param {number} offset - 起始偏移
    * @param {number} portNumber - Port口编号
+   * @param {number} portCount - Port口总数
    * @returns {Object} Port口数据
    */
-  _parsePortData(buffer, offset, portNumber) {
+  _parsePortData(buffer, offset, portNumber,portCount) {
     // 安全获取字节的函数
     const getByte = (index) => buffer.length > index ? buffer[index] : 0x00;
     const getInt16 = (index) => (getByte(index) << 8) | getByte(index + 1);
@@ -207,10 +208,10 @@ class AGVProtocolParser {
     
     // 确定Port口位置（根据文档中的命名规则）
     let portPosition = '';
-    if (portNumber <= 2) {
-      portPosition = `下层左${portNumber}Port`;
+    if (portNumber <= portCount / 2) {
+      portPosition = `下左Port - ${portNumber}`;
     } else {
-      portPosition = `上层左${portNumber - 2}Port`;
+      portPosition = `上左Port - ${portNumber - portCount / 2}`;
     }
     
     return {
