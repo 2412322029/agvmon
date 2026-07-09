@@ -1,5 +1,6 @@
 import hashlib
 import json
+import os
 import pathlib
 from datetime import datetime
 from urllib.parse import quote
@@ -8,6 +9,7 @@ from fastapi import (
     APIRouter,
     Body,
     File,
+    HTTPException,
     Query,
     UploadFile,
     WebSocket,
@@ -465,7 +467,7 @@ def redis_info():
 def get_backend_version():
     """返回后端版本信息"""
     try:
-        from util.__version__ import version, build_time, git_hash
+        from util.__version__ import build_time, git_hash, version
         return {
             "version": version,
             "build_time": build_time,
@@ -488,3 +490,47 @@ def get_changelog():
         return []
     except Exception as e:
         return {"error": str(e)}
+
+
+# ── 自定义背景 ────────────────────────────────────────────────────────
+
+_BG_DIR = pathlib.Path(__file__).parent.parent.parent / "util" / "data"
+_BG_DIR.mkdir(parents=True, exist_ok=True)
+
+
+@util_web_router.get("/background")
+async def get_background():
+    """返回当前自定义背景图片。"""
+    for ext in (".webp", ".jpg", ".jpeg", ".png", ".gif", ".avif"):
+        p = _BG_DIR / f"bg-custom{ext}"
+        if p.exists():
+            return FileResponse(p)
+    return FileResponse(_BG_DIR / "bg.webp") if (_BG_DIR / "bg.webp").exists() else {"path": ""}
+
+
+@util_web_router.post("/background")
+async def upload_background(file: UploadFile = File(...)):
+    """上传自定义背景图片，保存到 static/ 目录。"""
+    import shutil
+
+    ext = os.path.splitext(file.filename or "bg.webp")[1] or ".webp"
+    if ext.lower() not in (".webp", ".jpg", ".jpeg", ".png", ".gif", ".avif"):
+        raise HTTPException(status_code=400, detail="仅支持 webp/jpg/png/gif/avif")
+
+    dest = _BG_DIR / f"bg-custom{ext}"
+    with dest.open("wb") as f:
+        shutil.copyfileobj(file.file, f)
+
+    for old in _BG_DIR.glob("bg-custom.*"):
+        if old != dest:
+            old.unlink(missing_ok=True)
+
+    return {"ok": True}
+
+
+@util_web_router.delete("/background")
+async def reset_background():
+    """删除自定义背景，恢复默认。"""
+    for f in _BG_DIR.glob("bg-custom.*"):
+        f.unlink(missing_ok=True)
+    return {"ok": True}

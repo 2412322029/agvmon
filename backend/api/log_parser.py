@@ -20,7 +20,7 @@ from util.agvlog import (
 )
 from util.clean import _format_size
 from util.logger import logger
-from util.parse_wcs_log import MAX_FILES, WCSLOG_DIR, _collect_default_files, parse
+from util.parse_wcs_log import MAX_FILES, WCSLOG_DIR, _collect_default_files, download_wcs_log, download_wcs_logbak, list_wcs_logbak, list_wcs_logs, parse
 
 log_parser_router = APIRouter(
     prefix="/log_parser",
@@ -31,6 +31,7 @@ log_parser_router = APIRouter(
 _BASE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "util", "data")
 CLEAN_DIRS = {
     "wcslog": os.path.join(_BASE, "wcslog"),
+    "logbak": os.path.join(_BASE, "wcslog", "logbak"),
     "agvlog": os.path.join(_BASE, "agvlog"),
 }
 
@@ -448,7 +449,7 @@ async def api_parse_wcs_log(
 
     size = os.path.getsize(filepath)
     if size > 15 * 1024 * 1024:
-        raise HTTPException(status_code=400, detail=f"File exceeds 15MB limit ({size / 1024 / 1024:.1f} MB)")
+        raise HTTPException(status_code=400, detail=f"File exceeds 15MB limit ({size / 1024 / 1024:.0f} MB)")
 
     try:
         tid_hex = _trayid_to_hex(trayid) if trayid else None
@@ -482,7 +483,7 @@ async def api_batch_parse_wcs_log(
             continue
         size = os.path.getsize(fp)
         if size > 15 * 1024 * 1024:
-            results[fn] = {"error": f"File exceeds 15MB limit ({size / 1024 / 1024:.1f} MB)"}
+            results[fn] = {"error": f"File exceeds 15MB limit ({size / 1024 / 1024:.0f} MB)"}
             continue
         try:
             rows = list(parse(fp, shortcode, tid_hex, taskid=taskid, device_type=device_type))
@@ -496,27 +497,82 @@ async def api_batch_parse_wcs_log(
 # ── WCS Remote Logs (对应 CLI: tools wcslog list / download) ───────────
 
 @log_parser_router.get("/wcs_logs/remote")
-async def api_list_remote_wcs_logs():
-    """列出远程 WCS 服务器上的 default.log 文件（含 .1 .2 等轮转文件）。"""
-    from util.parse_wcs_log import list_wcs_logs
-
+async def api_list_remote_wcs_logs(
+    page: int = Query(1, ge=1, description="Page number (1-based)"),
+    page_size: int = Query(20, ge=1, le=200, description="Items per page"),
+    search: str = Query("", description="Filter by filename (case-insensitive partial match)"),
+):
+    """分页列出远程 WCS 服务器上的 default.log 文件。"""
     try:
-        files = await list_wcs_logs()
-        return [{
-            "filename": f["filename"],
-            "time": f["time"].strftime("%Y-%m-%d %H:%M:%S"),
-            "download_url": f["download_url"],
-        } for f in files]
+        all_items = await list_wcs_logs()
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"获取远程文件列表失败: {e}")
+
+    if search:
+        q = search.lower()
+        all_items = [it for it in all_items if q in it["filename"].lower()]
+
+    total = len(all_items)
+    start = (page - 1) * page_size
+    page_items = all_items[start : start + page_size]
+
+    return {
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "items": [
+            {
+                "filename": it["filename"],
+                "time": it["time"].strftime("%Y-%m-%d %H:%M:%S"),
+                "download_url": it.get("download_url", ""),
+            }
+            for it in page_items
+        ],
+    }
+
+
+@log_parser_router.get("/wcs_logs/logbak/remote")
+async def api_list_remote_wcs_logbak(
+    page: int = Query(1, ge=1, description="Page number (1-based)"),
+    page_size: int = Query(20, ge=1, le=200, description="Items per page"),
+    search: str = Query("", description="Filter by filename (case-insensitive partial match)"),
+):
+    """分页列出远程 WCS 服务器 log_bak 目录下的压缩包。"""
+    try:
+        all_items = await list_wcs_logbak()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"获取 log_bak 文件列表失败: {e}")
+
+    if search:
+        q = search.lower()
+        all_items = [it for it in all_items if q in it["filename"].lower()]
+
+    total = len(all_items)
+    start = (page - 1) * page_size
+    page_items = all_items[start : start + page_size]
+
+    return {
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "items": [
+            {
+                "filename": it["filename"],
+                "time": it["time"].strftime("%Y-%m-%d %H:%M:%S"),
+                "download_url": it.get("download_url", ""),
+            }
+            for it in page_items
+        ],
+    }
 
 
 @log_parser_router.post("/wcs_logs/download")
 async def api_download_wcs_logs(
-    filenames: list[str] = Body(..., description="要下载的文件名列表"),
+    filenames: list[str] = Body(..., description="要下载的文件名列表（自动识别 log / log_bak）"),
 ):
-    """下载远程 WCS 日志文件，通过 SSE 流式返回每个文件的下载进度。
-    对应 CLI: tools wcslog download
+    """下载远程 WCS 日志文件（含 log_bak 压缩包），通过 SSE 流式返回下载进度。
+
+    按扩展名自动路由：``.tar.bz2`` / ``.tar.gz`` / ``.zip`` → log_bak，其余 → default.log。
     """
     return StreamingResponse(
         _sse_wcs_download(filenames),
@@ -525,19 +581,33 @@ async def api_download_wcs_logs(
     )
 
 
+def _is_logbak(filename: str) -> bool:
+    return filename.lower().endswith((".tar.bz2", ".tar.gz", ".zip"))
+
+
 async def _sse_wcs_download(filenames: list[str]):
-    """SSE 生成器：下载 WCS 日志文件，逐文件报告进度。"""
-    from util.parse_wcs_log import WCSLOG_DIR, download_wcs_log, list_wcs_logs
+    """SSE 生成器：下载 WCS 日志/log_bak 文件，逐文件报告进度。"""
+    # 分别验证 default.log 和 log_bak 文件名
+    log_filenames = [f for f in filenames if not _is_logbak(f)]
+    bak_filenames = [f for f in filenames if _is_logbak(f)]
 
-    # 先获取远程文件列表用于验证文件名
-    try:
-        remote_files = await list_wcs_logs()
-        remote_names = {f["filename"] for f in remote_files}
-    except Exception as e:
-        yield _sse("error", f"无法获取远程文件列表: {e}")
-        return
+    remote_names: set[str] = set()
+    if log_filenames:
+        try:
+            remote_logs = await list_wcs_logs()
+            remote_names |= {f["filename"] for f in remote_logs}
+        except Exception as e:
+            yield _sse("error", f"无法获取远程文件列表: {e}")
+            return
+    if bak_filenames:
+        try:
+            remote_bak = await list_wcs_logbak()
+            remote_names |= {f["filename"] for f in remote_bak}
+        except Exception as e:
+            yield _sse("error", f"无法获取 log_bak 文件列表: {e}")
+            return
 
-    not_found = [n for n in filenames if n not in remote_names]
+    not_found = [f for f in filenames if f not in remote_names]
     if not_found:
         yield _sse("error", f"以下文件在远程不存在: {not_found}")
         return
@@ -556,24 +626,170 @@ async def _sse_wcs_download(filenames: list[str]):
         })
 
     os.makedirs(WCSLOG_DIR, exist_ok=True)
+    logbak_dir = os.path.join(WCSLOG_DIR, "logbak")
+    os.makedirs(logbak_dir, exist_ok=True)
     success, failed = [], []
 
-    async with httpx.AsyncClient(timeout=httpx.Timeout(30.0)) as client:
+    async with httpx.AsyncClient(timeout=httpx.Timeout(60.0)) as client:
         for fname in filenames:
-            yield _sse("status", f"开始下载: {fname}", {"filename": fname})
-            try:
-                dest = await download_wcs_log(fname, client=client, progress_cb=progress_cb)
-                # 排空进度事件
-                while not progress_queue.empty():
-                    yield f"data: {json.dumps(progress_queue.get_nowait(), ensure_ascii=False)}\n\n"
-                yield _sse("status", f"下载完成: {fname}", {"filename": fname, "path": dest})
-                success.append(fname)
-            except Exception as e:
-                logger.exception(f"下载WCS日志失败: {fname}")
-                yield _sse("error", f"下载失败 {fname}: {e}")
-                failed.append(fname)
+            is_bak = _is_logbak(fname)
+            save_dir = logbak_dir if is_bak else WCSLOG_DIR
+            kind = "log_bak" if is_bak else "default.log"
+            yield _sse("status", f"开始下载 {kind}: {fname}", {"filename": fname})
+
+            # 后台下载 + 实时轮询队列（不阻塞等待）
+            async def _run():
+                try:
+                    if is_bak:
+                        d = await download_wcs_logbak(fname, save_dir=save_dir, client=client, progress_cb=progress_cb)
+                    else:
+                        d = await download_wcs_log(fname, save_dir=save_dir, client=client, progress_cb=progress_cb)
+                    progress_queue.put_nowait({"type": "done", "dest": d})
+                except Exception as e:
+                    progress_queue.put_nowait({"type": "error", "message": str(e)})
+
+            task = asyncio.create_task(_run())
+
+            while True:
+                msg = await progress_queue.get()
+                if msg["type"] == "progress":
+                    yield _sse("progress",
+                               f"下载中… {msg['percentage']}%（{msg['downloaded_str']}/{msg['total_str']}）", {
+                                   "percentage": msg["percentage"],
+                                   "downloaded_str": msg["downloaded_str"],
+                                   "total_str": msg["total_str"],
+                                   "filename": fname,
+                               })
+                elif msg["type"] == "done":
+                    await task
+                    yield _sse("status", f"下载完成: {fname}", {"filename": fname, "path": msg["dest"]})
+                    success.append(fname)
+                    break
+                elif msg["type"] == "error":
+                    await task
+                    logger.exception(f"下载WCS日志失败: {fname}")
+                    yield _sse("error", f"下载失败 {fname}: {msg['message']}")
+                    failed.append(fname)
+                    break
 
     yield _sse("done", "", {"success": success, "failed": failed})
+
+
+# ── log_bak 解压 (SSE 流式进度) ──────────────────────────────────────
+
+@log_parser_router.post("/wcs_logs/logbak/extract")
+async def api_extract_logbak(
+    filename: str = Body(..., description="wcslog/logbak 下的 .tar.bz2 文件名"),
+):
+    """解压 log_bak 中全部 default.log* → wcslog/，SSE 流式返回进度。
+
+    重命名格式: ``HH.MM.SS—HH.MM.SS_default.log``。
+    """
+    return StreamingResponse(
+        _sse_extract_logbak(filename),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+async def _sse_extract_logbak(filename: str):
+    import shutil
+
+    from util.parse_wcs_log import (
+        _get_log_time_range,
+        _ts_to_time_str,
+        extract_tar_files,
+    )
+
+    logbak_dir = os.path.join(WCSLOG_DIR, "logbak")
+    safe_name = os.path.basename(filename)
+    tar_path = os.path.join(logbak_dir, safe_name)
+    if not os.path.isfile(tar_path):
+        yield _sse("error", f"压缩包不存在: {filename}")
+        return
+
+    tar_size = os.path.getsize(tar_path)
+    yield _sse("status", f"开始解压 {safe_name}（{tar_size / 1024 / 1024:.0f} MB）…",
+               {"filename": safe_name})
+    # 立即发送 0% 进度，前端不会空白等待
+    yield _sse("progress", f"解压中… 0%（0.0/{tar_size / 1024 / 1024:.0f} MB）", {
+        "current": 0, "total": tar_size, "percentage": 0,
+    })
+
+    # 一趟流式解压 + 实时进度（不再先 list 再 extract，避免两次解压）
+    progress_queue: asyncio.Queue = asyncio.Queue()
+
+    def _progress_cb(read_bytes: int, total_bytes: int) -> None:
+        pct = round(read_bytes / total_bytes * 100, 1) if total_bytes > 0 else 0
+        progress_queue.put_nowait({
+            "type": "progress",
+            "current": read_bytes,
+            "total": total_bytes,
+            "percentage": pct,
+            "message": f"解压中… {pct}%（{read_bytes / 1024 / 1024:.0f}/{total_bytes / 1024 / 1024:.0f} MB）",
+        })
+
+    async def _run_extract():
+        loop = asyncio.get_event_loop()
+        try:
+            result = await loop.run_in_executor(
+                None,
+                extract_tar_files, tar_path, WCSLOG_DIR,
+                None, None, _progress_cb,  # pattern=None, members=None → default: all default.log*
+            )
+            progress_queue.put_nowait({"type": "done", "result": result})
+        except Exception as e:
+            progress_queue.put_nowait({"type": "error", "message": str(e)})
+
+    task = asyncio.create_task(_run_extract())
+
+    while True:
+        msg = await progress_queue.get()
+        if msg["type"] == "progress":
+            yield _sse("progress", msg["message"], {
+                "current": msg["current"],
+                "total": msg["total"],
+                "percentage": msg["percentage"],
+            })
+        elif msg["type"] == "done":
+            extracted = msg["result"]
+            await task
+            break
+        elif msg["type"] == "error":
+            yield _sse("error", msg["message"])
+            await task
+            return
+
+    if not extracted:
+        yield _sse("done", "压缩包内无 default.log* 文件", {"extracted": [], "count": 0})
+        return
+
+    # 重命名（逐文件报告进度）
+    total = len(extracted)
+    yield _sse("status", f"正在重命名 {total} 个文件…",
+               {"filename": safe_name, "total": total})
+    renamed: list[str] = []
+    for i, src in enumerate(extracted):
+        basename = os.path.basename(src)
+        time_range = _get_log_time_range(src)
+        if time_range:
+            start, end = time_range
+            new_name = f"{_ts_to_time_str(start)}—{_ts_to_time_str(end)}_default.log"
+            new_dest = os.path.join(WCSLOG_DIR, new_name)
+            if os.path.exists(new_dest):
+                os.remove(new_dest)
+            shutil.move(src, new_dest)
+            renamed.append(new_name)
+        else:
+            renamed.append(basename)
+        yield _sse("progress", f"{i + 1}/{total} {basename} → {renamed[-1]}", {
+            "current": i + 1, "total": total,
+            "percentage": round((i + 1) / total * 100, 1),
+        })
+
+    yield _sse("done", f"解压完成，共 {len(renamed)} 个文件", {
+        "extracted": renamed, "count": len(renamed), "source": safe_name,
+    })
 
 
 # ── Clean (对应 CLI: tools clean <wcslog|agvlog>) ─────────────────────

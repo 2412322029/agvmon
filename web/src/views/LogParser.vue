@@ -2,7 +2,7 @@
 import {
   NAutoComplete, NButton, NCard, NCheckbox, NCollapse, NCollapseItem, NDataTable,
   NDivider, NForm, NFormItem, NInput,
-  NModal, NPopconfirm, NRadioButton, NRadioGroup, NSelect, NSpace, NSpin, NTabPane,
+  NModal, NPopconfirm, NPagination, NRadioButton, NRadioGroup, NSelect, NSpace, NSpin, NTabPane,
   NTabs, NTag, NText, useMessage
 } from 'naive-ui';
 import { h, ref, watch } from 'vue';
@@ -12,8 +12,42 @@ const message = useMessage();
 const apiBase = '/api/log_parser';
 const agvParser = new AGVProtocolParser();
 
+// ── URL hash 同步（刷新保持当前 tab）─────────────────────────────────
+import { useRoute, useRouter } from 'vue-router';
+const route = useRoute();
+const router = useRouter();
+
+function parseHash() {
+  const h = (route.hash || '#agv-download').replace('#', '');
+  const [main, ...sub] = h.split('-');
+  return { main: main || 'agv', sub: sub.join('-') || '' };
+}
+function updateHash(main, sub) {
+  const h = sub ? `#${main}-${sub}` : `#${main}`;
+  if (route.hash !== h) router.replace({ hash: h });
+}
+
+const { main: initMain, sub: initSub } = parseHash();
+const mainTab = ref(initMain === 'clean' ? 'clean' : initMain === 'wcs' ? 'wcs' : 'agv');
+const agvTab = ref(initMain === 'agv' ? (initSub || 'download') : 'download');
+const wcsTab = ref(initMain === 'wcs' ? (initSub || 'local') : 'local');
+const wcsRemoteSubTab = ref((initMain === 'wcs' && initSub === 'logbak') ? 'logbak' :
+                              (initMain === 'wcs' && initSub === 'remote') ? 'remote' : 'default');
+
+watch(mainTab, (v) => {
+  if (v === 'agv') updateHash('agv', agvTab.value);
+  else if (v === 'wcs') updateHash('wcs', wcsTab.value === 'logbak' ? 'logbak' : wcsTab.value === 'remote' ? 'remote' : 'local');
+  else updateHash('clean', '');
+});
+watch(agvTab, (v) => { if (mainTab.value === 'agv') updateHash('agv', v); });
+watch(wcsTab, (v) => {
+  if (mainTab.value === 'wcs') {
+    const sub = v === 'logbak' ? 'logbak' : v === 'remote' ? 'remote' : 'local';
+    updateHash('wcs', sub);
+  }
+});
+
 // ── AGV Logs state ────────────────────────────────────────────────────
-const agvTab = ref('download');
 const agvLocalFiles = ref([]);
 const agvLocalLoading = ref(false);
 const agvDownloading = ref(false);
@@ -33,27 +67,120 @@ const pioSource = ref('remote');
 const pioInfoMap = ['正常状态', '上仓位', '下仓位', '上料请求', '下料请求', '滚动信号', '完成信号', 'tray盘大小'];
 
 // ── WCS Logs state ────────────────────────────────────────────────────
-const wcsTab = ref('local');
 const wcsFiles = ref([]);
 const wcsFilesLoading = ref(false);
 const wcsParseResult = ref(null);
 const wcsParsing = ref(false);
-const wcsForm = ref({ filename: '', shortcode: '', trayid: '', taskid: '', device_type: '' });
+const wcsForm = ref({ filenames: [], shortcode: '', trayid: '', taskid: '', device_type: '' });
 const deviceTypeOptions = ['Detector', 'Rotate', 'Pallet', 'Cargo', 'Lift', 'Door'];
 const wcsDetailModal = ref(false);
 const wcsDetailRow = ref(null);
 const wcsDetailReq = ref(null);
 const wcsDetailResp = ref(null);
 const wcsDetailCollapse = ref(['resp']);
+const wcsResultTab = ref('');
 
 // ── WCS Remote state ───────────────────────────────────────────────────
 const wcsRemoteFiles = ref([]);
 const wcsRemoteLoading = ref(false);
+const wcsRemotePage = ref(1);
+const wcsRemotePageSize = ref(20);
+const wcsRemoteTotal = ref(0);
+const wcsRemoteSearch = ref('');
 const wcsDownloading = ref(false);
 const wcsDownloadLogs = ref([]);
 const wcsDownloadFiles = ref([]);
 const wcsSelectAll = ref(false);
 const wcsProgress = ref({ filename: '', percentage: 0, downloaded_str: '', total_str: '' });
+
+// log_bak remote (same download pipeline, separate list state)
+const bakRemoteFiles = ref([]);
+const bakRemoteLoading = ref(false);
+const bakRemotePage = ref(1);
+const bakRemotePageSize = ref(9);
+const bakRemoteTotal = ref(0);
+const bakRemoteSearch = ref('');
+const bakSelectAll = ref(false);
+const bakProgress = ref({ filename: '', percentage: 0, downloaded_str: '', total_str: '' });
+
+// ── log_bak 本地解压 ─────────────────────────────────────────────────
+const logbakLocalFiles = ref([]);
+const logbakLocalLoading = ref(false);
+const extractingFile = ref(null);       // currently extracting filename
+const extractingLogs = ref([]);         // SSE log lines
+const extractingProgress = ref({ current: 0, total: 0, percentage: 0 });
+
+async function loadLocalLogbak() {
+  logbakLocalLoading.value = true;
+  try {
+    const res = await fetch(`${apiBase}/clean/logbak`);
+    const data = await res.json();
+    logbakLocalFiles.value = (data.files || []).filter(f =>
+      f.filename.endsWith('.tar.bz2') || f.filename.endsWith('.tar.gz') || f.filename.endsWith('.zip')
+    );
+  } catch (e) {
+    message.error('加载 log_bak 文件列表失败');
+  } finally {
+    logbakLocalLoading.value = false;
+  }
+}
+
+async function extractLogbak(filename) {
+  extractingFile.value = filename;
+  extractingLogs.value = [];
+  extractingProgress.value = { current: 0, total: 0, percentage: 0 };
+  const addLog = (text, type = 'info') => extractingLogs.value.push({ text, type, time: Date.now() });
+
+  try {
+    const res = await fetch(`${apiBase}/wcs_logs/logbak/extract`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(filename),
+    });
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n\n');
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        try {
+          const event = JSON.parse(line.slice(6));
+          if (event.type === 'status') {
+            addLog(event.message);
+            extractingProgress.value.total = event.total || 0;
+          } else if (event.type === 'progress') {
+            addLog(event.message, 'progress');
+            extractingProgress.value = {
+              current: event.current,
+              total: event.total,
+              percentage: event.percentage,
+            };
+          } else if (event.type === 'done') {
+            addLog(event.message || `完成，共 ${event.count} 个文件`, 'success');
+            message.success(`解压完成: ${event.count} 个文件 → wcslog/`);
+            loadWcsFiles();
+            loadCleanUsage();
+          } else if (event.type === 'error') {
+            addLog(event.message, 'error');
+            message.error(event.message);
+          }
+        } catch (e) { /* ignore parse errors */ }
+      }
+    }
+  } catch (e) {
+    message.error('解压请求失败: ' + e.message);
+  } finally {
+    extractingFile.value = null;
+  }
+}
 
 // ── Clean state ────────────────────────────────────────────────────────
 const cleanTarget = ref('agvlog');
@@ -341,19 +468,19 @@ async function loadWcsFiles() {
 }
 
 async function parseWcsLog() {
-  if (!wcsForm.value.filename) {
+  if (!wcsForm.value.filenames.length) {
     message.warning('请选择WCS日志文件');
     return;
   }
   wcsParsing.value = true;
   wcsParseResult.value = null;
   try {
-    const body = { filename: wcsForm.value.filename };
+    const body = { filenames: wcsForm.value.filenames };
     if (wcsForm.value.shortcode) body.shortcode = wcsForm.value.shortcode;
     if (wcsForm.value.trayid) body.trayid = wcsForm.value.trayid;
     if (wcsForm.value.taskid) body.taskid = wcsForm.value.taskid;
     if (wcsForm.value.device_type) body.device_type = wcsForm.value.device_type;
-    const res = await fetch(`${apiBase}/wcs_logs/parse`, {
+    const res = await fetch(`${apiBase}/wcs_logs/batch_parse`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -361,7 +488,10 @@ async function parseWcsLog() {
     const data = await res.json();
     if (res.ok) {
       wcsParseResult.value = data;
-      message.success(`解析完成，共 ${data.count} 条记录`);
+      const files = Object.keys(data.results || {});
+      if (files.length) wcsResultTab.value = files[0];
+      const total = Object.values(data.results || {}).reduce((s, r) => s + (r.count || 0), 0);
+      message.success(`解析完成，${files.length} 个文件，共 ${total} 条记录`);
     } else {
       message.error(data.detail || '解析失败');
     }
@@ -372,14 +502,21 @@ async function parseWcsLog() {
   }
 }
 
-// ── WCS Remote (SSE) ───────────────────────────────────────────────────
+// ── WCS Remote (paginated) ─────────────────────────────────────────────
 async function loadWcsRemoteFiles() {
   wcsRemoteLoading.value = true;
   try {
-    const res = await fetch(`${apiBase}/wcs_logs/remote`);
+    const params = new URLSearchParams({
+      page: wcsRemotePage.value,
+      page_size: wcsRemotePageSize.value,
+    });
+    if (wcsRemoteSearch.value) params.set('search', wcsRemoteSearch.value);
+    const res = await fetch(`${apiBase}/wcs_logs/remote?${params}`);
     if (!res.ok) throw new Error((await res.json()).detail || '请求失败');
     const data = await res.json();
-    wcsRemoteFiles.value = data.map((f, i) => ({ ...f, _checked: false, _idx: i }));
+    wcsRemoteTotal.value = data.total;
+    wcsRemoteFiles.value = (data.items || []).map((f, i) => ({ ...f, _checked: false, _idx: i }));
+    wcsSelectAll.value = false;
   } catch (e) {
     message.error('加载远程WCS文件列表失败: ' + e.message);
   } finally {
@@ -387,8 +524,33 @@ async function loadWcsRemoteFiles() {
   }
 }
 
+async function loadBakRemoteFiles() {
+  bakRemoteLoading.value = true;
+  try {
+    const params = new URLSearchParams({
+      page: bakRemotePage.value,
+      page_size: bakRemotePageSize.value,
+    });
+    if (bakRemoteSearch.value) params.set('search', bakRemoteSearch.value);
+    const res = await fetch(`${apiBase}/wcs_logs/logbak/remote?${params}`);
+    if (!res.ok) throw new Error((await res.json()).detail || '请求失败');
+    const data = await res.json();
+    bakRemoteTotal.value = data.total;
+    bakRemoteFiles.value = (data.items || []).map((f, i) => ({ ...f, _checked: false, _idx: i }));
+    bakSelectAll.value = false;
+  } catch (e) {
+    message.error('加载log_bak文件列表失败: ' + e.message);
+  } finally {
+    bakRemoteLoading.value = false;
+  }
+}
+
 function toggleWcsSelectAll(val) {
   wcsRemoteFiles.value.forEach(f => f._checked = val);
+}
+
+function toggleBakSelectAll(val) {
+  bakRemoteFiles.value.forEach(f => f._checked = val);
 }
 
 function onWcsCheckChange() {
@@ -396,8 +558,25 @@ function onWcsCheckChange() {
   wcsSelectAll.value = checked.length === wcsRemoteFiles.value.length && wcsRemoteFiles.value.length > 0;
 }
 
+function onBakCheckChange() {
+  const checked = bakRemoteFiles.value.filter(f => f._checked);
+  bakSelectAll.value = checked.length === bakRemoteFiles.value.length && bakRemoteFiles.value.length > 0;
+}
+
+function onWcsRemotePageChange(page) {
+  wcsRemotePage.value = page;
+  loadWcsRemoteFiles();
+}
+
+function onBakRemotePageChange(page) {
+  bakRemotePage.value = page;
+  loadBakRemoteFiles();
+}
+
 async function downloadWcsLogs() {
-  const selected = wcsRemoteFiles.value.filter(f => f._checked);
+  const isBak = wcsRemoteSubTab.value === 'logbak';
+  const files = isBak ? bakRemoteFiles.value : wcsRemoteFiles.value;
+  const selected = files.filter(f => f._checked);
   if (!selected.length) {
     message.warning('请先选择要下载的文件');
     return;
@@ -408,6 +587,8 @@ async function downloadWcsLogs() {
 
   const addLog = (text, type = 'info') => wcsDownloadLogs.value.push({ text, type, time: Date.now() });
   const filenames = selected.map(f => f.filename);
+  const progressRef = isBak ? bakProgress : wcsProgress;
+  progressRef.value = { filename: '', percentage: 0, downloaded_str: '', total_str: '' };
 
   try {
     const res = await fetch(`${apiBase}/wcs_logs/download`, {
@@ -433,10 +614,10 @@ async function downloadWcsLogs() {
           const event = JSON.parse(line.slice(6));
           if (event.type === 'status') {
             addLog(event.message);
-            wcsProgress.value.filename = event.filename || wcsProgress.value.filename;
+            progressRef.value.filename = event.filename || progressRef.value.filename;
           } else if (event.type === 'progress') {
-            wcsProgress.value = {
-              filename: wcsProgress.value.filename,
+            progressRef.value = {
+              filename: progressRef.value.filename,
               percentage: event.percentage,
               downloaded_str: event.downloaded_str,
               total_str: event.total_str,
@@ -457,10 +638,15 @@ async function downloadWcsLogs() {
     message.error('下载请求失败: ' + e.message);
   } finally {
     wcsDownloading.value = false;
-    wcsRemoteFiles.value.forEach(f => f._checked = false);
-    wcsSelectAll.value = false;
+    files.forEach(f => f._checked = false);
+    if (isBak) {
+      bakSelectAll.value = false;
+      loadBakRemoteFiles();
+    } else {
+      wcsSelectAll.value = false;
+      loadWcsRemoteFiles();
+    }
     loadWcsFiles();
-    loadWcsRemoteFiles();
   }
 }
 
@@ -554,6 +740,13 @@ function renderRespCell(row) {
   }, raw.slice(0, 16) + '…');
 }
 
+function fmtLogLabel(f) {
+  const name = f.filename;
+  const m = name.match(/^(\d{2})\.(\d{2})\.(\d{2})—(\d{2})\.(\d{2})\.(\d{2})_default\.log/);
+  const label = m ? `${m[1]}:${m[2]} — ${m[4]}:${m[5]}  default.log` : name;
+  return `${label}  (${(f.mtime || '').replace('T', ' ').slice(0, 19)})`;
+}
+
 function showWcsDetail(row) {
   wcsDetailRow.value = row;
   try { wcsDetailReq.value = agvParser.parseAGVCommand(row.request); } catch (e) { wcsDetailReq.value = { error: e.message }; }
@@ -574,7 +767,14 @@ async function loadCleanUsage() {
 const cleanTargetOptions = [
   { label: 'AGV 日志目录', value: 'agvlog' },
   { label: 'WCS 日志目录', value: 'wcslog' },
+  { label: 'WCS log_bak 压缩包', value: 'logbak' },
 ];
+
+const cleanTargetLabel = {
+  agvlog: 'AGV',
+  wcslog: 'WCS',
+  logbak: 'log_bak',
+};
 
 async function loadCleanFiles() {
   cleanLoading.value = true;
@@ -614,8 +814,19 @@ async function deleteCleanFiles() {
 }
 
 // ── Watch ──────────────────────────────────────────────────────────────
+watch(wcsRemoteSubTab, (val) => {
+  if (val === 'logbak' && !bakRemoteFiles.value.length) loadBakRemoteFiles();
+});
 watch(wcsTab, (val) => {
-  if (val === 'remote' && !wcsRemoteFiles.value.length) loadWcsRemoteFiles();
+  if (val === 'remote') {
+    if (wcsRemoteSubTab.value === 'logbak') {
+      if (!bakRemoteFiles.value.length) loadBakRemoteFiles();
+    } else {
+      if (!wcsRemoteFiles.value.length) loadWcsRemoteFiles();
+    }
+  } else if (val === 'logbak') {
+    if (!logbakLocalFiles.value.length) loadLocalLogbak();
+  }
 });
 
 // ── Mount ──────────────────────────────────────────────────────────────
@@ -626,9 +837,23 @@ loadCleanUsage();
 
 <template>
   <div class="log-parser-container">
-    <h2>日志分析</h2>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
+      <h2 style="margin:0">日志分析</h2>
+      <div v-if="Object.keys(cleanUsage).length" style="display:flex;align-items:center;gap:8px;font-size:12px">
+        <span style="color:var(--n-text-color-3);white-space:nowrap">
+          {{ Object.values(cleanUsage).reduce((s,i) => s + (i.total_size||0), 0) > 1073741824 ? '🔴' : Object.values(cleanUsage).reduce((s,i) => s + (i.total_size||0), 0) > 524288000 ? '🟡' : Object.values(cleanUsage).reduce((s,i) => s + (i.total_size||0), 0) > 209715200 ? '🔵' : '🟢' }}
+          日志文件磁盘占用 {{ ['wcslog','logbak','agvlog'].map(k => cleanUsage[k]?.total_size_str).filter(Boolean).join(' + ') }}
+        </span>
+        <div class="progress-track" style="width:80px;height:6px;flex-shrink:0">
+          <div class="progress-fill" :style="{
+            width: Math.min(100, (Object.values(cleanUsage).reduce((s,i) => s + (i.total_size||0), 0) / 1073741824) * 100) + '%',
+            background: Object.values(cleanUsage).reduce((s,i) => s + (i.total_size||0), 0) > 1073741824 ? '#d03050' : Object.values(cleanUsage).reduce((s,i) => s + (i.total_size||0), 0) > 524288000 ? '#f0a020' : Object.values(cleanUsage).reduce((s,i) => s + (i.total_size||0), 0) > 209715200 ? '#2080f0' : '#18a058'
+          }"></div>
+        </div>
+      </div>
+    </div>
 
-    <n-tabs type="line" size="large" default-value="agv">
+    <n-tabs type="line" size="large" v-model:value="mainTab">
       <!-- ═══ AGV 日志 ═══ -->
       <n-tab-pane name="agv" tab="AGV 日志">
         <n-tabs type="card" size="medium" v-model:value="agvTab">
@@ -791,8 +1016,8 @@ loadCleanUsage();
             <n-card size="small" title="WCS 日志解析">
               <n-form :model="wcsForm" label-placement="left" label-width="100">
                 <n-form-item label="日志文件">
-                  <n-select v-model:value="wcsForm.filename" :options="wcsFiles.map(f => ({ label: `${f.filename}  (${(f.mtime||'').replace('T', ' ').slice(0,19)})`, value: f.filename }))"
-                    placeholder="选择WCS日志文件" filterable clearable />
+                  <n-select v-model:value="wcsForm.filenames" multiple :options="wcsFiles.map(f => ({ label: fmtLogLabel(f), value: f.filename }))"
+                    placeholder="选择WCS日志文件（可多选）" filterable clearable />
                 </n-form-item>
                 <n-form-item label="过滤条件">
                   <n-space>
@@ -811,7 +1036,7 @@ loadCleanUsage();
               </n-form>
 
               <div v-if="wcsParseResult" class="wcs-result">
-                <n-divider>解析结果（{{ wcsParseResult.count }} 条）</n-divider>
+                <n-divider>解析结果（{{ Object.values(wcsParseResult.results||{}).reduce((s,r) => s + (r.count||0), 0) }} 条，{{ Object.keys(wcsParseResult.results||{}).length }} 个文件）</n-divider>
                 <div class="hover-bar" :class="{ on: hoverTip.show }">
                   <span v-if="hoverTip.show">
                     <span class="hover-bar-title">{{ hoverTip.title }}</span>
@@ -822,60 +1047,136 @@ loadCleanUsage();
                   <span v-else>鼠标悬停在 Request/Response 字段查看解析详情</span>
                 </div>
 
-                <n-dataTable
-                :columns="[
-                  { title: '时间', key: 'time', width: 130 },
-                  { title: 'Task Key', key: 'task_key', width: 150, ellipsis: { tooltip: true } },
-                  { title: 'Action', key: 'action_type', width: 100 },
-                  { title: 'Step', key: 'task_step', width: 120 },
-                  { title: 'Request', key: 'request', width: 90, render: (r) => renderReqCell(r) },
-                  { title: 'Response', key: 'response', width: 90, render: (r) => renderRespCell(r) },
-                  { title: 'Result', key: 'result', width: 45, render: (r) => h(NTag, { type: r.result?.toLowerCase() === 'yes' ? 'success' : 'error', size: 'small' }, { default: () => r.result }) },
-                  { title: '操作', key: 'actions', width: 45, render: (r) => h(NButton, { size: 'tiny', onClick: () => showWcsDetail(r) }, { default: () => '详情' }) },
-                ]"
-                :data="wcsParseResult.rows" size="small" :bordered="false" max-height="500" virtual-scroll
-                :row-key="(_, i) => i" />
+                <n-tabs v-model:value="wcsResultTab" type="card" size="small" style="margin-top:8px">
+                  <n-tab-pane v-for="(r, fn) in wcsParseResult.results" :key="fn" :name="fn" :tab="fn.length > 50 ? fn.slice(0,47)+'...' : fn">
+                    <n-text v-if="r.error" type="error">{{ r.error }}</n-text>
+                    <n-dataTable v-else
+                    :columns="[
+                      { title: '时间', key: 'time', width: 130 },
+                      { title: 'Task Key', key: 'task_key', width: 150, ellipsis: { tooltip: true } },
+                      { title: 'Action', key: 'action_type', width: 100 },
+                      { title: 'Step', key: 'task_step', width: 120 },
+                      { title: 'Request', key: 'request', width: 90, render: (r) => renderReqCell(r) },
+                      { title: 'Response', key: 'response', width: 90, render: (r) => renderRespCell(r) },
+                      { title: 'Result', key: 'result', width: 45, render: (r) => h(NTag, { type: r.result?.toLowerCase() === 'yes' ? 'success' : 'error', size: 'small' }, { default: () => r.result }) },
+                      { title: '操作', key: 'actions', width: 45, render: (r) => h(NButton, { size: 'tiny', onClick: () => showWcsDetail(r) }, { default: () => '详情' }) },
+                    ]"
+                    :data="r.rows" size="small" :bordered="false" max-height="450" virtual-scroll
+                    :row-key="(_, i) => i" />
+                  </n-tab-pane>
+                </n-tabs>
               </div>
             </n-card>
           </n-tab-pane>
 
           <!-- 远程下载 -->
           <n-tab-pane name="remote" tab="远程下载">
-            <n-card size="small" title="从WCS服务器下载 default.log">
-              <n-space style="margin-bottom:12px">
-                <n-button @click="loadWcsRemoteFiles" :loading="wcsRemoteLoading" size="small">刷新远程列表</n-button>
-                <n-checkbox v-model:checked="wcsSelectAll" @update:checked="toggleWcsSelectAll"
-                  :disabled="!wcsRemoteFiles.length">全选</n-checkbox>
-                <n-text depth="3">{{ wcsRemoteFiles.filter(f => f._checked).length }} / {{ wcsRemoteFiles.length }} 个文件</n-text>
+            <n-card size="small" title="从WCS服务器下载日志">
+              <n-space style="margin-bottom:12px" align="center">
+                <n-radio-group v-model:value="wcsRemoteSubTab" name="wcsRemoteSubTab" size="small">
+                  <n-radio-button value="default">default.log</n-radio-button>
+                  <n-radio-button value="logbak">log_bak 压缩包</n-radio-button>
+                </n-radio-group>
               </n-space>
 
-              <n-dataTable
-                :columns="[
-                  { title: '文件名', key: 'filename', ellipsis: { tooltip: true } },
-                  { title: '修改时间', key: 'time', width: 170, render: (r) => r.time?.replace('T', ' ').slice(0, 19) },
-                  { type: 'selection' },
-                ]"
-                :data="wcsRemoteFiles" :loading="wcsRemoteLoading" size="small" :bordered="false"
-                :row-key="(r) => r._idx" max-height="320"
-                :checked-row-keys="wcsRemoteFiles.filter(f => f._checked).map(f => f._idx)"
-                @update:checked-row-keys="(keys) => { wcsRemoteFiles.forEach(f => f._checked = keys.includes(f._idx)); onWcsCheckChange(); }" />
+              <!-- default.log view -->
+              <template v-if="wcsRemoteSubTab === 'default'">
+                <n-space style="margin-bottom:8px" align="center" justify="space-between">
+                  <n-space align="center">
+                    <n-input v-model:value="wcsRemoteSearch" placeholder="搜索文件名..." clearable style="width:200px"
+                      @keyup.enter="wcsRemotePage=1;loadWcsRemoteFiles()" />
+                    <n-button size="small" @click="wcsRemotePage=1;loadWcsRemoteFiles()">搜索</n-button>
+                    <n-button size="small" @click="loadWcsRemoteFiles" :loading="wcsRemoteLoading" secondary>刷新</n-button>
+                    <n-checkbox v-model:checked="wcsSelectAll" @update:checked="toggleWcsSelectAll"
+                      :disabled="!wcsRemoteFiles.length">全选</n-checkbox>
+                    <n-text depth="3">{{ wcsRemoteFiles.filter(f => f._checked).length }} / {{ wcsRemoteFiles.length }} 选中</n-text>
+                  </n-space>
+                  <n-button type="primary" @click="downloadWcsLogs" :loading="wcsDownloading"
+                    :disabled="!wcsRemoteFiles.filter(f => f._checked).length">
+                    下载选中
+                  </n-button>
+                </n-space>
 
-              <n-space style="margin-top:12px">
-                <n-button type="primary" @click="downloadWcsLogs" :loading="wcsDownloading"
-                  :disabled="!wcsRemoteFiles.filter(f => f._checked).length">
-                  下载选中文件
-                </n-button>
-                <n-button v-if="wcsDownloadFiles.length" @click="loadWcsFiles" size="small" secondary>
-                  刷新本地文件列表
-                </n-button>
-              </n-space>
+                <!-- 卡片网格 -->
+                <n-spin :show="wcsRemoteLoading">
+                  <div class="log-grid">
+                    <div v-for="f in wcsRemoteFiles" :key="f._idx"
+                      :class="['log-card', { checked: f._checked }]"
+                      @click="f._checked = !f._checked; onWcsCheckChange()">
+                      <n-checkbox :checked="f._checked" @click.stop @update:checked="v => { f._checked = v; onWcsCheckChange(); }" />
+                      <div class="log-card-body">
+                        <span class="log-card-name">{{ f.filename }}</span>
+                        <span class="log-card-time">{{ (f.time||'').replace('T',' ').slice(0,19) }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <n-text v-if="!wcsRemoteFiles.length && !wcsRemoteLoading" depth="3" style="text-align:center;display:block;padding:20px">
+                    暂无文件
+                  </n-text>
+                </n-spin>
 
-              <div v-if="wcsDownloading && wcsProgress.filename" class="wcs-progress-bar" style="margin-top:12px">
-                <n-text depth="3" style="font-size:12px">{{ wcsProgress.filename }}</n-text>
+                <n-space v-if="wcsRemoteTotal > wcsRemotePageSize" justify="center" style="margin-top:12px">
+                  <n-pagination v-model:page="wcsRemotePage" :page-size="wcsRemotePageSize"
+                    :item-count="wcsRemoteTotal" :page-slot="5" size="small"
+                    @update:page="onWcsRemotePageChange" />
+                </n-space>
+              </template>
+
+              <!-- log_bak view -->
+              <template v-if="wcsRemoteSubTab === 'logbak'">
+                <n-space style="margin-bottom:8px" align="center" justify="space-between">
+                  <n-space align="center">
+                    <n-input v-model:value="bakRemoteSearch" placeholder="搜索文件名..." clearable style="width:200px"
+                      @keyup.enter="bakRemotePage=1;loadBakRemoteFiles()" />
+                    <n-button size="small" @click="bakRemotePage=1;loadBakRemoteFiles()">搜索</n-button>
+                    <n-button size="small" @click="loadBakRemoteFiles" :loading="bakRemoteLoading" secondary>刷新</n-button>
+                    <n-checkbox v-model:checked="bakSelectAll" @update:checked="toggleBakSelectAll"
+                      :disabled="!bakRemoteFiles.length">全选</n-checkbox>
+                    <n-text depth="3">{{ bakRemoteFiles.filter(f => f._checked).length }} / {{ bakRemoteFiles.length }} 选中</n-text>
+                  </n-space>
+                  <n-button type="primary" @click="downloadWcsLogs" :loading="wcsDownloading"
+                    :disabled="!bakRemoteFiles.filter(f => f._checked).length">
+                    下载选中
+                  </n-button>
+                </n-space>
+
+                <n-spin :show="bakRemoteLoading">
+                  <div class="log-grid">
+                    <div v-for="f in bakRemoteFiles" :key="f._idx"
+                      :class="['log-card', { checked: f._checked }]"
+                      @click="f._checked = !f._checked; onBakCheckChange()">
+                      <n-checkbox :checked="f._checked" @click.stop @update:checked="v => { f._checked = v; onBakCheckChange(); }" />
+                      <div class="log-card-body">
+                        <span class="log-card-name">{{ f.filename }}</span>
+                        <span class="log-card-time">{{ (f.time||'').replace('T',' ').slice(0,19) }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <n-text v-if="!bakRemoteFiles.length && !bakRemoteLoading" depth="3" style="text-align:center;display:block;padding:20px">
+                    暂无文件
+                  </n-text>
+                </n-spin>
+
+                <n-space v-if="bakRemoteTotal > bakRemotePageSize" justify="center" style="margin-top:12px">
+                  <n-pagination v-model:page="bakRemotePage" :page-size="bakRemotePageSize"
+                    :item-count="bakRemoteTotal" :page-slot="5" size="small"
+                    @update:page="onBakRemotePageChange" />
+                </n-space>
+              </template>
+
+              <!-- 下载进度 + 结果（公共） -->
+
+              <div v-if="wcsDownloading && (wcsProgress.filename || bakProgress.filename)" class="wcs-progress-bar" style="margin-top:12px">
+                <n-text depth="3" style="font-size:12px">{{ (wcsRemoteSubTab === 'logbak' ? bakProgress : wcsProgress).filename }}</n-text>
                 <div class="progress-track">
-                  <div class="progress-fill" :style="{ width: wcsProgress.percentage + '%' }"></div>
+                  <div class="progress-fill"
+                    :style="{ width: ((wcsRemoteSubTab === 'logbak' ? bakProgress : wcsProgress).percentage || 0) + '%' }"></div>
                 </div>
-                <n-text depth="3" style="font-size:12px">{{ wcsProgress.percentage }}% ({{ wcsProgress.downloaded_str }}/{{ wcsProgress.total_str }})</n-text>
+                <n-text depth="3" style="font-size:12px">
+                  {{ (wcsRemoteSubTab === 'logbak' ? bakProgress : wcsProgress).percentage }}%
+                  ({{ (wcsRemoteSubTab === 'logbak' ? bakProgress : wcsProgress).downloaded_str }}
+                  / {{ (wcsRemoteSubTab === 'logbak' ? bakProgress : wcsProgress).total_str }})
+                </n-text>
               </div>
 
               <div v-if="wcsDownloadLogs.length" class="progress-area" style="margin-top:12px">
@@ -894,6 +1195,59 @@ loadCleanUsage();
               <div v-if="wcsDownloadFiles.length" class="download-result">
                 <n-tag v-for="f in wcsDownloadFiles" :key="f" type="success" size="small">{{ f }}</n-tag>
               </div>
+            </n-card>
+          </n-tab-pane>
+          <!-- log_bak 解压 -->
+          <n-tab-pane name="logbak" tab="logbak 解压">
+            <n-card size="small" title="解压 log_bak 压缩包 → wcslog/">
+              <n-space style="margin-bottom:12px">
+                <n-button @click="loadLocalLogbak" :loading="logbakLocalLoading" size="small">刷新</n-button>
+              </n-space>
+
+              <n-dataTable
+                :columns="[
+                  { title: '压缩包', key: 'filename', ellipsis: { tooltip: true } },
+                  { title: '大小', key: 'size_str', width: 100 },
+                  { title: '修改时间', key: 'mtime', width: 170 },
+                  { title: '操作', key: 'actions', width: 90,
+                    render: (row) => h(NButton, {
+                      size: 'tiny', type: 'warning', secondary: true,
+                      loading: extractingFile === row.filename,
+                      disabled: extractingFile !== null && extractingFile !== row.filename,
+                      onClick: () => extractLogbak(row.filename),
+                    }, { default: () => '解压' }) },
+                ]"
+                :data="logbakLocalFiles" :loading="logbakLocalLoading" size="small" :bordered="false"
+                :row-key="(r) => r.filename" max-height="400" />
+
+              <!-- 解压进度 -->
+              <div v-if="extractingFile" class="wcs-progress-bar" style="margin-top:12px">
+                <n-text depth="3" style="font-size:12px">{{ extractingFile }}</n-text>
+                <div class="progress-track">
+                  <div class="progress-fill" :style="{ width: (extractingProgress.percentage || 0) + '%' }"></div>
+                </div>
+                <n-text depth="3" style="font-size:12px">
+                  {{ extractingProgress.total > 1000 ? (extractingProgress.current / 1048576).toFixed(1) + '/' + (extractingProgress.total / 1048576).toFixed(1) + ' MB' : extractingProgress.current + '/' + extractingProgress.total }}
+                  ({{ extractingProgress.percentage }}%)
+                </n-text>
+              </div>
+
+              <div v-if="extractingLogs.length" class="progress-area" style="margin-top:12px">
+                <n-spin v-if="extractingFile" size="small" />
+                <div class="log-lines">
+                  <div v-for="(entry, i) in extractingLogs" :key="i"
+                    :class="['log-line', entry.type]">
+                    <n-text :depth="entry.type === 'error' ? undefined : entry.type === 'success' ? undefined : 2"
+                      :type="entry.type === 'error' ? 'error' : entry.type === 'success' ? 'success' : undefined">
+                      {{ entry.text }}
+                    </n-text>
+                  </div>
+                </div>
+              </div>
+
+              <n-text v-if="!logbakLocalLoading && !logbakLocalFiles.length" depth="3" style="margin-top:12px;display:block">
+                暂无本地 log_bak 压缩包。请先在「远程下载」中下载。
+              </n-text>
             </n-card>
           </n-tab-pane>
         </n-tabs>
@@ -965,7 +1319,7 @@ loadCleanUsage();
         <n-card size="small" title="清理日志文件">
           <n-space v-if="Object.keys(cleanUsage).length" style="margin-bottom:12px">
             <n-tag v-for="(info, key) in cleanUsage" :key="key" :type="key === cleanTarget ? 'info' : 'default'" size="small">
-              {{ key === 'agvlog' ? 'AGV' : 'WCS' }}: {{ info.total_size_str }} ({{ info.file_count }} 个文件)
+              {{ cleanTargetLabel[key] || key }}: {{ info.total_size_str }} ({{ info.file_count }} 个文件)
             </n-tag>
             <n-button text size="tiny" @click="loadCleanUsage">↻</n-button>
           </n-space>
@@ -1028,14 +1382,12 @@ loadCleanUsage();
 
 <style scoped>
 .log-parser-container {
-  padding: 12px;
-  max-width: 100%;
+  padding: 8px 12px;
+  max-width: 1200px;
+  margin: 0 auto;
 }
 .log-parser-container :deep(.n-data-table td) {
   white-space: nowrap;
-}
-h2 {
-  margin-bottom: 16px;
 }
 .progress-area {
   margin-top: 12px;
@@ -1117,14 +1469,61 @@ h2 {
 .progress-track {
   margin: 6px 0;
   height: 8px;
-  background: var(--n-border-color);
+  background: #e0e0e0;
   border-radius: 4px;
   overflow: hidden;
 }
+[data-theme="dark"] .progress-track {
+  background: #444;
+}
 .progress-fill {
   height: 100%;
-  background: var(--n-primary-color);
+  background: #2080f0;
   border-radius: 4px;
   transition: width 0.3s ease;
+  min-width: 2px;
+}
+
+/* log 卡片网格 */
+.log-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+.log-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--n-border-color, #e0e0e0);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: border-color 0.2s, background 0.2s;
+}
+.log-card:hover {
+  border-color: #2080f0;
+}
+.log-card.checked {
+  border-color: #2080f0;
+  background: rgba(32, 128, 240, 0.06);
+}
+.log-card-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 12px;
+}
+.log-card-name {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.log-card-time {
+  color: var(--n-text-color-3);
+  font-size: 11px;
+  margin-top: 2px;
 }
 </style>

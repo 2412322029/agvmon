@@ -21,6 +21,16 @@
                     <n-input v-model:value="configForm.rcms_wcs_rest_api" />
                 </n-form-item>
 
+                <n-divider />
+                <n-form-item label="自定义背景图片">
+                    <n-space vertical>
+                        <img v-if="bgPreview" :src="bgPreview" style="max-width:300px;max-height:150px;border-radius:6px;border:1px solid var(--n-border-color)" />
+                        <input type="file" accept="image/*" @change="onBgFileChange" />
+                        <n-button v-if="bgPreview" size="small" @click="saveBg" type="primary">应用背景</n-button>
+                        <n-button v-if="hasCustomBg" size="small" @click="resetBg" secondary>恢复默认</n-button>
+                    </n-space>
+                </n-form-item>
+
             </n-form>
 
             <n-divider />
@@ -63,6 +73,7 @@ import {
     NForm, NFormItem, NIcon, NInput, NInputNumber, NModal, NSpace, NSwitch, useMessage
 } from 'naive-ui';
 import { onMounted, reactive, ref } from 'vue';
+import { applyBodyBg, resetBodyBg } from '../composables/bg';
 
 const message = useMessage();
 
@@ -234,7 +245,56 @@ const reloadConfig = async () => {
     message.success('配置已重新加载');
 };
 
+// ── 自定义背景 ─────────────────────────────────────────────────────
+const bgPreview = ref('');
+const bgFile = ref(null);
+
+function onBgFileChange(e) {
+  const file = e.target.files?.[0];
+  if (!file) return;
+  bgFile.value = file;
+  const reader = new FileReader();
+  reader.onload = () => { bgPreview.value = reader.result; };
+  reader.readAsDataURL(file);
+}
+
+async function saveBg() {
+  if (!bgFile.value) return;
+  const form = new FormData();
+  form.append('file', bgFile.value);
+  try {
+    const res = await fetch('/api/util/background', { method: 'POST', body: form });
+    if (res.ok) {
+      localStorage.setItem('has_custom_bg', '1');
+      hasCustomBg.value = true;
+      applyBodyBg();
+      message.success('背景已应用');
+    } else {
+      message.error('上传失败');
+    }
+  } catch (e) {
+    message.error('上传失败: ' + e.message);
+  }
+}
+
+async function resetBg() {
+  try {
+    await fetch('/api/util/background', { method: 'DELETE' });
+    localStorage.removeItem('has_custom_bg');
+    hasCustomBg.value = false;
+    bgPreview.value = '';
+    bgFile.value = null;
+    resetBodyBg();
+    message.success('已恢复默认背景');
+  } catch (e) {
+    message.error('操作失败');
+  }
+}
+
+const hasCustomBg = ref(localStorage.getItem('has_custom_bg') === '1');
+
 onMounted(() => {
     loadConfig();
+    applyBodyBg();
 });
 </script>

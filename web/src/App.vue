@@ -38,6 +38,7 @@ import { computed, h, onMounted, onUnmounted, provide, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import GossipNotifToast from './components/GossipNotifToast.vue';
 import ShellPanel from './components/ShellPanel.vue';
+import { applyBodyBg } from './composables/bg';
 import { sendPagePath } from './composables/gossipNotif';
 import { ribbon } from './composables/ribbon';
 import { useShellStore } from './composables/useShellStore';
@@ -75,6 +76,7 @@ async function fetchBackendVersion() {
 }
 fetchBackendVersion();
 onMounted(() => {
+  applyBodyBg();
   document.documentElement.dataset.theme = darkMode.value ? 'dark' : 'light';
   if (clicktimes.value > 0) {
     ribbon(clicktimes.value);
@@ -402,12 +404,12 @@ a {
 
 [data-theme="dark"] .top-nav {
   border-bottom: 1px solid #656565;
-  /* background-color: #070606; */
+  background-color: rgba(20, 20, 20, 0.6);
 }
 
 [data-theme="light"] .top-nav {
   border-bottom: 1px solid #292929;
-  /* background-color: #656262; */
+  background-color: rgba(255, 255, 255, 0.6);
 }
 
 :deep(.n-menu) {
