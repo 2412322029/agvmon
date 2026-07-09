@@ -2,7 +2,11 @@
   <div class="setting-page">
     <n-card size="small" title="系统设置" :bordered="false">
       <template #header-extra>
-        <n-space>
+        <n-space align="center">
+          <n-text depth="3" style="font-size:12px;">v{{ currentVersion }}</n-text>
+          <n-button size="small" @click="handleCheckUpdate" :loading="checkingUpdate" secondary>
+            {{ checkingUpdate ? '检查中...' : '检查更新' }}
+          </n-button>
           <n-button size="small" @click="reloadConfig" :loading="loading" secondary>重新加载</n-button>
           <n-tooltip v-if="!isLocalhost" trigger="hover">
             <template #trigger><n-button size="small" type="primary" disabled>保存全部</n-button></template>
@@ -11,6 +15,20 @@
           <n-button v-else size="small" @click="saveAllConfig" type="primary" :loading="saving">保存全部</n-button>
         </n-space>
       </template>
+
+      <!-- 更新状态提示 -->
+      <n-alert
+        v-if="updateStatus === 'update_available'"
+        type="warning" :bordered="false" style="margin-bottom: 12px;"
+      >
+        发现新版本 <strong>v{{ updateInfo?.version }}</strong>，请到首页底部或关于页面下载更新
+      </n-alert>
+      <n-alert
+        v-if="updateStatus === 'error'"
+        type="error" :bordered="false" style="margin-bottom: 12px;"
+      >
+        {{ updateError }}
+      </n-alert>
 
       <n-collapse :default-expanded-names="defaultExpanded">
         <n-collapse-item v-for="group in configGroups" :key="group.name" :name="group.name">
@@ -158,12 +176,32 @@ import {
   NAlert, NButton, NCard, NCollapse, NCollapseItem, NColorPicker,
   NDescriptions, NDescriptionsItem, NDivider, NForm,
   NIcon,
-  NInput, NInputNumber, NModal, NSelect, NSlider, NSpace, NSwitch, NTooltip,
+  NInput, NInputNumber, NModal, NSelect, NSlider, NSpace, NSwitch, NText, NTooltip,
   useMessage
 } from 'naive-ui'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { applyBodyBg, resetBodyBg } from '../composables/bg'
 import { useAccentColor } from '../composables/theme'
+import { useUpdate } from '../composables/useUpdate'
+
+const {
+  status: updateStatus,
+  updateInfo,
+  errorMessage: updateError,
+  currentVersion,
+  checkForUpdates,
+} = useUpdate()
+
+const checkingUpdate = ref(false)
+
+async function handleCheckUpdate() {
+  checkingUpdate.value = true
+  try {
+    await checkForUpdates()
+  } finally {
+    checkingUpdate.value = false
+  }
+}
 
 const { accentColor, setAccent, resetAccent: resetAccentColor } = useAccentColor()
 const accentSaved = ref('')
@@ -349,6 +387,11 @@ const FIELD_META = {
   'webshell.rows':           { label: '终端行高',            desc: '默认 PTY 行数' },
 
   'chat.expire_days':    { label: '消息保留天数',     desc: '聊天记录在 Redis 中的 TTL 天数' },
+
+  'update.update_url':  { label: '更新服务器地址',   desc: 'AGVmon 更新服务器 URL', hint: 'http(s)://host:port' },
+  'update.channel':     { label: '更新通道',         desc: 'stable 正式版 / beta 测试版', hint: 'stable / beta' },
+  'update.auto_check':  { label: '自动检查更新',     desc: '启动时自动检查是否有新版本' },
+  'update.check_interval_hours': { label: '检查间隔(小时)', desc: '自动检查更新的时间间隔' },
 }
 
 const SECTION_LABELS = {
@@ -359,6 +402,7 @@ const SECTION_LABELS = {
   'agv':    'AGV SSH',
   'webshell': 'Web Shell',
   'chat':   '聊天',
+  'update': '更新',
 }
 
 function metaOf(key) {

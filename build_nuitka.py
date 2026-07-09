@@ -159,7 +159,59 @@ def upload_to_webdav(local_path: Path, remote_name: str = None) -> bool:
     return False
 
 
-def build_with_nuitka(skip_compress=False, skip_upload=False):
+def upload_to_update_server(
+    zip_path: Path,
+    version: str,
+    build_time: str,
+    git_hash: str,
+    channel: str = "stable",
+) -> bool:
+    """上传 ZIP 到 AGVmon 更新服务器，自动更新 latest.json 清单。"""
+    update_url = os.environ.get("UPDATE_URL", "")
+    api_key = os.environ.get("UPDATE_API_KEY", "")
+
+    if not update_url:
+        print("  跳过更新服务器上传: UPDATE_URL 未配置")
+        return False
+
+    print(f"\n上传到更新服务器: {update_url}")
+    print(f"  文件: {zip_path.name}  ({zip_path.stat().st_size / 1024 / 1024:.2f} MB)")
+    print(f"  版本: {version}  通道: {channel}")
+
+    try:
+        with open(zip_path, "rb") as f:
+            resp = httpx.post(
+                f"{update_url.rstrip('/')}/api/update/upload",
+                files={"file": (zip_path.name, f, "application/zip")},
+                data={
+                    "version": version,
+                    "build_time": build_time,
+                    "git_hash": git_hash,
+                    "channel": channel,
+                },
+                headers={"X-API-Key": api_key},
+                timeout=6000,
+                follow_redirects=True,
+            )
+        if resp.status_code == 200:
+            data = resp.json()
+            print(f"    ✓ 上传成功 [{resp.status_code}]")
+            print(f"    清单已更新: {data.get('manifest_file', '?')}")
+            return True
+        elif resp.status_code == 401:
+            print("    ✗ 认证失败 (401) — 检查 UPDATE_API_KEY")
+        else:
+            print(f"    ✗ 上传失败 [{resp.status_code}]: {resp.text[:200]}")
+    except httpx.RequestError as e:
+        print(f"    ✗ 网络错误: {e}")
+    return False
+
+
+def build_with_nuitka(
+    skip_compress=False,
+    skip_upload=False,
+    channel="stable",
+):
     """
     使用Nuitka构建可执行文件
     """
@@ -256,11 +308,12 @@ def build_with_nuitka(skip_compress=False, skip_upload=False):
         # 压缩
         zip_path = None
         if not skip_compress:
-            zip_path = compress_dist(project_dir, dist_dir)
+            zip_path = compress_dist(project_dir, dist_dir, version, git_short)
 
         # 上传
         if zip_path and not skip_upload:
-            upload_to_webdav(zip_path)
+            # upload_to_webdav(zip_path)
+            upload_to_update_server(zip_path, version, build_time, git_short, channel)
 
     except Exception as e:
         print(f"发生未知错误: {e}")
@@ -282,7 +335,7 @@ def find_7z():
     return None
 
 
-def compress_dist(project_dir: Path, dist_dir: Path) -> Path | None:
+def compress_dist(project_dir: Path, dist_dir: Path, version: str, git_hash: str) -> Path | None:
     """7z 压缩 main.dist 目录，返回 zip 文件路径。"""
     seven_zip = find_7z()
     if not seven_zip:
@@ -290,7 +343,7 @@ def compress_dist(project_dir: Path, dist_dir: Path) -> Path | None:
         return None
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    zip_name = f"agvmon_{timestamp}.zip"
+    zip_name = f"agvmon_v{version}_{git_hash}_{timestamp}.zip"
     zip_path = project_dir / "dist" / zip_name
 
     print(f"\n正在压缩 {dist_dir} 到 {zip_path} ...")
@@ -308,5 +361,68 @@ def compress_dist(project_dir: Path, dist_dir: Path) -> Path | None:
         return None
 
 
+def publish_zip(
+    zip_path: Path,
+    version: str = None,
+    build_time: str = None,
+    git_hash: str = None,
+    channel: str = "stable",
+):
+    """上传已有的 ZIP 包，不重新构建。版本信息从文件名解析。"""
+    if not zip_path.exists():
+        print(f"错误：找不到文件 {zip_path}")
+        sys.exit(1)
+
+    # 从文件名解析: agvmon_v0.1.0.89_2265893_20260710_120000.zip
+    parsed = re.match(r"agvmon_v([\d.]+)_(\w+)_(\d{8}_\d{6})\.zip", zip_path.name)
+    if not parsed:
+        print(f"错误：无法从文件名解析版本信息: {zip_path.name}")
+        print("  期望格式: agvmon_v<version>_<hash>_<timestamp>.zip")
+        sys.exit(1)
+
+    version = version or parsed.group(1)
+    git_hash = git_hash or parsed.group(2)
+    build_time = build_time or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    print(f"发布已有 ZIP: {zip_path.name}")
+    print(f"  Version: {version}  Git: {git_hash}")
+    print(f"  Channel: {channel}")
+
+    # upload_to_webdav(zip_path)
+    upload_to_update_server(zip_path, version, build_time, git_hash, channel)
+
+
 if __name__ == "__main__":
-    build_with_nuitka()
+    parser = argparse.ArgumentParser(description="Nuitka 打包 + 上传")
+    parser.add_argument("--skip-compress", action="store_true", help="跳过压缩")
+    parser.add_argument("--skip-upload", action="store_true", help="跳过上传")
+    parser.add_argument(
+        "--channel",
+        choices=["stable", "beta"],
+        default="stable",
+        help="更新通道 (默认: stable)",
+    )
+    parser.add_argument(
+        "--zip",
+        type=Path,
+        help="直接上传已有的 ZIP，跳过构建",
+    )
+    parser.add_argument("--version", help="版本号 (配合 --zip)")
+    parser.add_argument("--build-time", help="构建时间 (配合 --zip)")
+    parser.add_argument("--git-hash", help="Git 哈希 (配合 --zip)")
+    args = parser.parse_args()
+
+    if args.zip:
+        publish_zip(
+            zip_path=args.zip,
+            version=args.version,
+            build_time=args.build_time,
+            git_hash=args.git_hash,
+            channel=args.channel,
+        )
+    else:
+        build_with_nuitka(
+            skip_compress=args.skip_compress,
+            skip_upload=args.skip_upload,
+            channel=args.channel,
+        )

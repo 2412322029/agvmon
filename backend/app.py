@@ -16,6 +16,7 @@ from backend.api.agvssh import agv_web_router
 from backend.api.gossip import gossip_router, websocket_gossip_endpoint
 from backend.api.log_parser import log_parser_router
 from backend.api.other import util_web_router, websocket_chat_endpoint
+from backend.api.updater import update_router
 from backend.api.rcmsapi import rcms_router
 from backend.api.rcswebapi import rcs_web_router
 from backend.api.startup import setup_startup_event
@@ -139,6 +140,9 @@ app.include_router(log_parser_router, prefix="/api")
 
 # 包含GossipApi路由
 app.include_router(gossip_router, prefix="/api")
+
+# 包含UpdateApi路由
+app.include_router(update_router, prefix="/api")
 
 # 包含WebShell REST路由
 app.include_router(shell_router)
