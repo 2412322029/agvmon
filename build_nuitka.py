@@ -181,7 +181,7 @@ def upload_to_update_server(
     try:
         with open(zip_path, "rb") as f:
             resp = httpx.post(
-                f"{update_url.rstrip('/')}/api/update/upload",
+                f"{update_url.rstrip('/')}/agvmon/api/update/upload",
                 files={"file": (zip_path.name, f, "application/zip")},
                 data={
                     "version": version,

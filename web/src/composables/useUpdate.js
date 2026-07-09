@@ -6,7 +6,7 @@
  *   const { status, checkForUpdates, downloadUpdate, applyUpdate } = useUpdate()
  */
 
-import { readonly, ref } from 'vue'
+import { ref } from 'vue'
 
 // ── module-level singleton state ──────────────────────────────
 
@@ -48,10 +48,12 @@ async function checkForUpdates() {
       status.value = 'idle'
       errorMessage.value = data.error || ''
     }
+    _initDone = true
     return data
   } catch (e) {
     status.value = 'error'
     errorMessage.value = '网络错误: ' + e.message
+    _initDone = true
     return { update_available: false, error: errorMessage.value }
   }
 }
@@ -124,15 +126,39 @@ async function applyUpdate() {
   }
 }
 
+// ── restore state from backend ─────────────────────────────────
+
+let _initDone = false
+
+async function restoreState() {
+  try {
+    const resp = await fetch('/api/update/status')
+    const data = await resp.json()
+    // 仅在自动检查尚未完成时恢复状态（防止竞态覆盖）
+    if (_initDone) return
+    if (data.status === 'ready') {
+      status.value = 'ready'
+      if (data.latest) updateInfo.value = data.latest
+    } else if (data.status === 'downloading') {
+      status.value = 'downloading'
+    }
+  } catch {
+    // ignore
+  }
+}
+
+// Restore on module init (page refresh)
+restoreState()
+
 // ── export ────────────────────────────────────────────────────
 
 export function useUpdate() {
   return {
-    status: readonly(status),
-    updateInfo: readonly(updateInfo),
-    downloadProgress: readonly(downloadProgress),
-    errorMessage: readonly(errorMessage),
-    currentVersion: readonly(currentVersion),
+    status,
+    updateInfo,
+    downloadProgress,
+    errorMessage,
+    currentVersion,
     formatSize,
     checkForUpdates,
     downloadUpdate,

@@ -17,7 +17,6 @@ from typing import Optional
 
 import httpx
 
-
 # ── Version utilities ──────────────────────────────────────────
 
 def parse_version(v: str) -> tuple:
@@ -46,16 +45,15 @@ def compare_versions(a: str, b: str) -> int:
 
 def get_app_root() -> Path:
     """
-    Determine the project root directory.
+    Determine the app root directory.
 
-    In Nuitka standalone mode (sys.frozen), sys.executable is at:
-        <root>/dist/main.dist/agvmon.exe
-    so root = executable.parent.parent.parent
+    In Nuitka standalone mode (sys.frozen), sys.executable is the exe path,
+    root = the directory containing agvmon.exe.
 
     In development mode, uses current working directory.
     """
     if getattr(sys, "frozen", False):
-        return Path(sys.executable).parent.parent.parent
+        return Path(sys.executable).parent
     return Path.cwd()
 
 
@@ -66,7 +64,7 @@ class UpdateManager:
 
     def __init__(self):
         self.app_root = get_app_root()
-        self.dist_dir = self.app_root / "dist"
+        self.download_dir = self.app_root / "updates"
         self._downloaded_zip: Optional[Path] = None
         self._latest_info: Optional[dict] = None
         self._status = "idle"
@@ -102,11 +100,11 @@ class UpdateManager:
         base = config["update_url"].rstrip("/")
         channel = config.get("channel", "stable")
         name = "latest.json" if channel == "stable" else f"latest-{channel}.json"
-        return f"{base}/api/update/{name}"
+        return f"{base}/agvmon/api/update/{name}"
 
     def _download_url(self, config: dict, filename: str) -> str:
         base = config["update_url"].rstrip("/")
-        return f"{base}/api/update/download/{filename}"
+        return f"{base}/agvmon/api/update/download/{filename}"
 
     # ── public API ──
 
@@ -206,9 +204,9 @@ class UpdateManager:
         expected_sha256 = self._latest_info.get("sha256", "")
         expected_size = self._latest_info.get("size", 0)
 
-        self.dist_dir.mkdir(parents=True, exist_ok=True)
+        self.download_dir.mkdir(parents=True, exist_ok=True)
         safe_name = Path(filename).name or "update.zip"
-        dest = self.dist_dir / safe_name
+        dest = self.download_dir / safe_name
 
         try:
             async with httpx.AsyncClient(
@@ -279,12 +277,15 @@ class UpdateManager:
         After this call, the process exits so the batch file can swap
         directories and restart the new version.
         """
+        if not getattr(sys, "frozen", False):
+            return {"status": "error", "message": "Dev mode: apply is only supported in Nuitka-frozen exe"}
+
         if not self._downloaded_zip or not self._downloaded_zip.exists():
             return {"status": "error", "message": "未找到下载的更新包"}
 
         self._status = "applying"
 
-        staging = self.dist_dir / "main.dist.update"
+        staging = self.download_dir / ".staging"
 
         if staging.exists():
             shutil.rmtree(staging)
@@ -303,8 +304,9 @@ class UpdateManager:
                     with zf.open(member) as src, open(target, "wb") as dst:
                         shutil.copyfileobj(src, dst)
 
-            # Write update.bat
-            bat_path = self.app_root / "update.bat"
+            # Write update.bat in updates/ (bat runs from here, modifies parent)
+            self.download_dir.mkdir(parents=True, exist_ok=True)
+            bat_path = self.download_dir / "update.bat"
             bat_path.write_text(self._generate_bat_script(), encoding="gbk")
 
             # Launch batch as detached process
@@ -332,48 +334,52 @@ class UpdateManager:
 
     @staticmethod
     def _generate_bat_script() -> str:
-        """Generate the swap-and-restart batch script."""
+        """Generate the swap-and-restart batch script (English for compatibility)."""
         return """@echo off
-chcp 65001 >nul
 title AGVmon Update
 echo.
 echo ============================================
-echo   AGVmon 更新程序
+echo   AGVmon Updater
 echo ============================================
 echo.
-echo 等待主程序退出...
+echo Waiting for main process to exit...
 timeout /t 3 /nobreak >nul
 echo.
 cd /d "%~dp0"
-if exist "dist\\main.dist.old" (
-    echo 清理旧备份...
-    rmdir /s /q "dist\\main.dist.old"
+if not exist ".staging\\agvmon.exe" (
+    echo Update package not found
+    pause >nul
+    del "%~f0" 2>nul
+    exit /b 1
 )
-if exist "dist\\main.dist.update" (
-    echo 正在安装更新...
-    ren "dist\\main.dist" "dist\\main.dist.old"
-    if exist "dist\\main.dist.update" (
-        ren "dist\\main.dist.update" "main.dist"
-        echo 安装完成，正在启动新版本...
-        start "" "dist\\main.dist\\agvmon.exe"
-        if errorlevel 1 (
-            echo 启动失败，正在回滚...
-            if exist "dist\\main.dist" rmdir /s /q "dist\\main.dist"
-            ren "dist\\main.dist.old" "main.dist"
-            echo 已回滚到旧版本，请手动启动
-        ) else (
-            echo 清理临时文件...
-            timeout /t 2 /nobreak >nul
-            if exist "dist\\main.dist.old" rmdir /s /q "dist\\main.dist.old"
-        )
-    ) else (
-        echo 更新包不存在，更新中止
-    )
+echo Backing up current version...
+if exist ".old" rmdir /s /q ".old"
+robocopy ".." ".old" /E /MOVE /XD "updates" "config.toml" >nul 2>&1
+echo Installing update...
+robocopy ".staging" ".." /E /MOVE /IS /IT >nul 2>&1
+if errorlevel 8 (
+    echo Install failed, rolling back...
+    rmdir /s /q ".." 2>nul
+    move /y ".old\\*" "..\\" >nul 2>&1
+    rmdir /s /q ".old"
+    echo Rollback complete
 ) else (
-    echo 未找到更新包
+    echo Starting new version...
+    start "" "..\\agvmon.exe"
+    if errorlevel 1 (
+        echo Launch failed, rolling back...
+        rmdir /s /q ".." 2>nul
+        move /y ".old\\*" "..\\" >nul 2>&1
+        rmdir /s /q ".old"
+        echo Rollback complete, please start manually
+    ) else (
+        echo Cleaning up...
+        timeout /t 2 /nobreak >nul
+        if exist ".old" rmdir /s /q ".old"
+    )
 )
 echo.
-echo 按任意键关闭此窗口...
+echo Press any key to close...
 pause >nul
 del "%~f0" 2>nul
 """

@@ -1,5 +1,6 @@
 <template>
   <div class="setting-page">
+    <UpdateNotification />
     <n-card size="small" title="系统设置" :bordered="false">
       <template #header-extra>
         <n-space align="center">
@@ -15,20 +16,6 @@
           <n-button v-else size="small" @click="saveAllConfig" type="primary" :loading="saving">保存全部</n-button>
         </n-space>
       </template>
-
-      <!-- 更新状态提示 -->
-      <n-alert
-        v-if="updateStatus === 'update_available'"
-        type="warning" :bordered="false" style="margin-bottom: 12px;"
-      >
-        发现新版本 <strong>v{{ updateInfo?.version }}</strong>，请到首页底部或关于页面下载更新
-      </n-alert>
-      <n-alert
-        v-if="updateStatus === 'error'"
-        type="error" :bordered="false" style="margin-bottom: 12px;"
-      >
-        {{ updateError }}
-      </n-alert>
 
       <n-collapse :default-expanded-names="defaultExpanded">
         <n-collapse-item v-for="group in configGroups" :key="group.name" :name="group.name">
@@ -182,15 +169,10 @@ import {
 import { computed, onMounted, reactive, ref } from 'vue'
 import { applyBodyBg, resetBodyBg } from '../composables/bg'
 import { useAccentColor } from '../composables/theme'
+import UpdateNotification from '../components/UpdateNotification.vue'
 import { useUpdate } from '../composables/useUpdate'
 
-const {
-  status: updateStatus,
-  updateInfo,
-  errorMessage: updateError,
-  currentVersion,
-  checkForUpdates,
-} = useUpdate()
+const { currentVersion, checkForUpdates } = useUpdate()
 
 const checkingUpdate = ref(false)
 

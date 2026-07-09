@@ -44,4 +44,4 @@ expire_days = 7
 auto_check = true
 channel = "stable"
 check_interval_hours = 24
-update_url = "http://127.0.0.1:9000"
+update_url = "https://unrun.top/"

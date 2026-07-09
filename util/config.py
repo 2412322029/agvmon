@@ -1,11 +1,32 @@
 import pathlib
+import shutil
+import sys
 
 import redis
 import toml
 
-CFG_PATH = __file__.replace("config.py", "config.toml")
-if not pathlib.Path(CFG_PATH).exists():
-    pathlib.Path(CFG_PATH).touch()
+# 配置文件放在 main.dist 外部，防止更新时被覆盖
+_BUNDLED_CFG = __file__.replace("config.py", "config.toml")
+
+if getattr(sys, "frozen", False):
+    _APP_ROOT = pathlib.Path(sys.executable).parent
+else:
+    _APP_ROOT = pathlib.Path.cwd()
+
+CFG_PATH = str(_APP_ROOT / "config.toml")
+
+
+def _ensure_config():
+    """首次运行时，将默认配置复制到外部目录。"""
+    if not pathlib.Path(CFG_PATH).exists():
+        bundled = pathlib.Path(_BUNDLED_CFG)
+        if bundled.exists():
+            shutil.copy2(bundled, CFG_PATH)
+        else:
+            pathlib.Path(CFG_PATH).touch()
+
+
+_ensure_config()
 
 
 class Config:
@@ -79,8 +100,6 @@ class Config:
             return data
 
         self.data = _set_recursive(self.data, key.split("."), value)
-        # print(self.data)
-        # self.save()
 
     def save(self):
         """

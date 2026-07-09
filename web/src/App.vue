@@ -38,13 +38,11 @@ import { computed, h, onMounted, onUnmounted, provide, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import GossipNotifToast from './components/GossipNotifToast.vue';
 import ShellPanel from './components/ShellPanel.vue';
-import UpdateNotification from './components/UpdateNotification.vue';
 import { applyBodyBg } from './composables/bg';
 import { useAccentColor } from './composables/theme';
 import { sendPagePath } from './composables/gossipNotif';
 import { ribbon } from './composables/ribbon';
 import { useShellStore } from './composables/useShellStore';
-import { useUpdate } from './composables/useUpdate';
 
 const shellStore = useShellStore();
 shellStore.checkEnabled();
@@ -78,10 +76,6 @@ async function fetchBackendVersion() {
   } catch {}
 }
 fetchBackendVersion();
-
-const { checkForUpdates: checkUpdates } = useUpdate();
-// 启动时自动检查更新（静默，不阻塞）
-checkUpdates().catch(() => {});
 
 onMounted(() => {
   applyBodyBg();
@@ -352,7 +346,6 @@ onUnmounted(() => {
         <main id="main-content">
           <router-view />
           <div class="back-to-top cd-top faa-float animated cd-is-visible" style="top: -900px;"></div>
-          <UpdateNotification />
           <footer v-if="!(route.path === '/chat')" style="text-align: center;">
             <p>© 2026 Lolik | Powered by <a href="https://github.com/2412322029/agvmon" target="_blank">agvmon</a>
               <br>

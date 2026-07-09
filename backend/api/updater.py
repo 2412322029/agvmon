@@ -79,4 +79,5 @@ async def update_status():
     return {
         "status": updater.status,
         "message": updater.status_message,
+        "latest": updater.latest_info,
     }

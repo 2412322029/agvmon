@@ -7,14 +7,14 @@ AGVmon 更新服务器 — 单文件独立部署
     python update_server.py --port 9000 --api-key my-secret-key
 
 客户端检查更新:
-    GET /api/update/latest.json          # stable 通道
-    GET /api/update/latest-beta.json     # beta 通道
+    GET /agvmon/api/update/latest.json          # stable 通道
+    GET /agvmon/api/update/latest-beta.json     # beta 通道
 
 客户端下载:
-    GET /api/update/download/<filename>
+    GET /agvmon/api/update/download/<filename>
 
 构建脚本上传:
-    POST /api/update/upload              # multipart: zip + manifest 字段
+    POST /agvmon/api/update/upload              # multipart: zip + manifest 字段
 """
 
 import argparse
@@ -26,7 +26,7 @@ from pathlib import Path
 
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import APIRouter, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
 _dotenv_path = Path(__file__).parent / ".env"
@@ -44,6 +44,7 @@ BETA_MANIFEST_FILE = "latest-beta.json"
 # ── App ───────────────────────────────────────────────────────
 
 app = FastAPI(title="AGVmon Update Server", docs_url=None, redoc_url=None)
+router = APIRouter(prefix="/agvmon")
 
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -51,7 +52,7 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 # ── Root page ──────────────────────────────────────────────────
 
 
-@app.get("/")
+@router.get("/")
 def root():
     """首页 — 显示当前版本信息和可用文件。"""
     stable_path = UPLOAD_DIR / MANIFEST_FILE
@@ -75,7 +76,7 @@ def root():
     def file_row(f, tag=""):
         size_mb = f.stat().st_size / (1024 * 1024)
         return (
-            f'<tr><td><a href="/api/update/download/{f.name}">{f.name}</a> {tag}</td>'
+            f'<tr><td><a href="/agvmon/api/update/download/{f.name}">{f.name}</a> {tag}</td>'
             f"<td>{size_mb:.1f} MB</td></tr>"
         )
 
@@ -123,9 +124,9 @@ def root():
 </div>
 
 <p style="color:#999;font-size:12px;">
-  API: <code>GET /api/update/latest.json</code> ·
-  <code>GET /api/update/download/&lt;file&gt;</code> ·
-  <code>POST /api/update/upload</code>
+  API: <code>GET /agvmon/api/update/latest.json</code> ·
+  <code>GET /agvmon/api/update/download/&lt;file&gt;</code> ·
+  <code>POST /agvmon/api/update/upload</code>
 </p>
 </body>
 </html>"""
@@ -144,7 +145,7 @@ def verify_api_key(x_api_key: str = Header(None)) -> str:
 # ── Check endpoints (public, no auth) ─────────────────────────
 
 
-@app.get("/api/update/latest.json")
+@router.get("/api/update/latest.json")
 def get_latest():
     """返回 stable 通道最新版本清单。"""
     path = UPLOAD_DIR / MANIFEST_FILE
@@ -153,7 +154,7 @@ def get_latest():
     return JSONResponse(json.loads(path.read_text(encoding="utf-8")))
 
 
-@app.get("/api/update/latest-beta.json")
+@router.get("/api/update/latest-beta.json")
 def get_latest_beta():
     """返回 beta 通道最新版本清单。"""
     path = UPLOAD_DIR / BETA_MANIFEST_FILE
@@ -165,7 +166,7 @@ def get_latest_beta():
 # ── Download endpoint (public, no auth) ───────────────────────
 
 
-@app.get("/api/update/download/{filename}")
+@router.get("/api/update/download/{filename}")
 def download_file(filename: str):
     """下载更新包。"""
     # 安全检查：防止路径穿越
@@ -183,7 +184,7 @@ def download_file(filename: str):
 # ── Upload endpoint (requires auth) ───────────────────────────
 
 
-@app.post("/api/update/upload")
+@router.post("/api/update/upload")
 async def upload_update(
     file: UploadFile = File(...),
     version: str = "0.0.0",
@@ -286,7 +287,7 @@ def _append_upload_log(entry: dict):
     )
 
 
-@app.get("/api/update/history")
+@router.get("/api/update/history")
 def get_history(x_api_key: str = Header(None)):
     """查看上传历史（需要认证）。"""
     verify_api_key(x_api_key)
@@ -299,7 +300,7 @@ def get_history(x_api_key: str = Header(None)):
 # ── Health check ──────────────────────────────────────────────
 
 
-@app.get("/api/update/health")
+@router.get("/api/update/health")
 def health():
     """健康检查。"""
     stable = (UPLOAD_DIR / MANIFEST_FILE).exists()
@@ -310,6 +311,18 @@ def health():
         "beta": beta,
         "time": datetime.now(timezone.utc).isoformat(),
     }
+
+
+# ── Register router ───────────────────────────────────────────
+
+app.include_router(router)
+
+
+@app.get("/")
+def index_redirect():
+    """重定向到 /agvmon/"""
+    from starlette.responses import RedirectResponse
+    return RedirectResponse("/agvmon/")
 
 
 # ── Main ──────────────────────────────────────────────────────
@@ -334,8 +347,8 @@ if __name__ == "__main__":
     print(f"  地址: http://{args.host}:{args.port}")
     print(f"  存储: {UPLOAD_DIR.absolute()}")
     print(f"  API Key: {API_KEY}")
-    print("  检查更新: GET /api/update/latest.json")
-    print("  下载文件: GET /api/update/download/<filename>")
-    print("  上传更新: POST /api/update/upload")
+    print("  检查更新: GET /agvmon/api/update/latest.json")
+    print("  下载文件: GET /agvmon/api/update/download/<filename>")
+    print("  上传更新: POST /agvmon/api/update/upload")
 
     uvicorn.run(app, host=args.host, port=args.port, log_level="info")
