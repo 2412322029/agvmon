@@ -2,11 +2,12 @@
 Update management for Nuitka-packaged AGVmon.
 
 Talks to the AGVmon Update Server (update_server.py):
-- GET  /api/update/latest.json          → check for updates
-- GET  /api/update/download/<filename>  → download ZIP
+- GET  /api/update/latest.json          -> check for updates
+- GET  /api/update/download/<filename>  -> download ZIP
 """
 
 import hashlib
+import json
 import os
 import shutil
 import subprocess
@@ -17,7 +18,8 @@ from typing import Optional
 
 import httpx
 
-# ── Version utilities ──────────────────────────────────────────
+
+# -- Version utilities --
 
 def parse_version(v: str) -> tuple:
     """Parse '0.1.0.88' -> (0, 1, 0, 88)."""
@@ -25,11 +27,7 @@ def parse_version(v: str) -> tuple:
 
 
 def compare_versions(a: str, b: str) -> int:
-    """
-    Compare two version strings.
-    Returns -1 if a < b, 0 if equal, 1 if a > b.
-    Pads shorter version with zeros.
-    """
+    """Compare version strings. -1 if a<b, 0 if equal, 1 if a>b."""
     pa, pb = parse_version(a), parse_version(b)
     max_len = max(len(pa), len(pb))
     pa = pa + (0,) * (max_len - len(pa))
@@ -41,23 +39,16 @@ def compare_versions(a: str, b: str) -> int:
     return 0
 
 
-# ── App root detection ────────────────────────────────────────
+# -- App root detection --
 
 def get_app_root() -> Path:
-    """
-    Determine the app root directory.
-
-    In Nuitka standalone mode (sys.frozen), sys.executable is the exe path,
-    root = the directory containing agvmon.exe.
-
-    In development mode, uses current working directory.
-    """
-    if getattr(sys, "frozen", False):
+    """App root: exe directory when frozen, cwd in dev mode."""
+    if getattr(sys, "frozen", False) or "__compiled__" in globals():
         return Path(sys.executable).parent
     return Path.cwd()
 
 
-# ── Update manager ────────────────────────────────────────────
+# -- Update manager --
 
 class UpdateManager:
     """Manages the update lifecycle: check, download, apply."""
@@ -70,10 +61,9 @@ class UpdateManager:
         self._status = "idle"
         self._status_message = ""
 
-    # ── config helpers ──
+    # -- config helpers --
 
     def _get_config(self) -> dict:
-        """Read update config from cfg, fallback to env vars."""
         try:
             from util.config import cfg
 
@@ -106,7 +96,7 @@ class UpdateManager:
         base = config["update_url"].rstrip("/")
         return f"{base}/agvmon/api/update/download/{filename}"
 
-    # ── public API ──
+    # -- public API --
 
     @property
     def status(self) -> str:
@@ -120,23 +110,19 @@ class UpdateManager:
     def latest_info(self) -> Optional[dict]:
         return self._latest_info
 
-    # ── check ─────────────────────────────────────────────────
+    # -- check --
 
     async def check(self) -> dict:
         """Check update server for a newer version."""
         from util.__version__ import version as current_ver
 
         self._status = "checking"
-
         config = self._get_config()
-        result = {
-            "current_version": current_ver,
-            "update_available": False,
-        }
+        result = {"current_version": current_ver, "update_available": False}
 
         if not config["update_url"]:
             self._status = "idle"
-            self._status_message = "更新服务器未配置"
+            self._status_message = "update server not configured"
             result["error"] = self._status_message
             return result
 
@@ -147,53 +133,45 @@ class UpdateManager:
                 resp = await client.get(manifest_url)
                 if resp.status_code == 404:
                     self._status = "idle"
-                    self._status_message = "暂无可用版本"
-                    result["error"] = self._status_message
+                    result["error"] = "no version available"
                     return result
                 if resp.status_code != 200:
                     self._status = "error"
-                    self._status_message = f"服务器返回 {resp.status_code}"
+                    self._status_message = f"server returned {resp.status_code}"
                     result["error"] = self._status_message
                     return result
                 latest = resp.json()
         except httpx.RequestError as e:
             self._status = "error"
-            self._status_message = f"无法连接到更新服务器: {e}"
+            self._status_message = f"cannot reach update server: {e}"
             result["error"] = self._status_message
             return result
         except json.JSONDecodeError:
             self._status = "error"
-            self._status_message = "版本清单格式错误"
+            self._status_message = "invalid manifest format"
             result["error"] = self._status_message
             return result
 
         result["latest"] = latest
         result["latest_version"] = latest.get("version", "")
 
-        if latest.get("version") and compare_versions(
-            latest["version"], current_ver
-        ) > 0:
+        if latest.get("version") and compare_versions(latest["version"], current_ver) > 0:
             result["update_available"] = True
             self._latest_info = latest
             self._status = "update_available"
-            self._status_message = f"发现新版本 v{latest['version']}"
+            self._status_message = f"new version v{latest['version']} available"
         else:
             self._status = "idle"
-            self._status_message = "已是最新版本"
+            self._status_message = "already up to date"
 
         return result
 
-    # ── download ──────────────────────────────────────────────
+    # -- download --
 
     async def download(self):
-        """
-        Download the update ZIP from update server.
-        Async generator yielding progress dicts.
-
-        Yields: {"event": "progress"/"complete"/"error", ...}
-        """
+        """Download ZIP from update server. Yields progress events for SSE."""
         if not self._latest_info:
-            yield {"event": "error", "message": "请先检查更新"}
+            yield {"event": "error", "message": "please check for updates first"}
             return
 
         self._status = "downloading"
@@ -209,32 +187,24 @@ class UpdateManager:
         dest = self.download_dir / safe_name
 
         try:
-            async with httpx.AsyncClient(
-                timeout=600, follow_redirects=True
-            ) as client:
+            async with httpx.AsyncClient(timeout=600, follow_redirects=True) as client:
                 async with client.stream("GET", url) as resp:
                     if resp.status_code != 200:
                         self._status = "error"
-                        self._status_message = f"下载失败: HTTP {resp.status_code}"
+                        self._status_message = f"download failed: HTTP {resp.status_code}"
                         yield {"event": "error", "message": self._status_message}
                         return
 
-                    total = (
-                        int(resp.headers.get("content-length", 0)) or expected_size
-                    )
+                    total = int(resp.headers.get("content-length", 0)) or expected_size
                     downloaded = 0
                     sha256_hasher = hashlib.sha256()
 
                     with open(dest, "wb") as f:
-                        async for chunk in resp.aiter_bytes(
-                            chunk_size=1024 * 1024
-                        ):
+                        async for chunk in resp.aiter_bytes(chunk_size=1024 * 1024):
                             f.write(chunk)
                             sha256_hasher.update(chunk)
                             downloaded += len(chunk)
-                            pct = (
-                                round(downloaded / total * 100, 1) if total else 0
-                            )
+                            pct = round(downloaded / total * 100, 1) if total else 0
                             yield {
                                 "event": "progress",
                                 "downloaded": downloaded,
@@ -242,49 +212,38 @@ class UpdateManager:
                                 "percent": pct,
                             }
 
-            # Verify SHA256
             if expected_sha256:
                 actual_sha256 = sha256_hasher.hexdigest()
                 if actual_sha256 != expected_sha256:
                     dest.unlink(missing_ok=True)
                     self._status = "error"
-                    self._status_message = "文件校验失败，请重新下载"
+                    self._status_message = "checksum mismatch, please re-download"
                     yield {"event": "error", "message": self._status_message}
                     return
 
             self._downloaded_zip = dest
             self._status = "ready"
-            self._status_message = "更新已下载，可以重启应用"
-            yield {
-                "event": "complete",
-                "file": safe_name,
-                "path": str(dest),
-            }
+            self._status_message = "update downloaded, ready to restart"
+            yield {"event": "complete", "file": safe_name, "path": str(dest)}
 
         except httpx.RequestError as e:
             self._status = "error"
-            self._status_message = f"下载失败: {e}"
+            self._status_message = f"download failed: {e}"
             yield {"event": "error", "message": self._status_message}
             if dest.exists():
                 dest.unlink(missing_ok=True)
 
-    # ── apply ─────────────────────────────────────────────────
+    # -- apply --
 
     def apply(self) -> dict:
-        """
-        Extract ZIP to staging directory, write batch file, launch updater.
-
-        After this call, the process exits so the batch file can swap
-        directories and restart the new version.
-        """
-        if not getattr(sys, "frozen", False):
-            return {"status": "error", "message": "Dev mode: apply is only supported in Nuitka-frozen exe"}
+        """Extract ZIP to staging, write bat, launch updater, then exit."""
+        if not (getattr(sys, "frozen", False) or "__compiled__" in globals()):
+            return {"status": "error", "message": "apply only supported in Nuitka-frozen exe"}
 
         if not self._downloaded_zip or not self._downloaded_zip.exists():
-            return {"status": "error", "message": "未找到下载的更新包"}
+            return {"status": "error", "message": "no downloaded update package"}
 
         self._status = "applying"
-
         staging = self.download_dir / ".staging"
 
         if staging.exists():
@@ -293,8 +252,6 @@ class UpdateManager:
         try:
             staging.mkdir(parents=True, exist_ok=True)
 
-            # Extract zip to staging
-            # Zip files are at root level (7z a -tzip zip_path dist\main.dist\*)
             with zipfile.ZipFile(self._downloaded_zip, "r") as zf:
                 for member in zf.namelist():
                     if member.endswith("/") or member.endswith("\\"):
@@ -304,94 +261,83 @@ class UpdateManager:
                     with zf.open(member) as src, open(target, "wb") as dst:
                         shutil.copyfileobj(src, dst)
 
-            # Write update.bat in updates/ (bat runs from here, modifies parent)
+            # Validate extraction
+            exe = staging / "agvmon.exe"
+            file_count = sum(1 for _ in staging.rglob("*") if _.is_file())
+            if not exe.exists() or file_count < 5:
+                shutil.rmtree(staging)
+                self._status = "error"
+                msg = f"update package invalid: {file_count} files extracted"
+                self._status_message = msg
+                return {"status": "error", "message": msg}
+
+            # Write update.bat
             self.download_dir.mkdir(parents=True, exist_ok=True)
             bat_path = self.download_dir / "update.bat"
-            bat_path.write_text(self._generate_bat_script(), encoding="gbk")
+            bat_path.write_text(_BAT_SCRIPT, encoding="gbk")
 
-            # Launch batch as detached process
-            CREATE_NEW_PROCESS_GROUP = 0x00000200
-            DETACHED_PROCESS = 0x00000008
+            # Launch as detached process
+            CREATE_NEW = 0x00000200
+            DETACHED = 0x00000008
+            flags = (CREATE_NEW | DETACHED) if sys.platform == "win32" else 0
 
             subprocess.Popen(
                 ["cmd", "/c", "start", "AGVmon Update", "/min", str(bat_path)],
-                creationflags=CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS
-                if sys.platform == "win32"
-                else 0,
+                creationflags=flags,
                 cwd=str(self.app_root),
                 close_fds=True,
             )
 
-            self._status_message = "更新已准备，系统即将重启"
+            self._status_message = "update prepared, restarting..."
             return {"status": "applying", "message": self._status_message}
 
         except OSError as e:
             self._status = "error"
-            self._status_message = f"应用更新失败: {e}"
+            self._status_message = f"apply failed: {e}"
             return {"status": "error", "message": self._status_message}
 
-    # ── batch script ──────────────────────────────────────────
 
-    @staticmethod
-    def _generate_bat_script() -> str:
-        """Generate the swap-and-restart batch script (English for compatibility)."""
-        return """@echo off
+# -- Batch script (copy from staging, no destructive moves) --
+
+_BAT_SCRIPT = """@echo off
 title AGVmon Update
-echo.
+cd /d "%~dp0"
 echo ============================================
 echo   AGVmon Updater
 echo ============================================
-echo.
-echo Waiting for main process to exit...
-timeout /t 3 /nobreak >nul
-echo.
-cd /d "%~dp0"
 if not exist ".staging\\agvmon.exe" (
-    echo Update package not found
+    echo ERROR: Update package not found
     pause >nul
     del "%~f0" 2>nul
     exit /b 1
 )
-echo Backing up current version...
-if exist ".old" rmdir /s /q ".old"
-robocopy ".." ".old" /E /MOVE /XD "updates" "config.toml" >nul 2>&1
+echo Waiting for main process to exit...
+timeout /t 3 /nobreak >nul
 echo Installing update...
-robocopy ".staging" ".." /E /MOVE /IS /IT >nul 2>&1
-if errorlevel 8 (
-    echo Install failed, rolling back...
-    rmdir /s /q ".." 2>nul
-    move /y ".old\\*" "..\\" >nul 2>&1
-    rmdir /s /q ".old"
-    echo Rollback complete
-) else (
-    echo Starting new version...
-    start "" "..\\agvmon.exe"
-    if errorlevel 1 (
-        echo Launch failed, rolling back...
-        rmdir /s /q ".." 2>nul
-        move /y ".old\\*" "..\\" >nul 2>&1
-        rmdir /s /q ".old"
-        echo Rollback complete, please start manually
-    ) else (
-        echo Cleaning up...
-        timeout /t 2 /nobreak >nul
-        if exist ".old" rmdir /s /q ".old"
-    )
+robocopy ".staging" ".." /E /IS /IT /NP /NDL /NJH /NJS /R:3 /W:2
+set ROBO_ERR=%errorlevel%
+if %ROBO_ERR% geq 8 (
+    echo ERROR: Install failed (code %ROBO_ERR%)
+    pause >nul
+    del "%~f0" 2>nul
+    exit /b 1
 )
-echo.
-echo Press any key to close...
-pause >nul
+echo Cleaning up staging...
+rmdir /s /q ".staging" 2>nul
+echo Starting new version...
+start "" "..\\agvmon.exe"
+echo Update complete.
+timeout /t 2 /nobreak >nul
 del "%~f0" 2>nul
 """
 
 
-# ── Singleton ─────────────────────────────────────────────────
+# -- Singleton --
 
 _updater: Optional[UpdateManager] = None
 
 
 def get_updater() -> UpdateManager:
-    """Get or create the global UpdateManager instance."""
     global _updater
     if _updater is None:
         _updater = UpdateManager()

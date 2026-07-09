@@ -8,7 +8,7 @@ import toml
 # 配置文件放在 main.dist 外部，防止更新时被覆盖
 _BUNDLED_CFG = __file__.replace("config.py", "config.toml")
 
-if getattr(sys, "frozen", False):
+if getattr(sys, "frozen", False) or "__compiled__" in globals():
     _APP_ROOT = pathlib.Path(sys.executable).parent
 else:
     _APP_ROOT = pathlib.Path.cwd()
