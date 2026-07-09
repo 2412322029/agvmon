@@ -3,7 +3,9 @@
 Nuitka打包脚本，用于构建AGV监控系统可执行文件
 """
 
+import argparse
 import json
+import mimetypes
 import os
 import re
 import shutil
@@ -11,6 +13,15 @@ import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import quote
+
+import httpx
+from dotenv import load_dotenv
+
+# 加载 .env 中的 WebDAV 配置
+_dotenv_path = Path(__file__).parent / ".env"
+if _dotenv_path.exists():
+    load_dotenv(_dotenv_path)
 
 
 def get_version(project_dir):
@@ -100,7 +111,55 @@ def export_git_history(project_dir):
         return []
 
 
-def build_with_nuitka():
+def upload_to_webdav(local_path: Path, remote_name: str = None) -> bool:
+    """上传文件到 WebDAV 服务器，配置从 .env 读取。"""
+    url = os.environ.get("WEBDAV_URL", "")
+    username = os.environ.get("WEBDAV_USERNAME", "")
+    password = os.environ.get("WEBDAV_PASSWORD", "")
+    remote_dir = os.environ.get("WEBDAV_REMOTE_DIR", "/")
+
+    if not url:
+        print("  跳过上传: WEBDAV_URL 未配置")
+        return False
+
+    remote_name = remote_name or local_path.name
+    remote_path = f"{remote_dir.rstrip('/')}/{quote(remote_name, safe='')}"
+    full_url = url.rstrip("/") + "/" + remote_path.lstrip("/")
+
+    file_size = local_path.stat().st_size
+    mime_type, _ = mimetypes.guess_type(str(local_path))
+    if mime_type is None:
+        mime_type = "application/zip"
+
+    print(f"  上传到 WebDAV: {full_url} ({file_size / 1024 / 1024:.2f} MB)")
+
+    auth = httpx.BasicAuth(username, password) if username else None
+
+    try:
+        with open(local_path, "rb") as f:
+            resp = httpx.put(
+                full_url,
+                content=f.read(),
+                headers={"Content-Type": mime_type},
+                auth=auth,
+                timeout=300,
+                follow_redirects=True,
+            )
+        if resp.status_code in (200, 201, 204):
+            print(f"    ✓ 上传成功 [{resp.status_code}]")
+            return True
+        elif resp.status_code == 401:
+            print("    ✗ 认证失败 (401)")
+        elif resp.status_code == 507:
+            print("    ✗ 存储空间不足 (507)")
+        else:
+            print(f"    ✗ 上传失败 [{resp.status_code}]: {resp.text[:200]}")
+    except httpx.RequestError as e:
+        print(f"    ✗ 网络错误: {e}")
+    return False
+
+
+def build_with_nuitka(skip_compress=False, skip_upload=False):
     """
     使用Nuitka构建可执行文件
     """
@@ -194,43 +253,59 @@ def build_with_nuitka():
             for item in dist_dir.iterdir():
                 print(f"- {item}")
 
-        # 询问是否使用7z压缩
-        compress = input("\n是否使用7z压缩 main.dist 目录？(y/N): ").strip().lower()
-        if compress == "y":
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            zip_name = f"agvmon_{timestamp}.zip"
-            zip_path = project_dir / "dist" / zip_name
+        # 压缩
+        zip_path = None
+        if not skip_compress:
+            zip_path = compress_dist(project_dir, dist_dir)
 
-            seven_zip = shutil.which("7z") or shutil.which("7za") or shutil.which("7zz")
-            if not seven_zip:
-                common_paths = [
-                    "C:\\Program Files\\7-Zip\\7z.exe",
-                    "C:\\Program Files (x86)\\7-Zip\\7z.exe",
-                    os.path.expanduser("~\\scoop\\apps\\7zip\\current\\7z.exe"),
-                ]
-                for p in common_paths:
-                    if os.path.exists(p):
-                        seven_zip = p
-                        break
-
-            if not seven_zip:
-                print("错误：未找到7z命令，请安装7-Zip并将其添加到PATH环境变量。")
-            else:
-                print(f"正在压缩 {dist_dir} 到 {zip_path} ...")
-                result = subprocess.run(
-                    [seven_zip, "a", "-tzip", "-mx=9", str(zip_path), str(dist_dir) + "\\*"],
-                    capture_output=True,
-                    text=True,
-                )
-                if result.returncode == 0:
-                    size_mb = zip_path.stat().st_size / (1024 * 1024)
-                    print(f"压缩完成：{zip_path} ({size_mb:.2f} MB)")
-                else:
-                    print(f"压缩失败：{result.stderr.strip() or result.stdout.strip()}")
+        # 上传
+        if zip_path and not skip_upload:
+            upload_to_webdav(zip_path)
 
     except Exception as e:
         print(f"发生未知错误: {e}")
         sys.exit(1)
+
+
+def find_7z():
+    """查找 7z 可执行文件路径。"""
+    seven_zip = shutil.which("7z") or shutil.which("7za") or shutil.which("7zz")
+    if seven_zip:
+        return seven_zip
+    for p in [
+        "C:\\Program Files\\7-Zip\\7z.exe",
+        "C:\\Program Files (x86)\\7-Zip\\7z.exe",
+        os.path.expanduser("~\\scoop\\apps\\7zip\\current\\7z.exe"),
+    ]:
+        if os.path.exists(p):
+            return p
+    return None
+
+
+def compress_dist(project_dir: Path, dist_dir: Path) -> Path | None:
+    """7z 压缩 main.dist 目录，返回 zip 文件路径。"""
+    seven_zip = find_7z()
+    if not seven_zip:
+        print("错误：未找到7z命令，请安装7-Zip并将其添加到PATH环境变量。")
+        return None
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    zip_name = f"agvmon_{timestamp}.zip"
+    zip_path = project_dir / "dist" / zip_name
+
+    print(f"\n正在压缩 {dist_dir} 到 {zip_path} ...")
+    result = subprocess.run(
+        [seven_zip, "a", "-tzip", "-mx=9", str(zip_path), str(dist_dir) + "\\*"],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        size_mb = zip_path.stat().st_size / (1024 * 1024)
+        print(f"压缩完成：{zip_path} ({size_mb:.2f} MB)")
+        return zip_path
+    else:
+        print(f"压缩失败：{result.stderr.strip() or result.stdout.strip()}")
+        return None
 
 
 if __name__ == "__main__":

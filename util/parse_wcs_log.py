@@ -538,6 +538,8 @@ def parse(filepath: str, shortcode: str | None = None, trayid_hex: str | None = 
     filt = _build_filter(shortcode, taskid, device_type)
     with open(filepath, encoding="GBK", errors="replace") as f:
         for line in f:
+            if 'task_key' not in line:
+                continue
             if filt and not filt.search(line):
                 continue
             m = PATTERN.search(line)

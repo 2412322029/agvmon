@@ -474,6 +474,7 @@ async function parseWcsLog() {
   }
   wcsParsing.value = true;
   wcsParseResult.value = null;
+  _parseCache.clear();
   try {
     const body = { filenames: wcsForm.value.filenames };
     if (wcsForm.value.shortcode) body.shortcode = wcsForm.value.shortcode;
