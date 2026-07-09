@@ -200,6 +200,9 @@ async def download_file(stored_filename: str):
             content_type = "application/octet-stream"
         print(original_filename)
 
+        # 获取文件大小，让浏览器能显示下载进度
+        file_size = os.path.getsize(file_path)
+
         # Determine if it's an image file for preview
         image_types = [
             "image/jpeg",
@@ -209,31 +212,39 @@ async def download_file(stored_filename: str):
             "image/bmp",
             "image/webp",
         ]
-        
+
         # Encode filename for RFC 5987 (support non-ASCII characters)
         ascii_filename = quote(original_filename, safe='')
-        
+
         # Use stored_filename as ASCII-safe fallback for old browsers
         fallback_filename = stored_filename
-        
+
+        # 公共响应头：显式设置 Content-Length 和 Accept-Ranges，确保浏览器显示下载进度
+        common_headers = {
+            "Content-Length": str(file_size),
+            "Accept-Ranges": "bytes",
+        }
+
         if content_type in image_types:
             # Return image with appropriate content type for preview
+            common_headers["Content-Disposition"] = (
+                f"inline; filename=\"{fallback_filename}\"; filename*=UTF-8''{ascii_filename}"
+            )
             return FileResponse(
                 path=file_path,
                 media_type=content_type,
-                headers={
-                    "Content-Disposition": f"inline; filename=\"{fallback_filename}\"; filename*=UTF-8''{ascii_filename}"
-                },
+                headers=common_headers,
             )
         else:
             # Return other files as attachment for download
+            common_headers["Content-Disposition"] = (
+                f"attachment; filename=\"{fallback_filename}\"; filename*=UTF-8''{ascii_filename}"
+            )
             return FileResponse(
                 path=file_path,
                 filename=original_filename,
                 media_type=content_type or "application/octet-stream",
-                headers={
-                    "Content-Disposition": f"attachment; filename=\"{fallback_filename}\"; filename*=UTF-8''{ascii_filename}"
-                },
+                headers=common_headers,
             )
     except Exception as e:
         raise e
@@ -533,4 +544,24 @@ async def reset_background():
     """删除自定义背景，恢复默认。"""
     for f in _BG_DIR.glob("bg-custom.*"):
         f.unlink(missing_ok=True)
+    # 重置设置
+    for f in _BG_DIR.glob("bg-settings.json"):
+        f.unlink(missing_ok=True)
+    return {"ok": True}
+
+
+@util_web_router.get("/background/settings")
+async def get_background_settings():
+    """获取背景设置（透明度/模糊/滤镜类型）。"""
+    p = _BG_DIR / "bg-settings.json"
+    if p.exists():
+        return json.loads(p.read_text(encoding="utf-8"))
+    return {"body_opacity": 1.0, "filter": "none", "strength": 0, "accent_color": ""}
+
+
+@util_web_router.post("/background/settings")
+async def save_background_settings(data: dict = Body(...)):
+    """保存背景设置。"""
+    p = _BG_DIR / "bg-settings.json"
+    p.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
     return {"ok": True}

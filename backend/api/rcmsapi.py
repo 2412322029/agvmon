@@ -357,6 +357,42 @@ def build_rcms_from_raw_api(request: Request):
         return {"message": "RCMS raw data built successfully"}
 
 
+@rcms_router.get("/genmap")
+def genmap_api():
+    """生成地图图片（PNG + SVG）"""
+    try:
+        rapi.build_from_cache()
+        rapi.genmapimage()
+        return {"message": "success"}
+    except Exception as e:
+        return {"message": "error", "errors": [str(e)]}
+
+
+@rcms_router.post("/saveport")
+async def saveport_api():
+    """保存 bufferPort / machinePort 到缓存"""
+    from util.rcs_web_api import RcsWebApi
+
+    try:
+        async with RcsWebApi() as rcs_api:
+            await rcs_api.saveallport()
+        return {"message": "success"}
+    except Exception as e:
+        return {"message": "error", "errors": [str(e)]}
+
+
+@rcms_router.post("/transport")
+def transport_api():
+    """从缓存 bufferPort / machinePort 生成 cmsindexmap"""
+    from util.rcs_web_api import RcsWebApi
+
+    try:
+        RcsWebApi().transport()
+        return {"message": "success"}
+    except Exception as e:
+        return {"message": "error", "errors": [str(e)]}
+
+
 # 获取共享地图数据
 @rcms_router.get("/sharemapdata")
 def get_sharemapdata_api():
@@ -591,8 +627,14 @@ class ConfigUpdate(BaseModel):
 
 
 @rcms_router.post("/update_config")
-def update_config(config_data: Dict[str, Any] = Body([], description="配置项键值对")):
-    """动态更新配置项"""
+def update_config(
+    request: Request,
+    config_data: Dict[str, Any] = Body([], description="配置项键值对"),
+):
+    """动态更新配置项（仅允许本机访问）"""
+    if not _is_localhost(request):
+        return {"message": "error", "errors": ["仅允许本机访问"]}
+
     try:
         for key, value in config_data.items():
             cfg.set(key, value)
@@ -608,9 +650,41 @@ def update_config(config_data: Dict[str, Any] = Body([], description="配置项�
         return {"message": "error", "errors": [str(e)]}
 
 
+SENSITIVE_KEY_PATTERNS = ["password", "passwd", "secret", "token"]
+
+
+def _is_sensitive_key(key: str) -> bool:
+    """判断配置键是否为敏感字段"""
+    key_lower = key.lower()
+    return any(p in key_lower for p in SENSITIVE_KEY_PATTERNS)
+
+
+def _filter_sensitive(data):
+    """递归过滤敏感字段"""
+    if isinstance(data, dict):
+        return {
+            k: _filter_sensitive(v)
+            for k, v in data.items()
+            if not _is_sensitive_key(k)
+        }
+    if isinstance(data, list):
+        return [_filter_sensitive(item) for item in data]
+    return data
+
+
+def _is_localhost(request: Request) -> bool:
+    """判断请求是否来自本机"""
+    client_host = request.client.host if request.client else None
+    return client_host in {"127.0.0.1", "::1", "localhost"}
+
+
 @rcms_router.get("/get_config")
-def get_config(key: str | None = None, keys: str | None = None):
-    """获取配置项"""
+def get_config(
+    request: Request,
+    key: str | None = None,
+    keys: str | None = None,
+):
+    """获取配置项（非本机访问时隐藏敏感字段）"""
     try:
         if keys:
             key_list = [k.strip() for k in keys.split(",") if k.strip()]
@@ -618,12 +692,21 @@ def get_config(key: str | None = None, keys: str | None = None):
             for k in key_list:
                 value = cfg.get(k)
                 config_data[k] = value
+            # 非本机访问时过滤敏感字段（顶层 + 递归嵌套）
+            if not _is_localhost(request):
+                config_data = _filter_sensitive(config_data)
             return {"message": "success", "data": config_data}
 
         if key:
+            # 非本机访问时禁止查看敏感字段
+            if not _is_localhost(request) and _is_sensitive_key(key):
+                return {"message": "error", "errors": ["无权限查看此配置项"]}
             value = cfg.get(key)
+            # 非本机访问时递归过滤嵌套值中的敏感字段
+            if not _is_localhost(request):
+                value = _filter_sensitive(value)
             return {"message": "success", "data": {key: value}}
 
-        return {"message": "error", "errors": ["No key provided"]}
+        return {"message": "success", "data": _filter_sensitive(cfg.data) if not _is_localhost(request) else cfg.data}
     except Exception as e:
         return {"message": "error", "errors": [str(e)]}

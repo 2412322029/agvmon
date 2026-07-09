@@ -12,6 +12,14 @@ const rawLoading = ref(false)
 const rawResult = ref(null)
 const useFakeData = ref(false)
 
+// SavePort
+const saveportLoading = ref(false)
+const saveportResult = ref(null)
+
+// Transport
+const transportLoading = ref(false)
+const transportResult = ref(null)
+
 const message = useMessage()
 
 // Build from Cache function
@@ -60,6 +68,50 @@ const buildFromRaw = async () => {
     message.error('网络错误')
   } finally {
     rawLoading.value = false
+  }
+}
+
+// SavePort function
+const savePort = async () => {
+  saveportLoading.value = true
+  saveportResult.value = null
+  try {
+    const res = await fetch('/api/rcms/saveport', { method: 'POST' })
+    const data = await res.json()
+    if (data.message === 'success') {
+      saveportResult.value = { success: true, message: '端口数据保存成功' }
+      message.success('端口数据保存成功')
+    } else {
+      saveportResult.value = { success: false, message: data.message, errors: data.errors }
+      message.error('保存失败')
+    }
+  } catch (e) {
+    saveportResult.value = { success: false, message: '网络错误', errors: [e.message] }
+    message.error('网络错误')
+  } finally {
+    saveportLoading.value = false
+  }
+}
+
+// Transport function
+const transport = async () => {
+  transportLoading.value = true
+  transportResult.value = null
+  try {
+    const res = await fetch('/api/rcms/transport', { method: 'POST' })
+    const data = await res.json()
+    if (data.message === 'success') {
+      transportResult.value = { success: true, message: '端口数据转换成功' }
+      message.success('端口数据转换成功')
+    } else {
+      transportResult.value = { success: false, message: data.message, errors: data.errors }
+      message.error('转换失败')
+    }
+  } catch (e) {
+    transportResult.value = { success: false, message: '网络错误', errors: [e.message] }
+    message.error('网络错误')
+  } finally {
+    transportLoading.value = false
   }
 }
 
@@ -249,88 +301,83 @@ onMounted(() => {
           </div>
         </div>
       </NCard>
-      
+
     </div>
 
-    <!-- ZeroMQ Process Management Card -->
-    <NCard title="ZeroMQ 进程管理" :bordered="true" class="service-card">
-      <div class="service-content">
-        <p>管理 ZeroMQ 地图更新进程。</p>
-
-        <div class="zeromq-controls">
-          <NButton type="success" @click="startZeromqProcess" :loading="zeromqLoading && !isStopActionPending"
-            :disabled="zeromqStatus === 'running'" size="medium" style="margin-right: 10px;">
-            启动进程
-          </NButton>
-
-          <NButton type="error" @click="stopZeromqProcess" :loading="zeromqLoading && isStopActionPending"
-            :disabled="zeromqStatus !== 'running'" size="medium" style="margin-right: 10px;">
-            停止进程
-          </NButton>
-
-          <NButton type="primary" @click="getZeromqInfo" :loading="zeromqLoading" size="medium">
-            刷新
-          </NButton>
+    <div class="services-grid">
+      <!-- SavePort Card -->
+      <NCard title="保存端口数据" :bordered="true" class="service-card">
+        <div class="service-content">
+          <p>从 RCMS 接口拉取 bufferPort / machinePort 并缓存到本地。</p>
+          <NButton type="primary" @click="savePort" :loading="saveportLoading" size="medium">保存端口数据</NButton>
+          <div v-if="saveportResult" class="result-container">
+            <NResult :status="saveportResult.success ? 'success' : 'error'"
+              :title="saveportResult.success ? '成功' : '失败'" :description="saveportResult.message" size="small">
+              <template v-if="!saveportResult.success && saveportResult.errors" #extra>
+                <div class="errors"><h4>错误：</h4><ul><li v-for="(e,i) in saveportResult.errors" :key="i">{{ e }}</li></ul></div>
+              </template>
+            </NResult>
+          </div>
         </div>
+      </NCard>
 
-        <div class="status-indicator">
-          <span :class="['status-badge',
-            zeromqStatus === 'running' ? 'status-running' :
-              zeromqStatus === 'stopped' ? 'status-stopped' : 'status-error'
-          ]">
-            状态: {{ zeromqStatus }}
-          </span>
+      <!-- Transport Card -->
+      <NCard title="转换端口数据" :bordered="true" class="service-card">
+        <div class="service-content">
+          <p>从缓存 bufferPort / machinePort 生成 cmsindexmap.json。</p>
+          <NButton type="primary" @click="transport" :loading="transportLoading" size="medium">转换端口数据</NButton>
+          <div v-if="transportResult" class="result-container">
+            <NResult :status="transportResult.success ? 'success' : 'error'"
+              :title="transportResult.success ? '成功' : '失败'" :description="transportResult.message" size="small">
+              <template v-if="!transportResult.success && transportResult.errors" #extra>
+                <div class="errors"><h4>错误：</h4><ul><li v-for="(e,i) in transportResult.errors" :key="i">{{ e }}</li></ul></div>
+              </template>
+            </NResult>
+          </div>
         </div>
+      </NCard>
 
-        <div v-if="zeromqInfo" class="zeromq-info">
-          <h4>进程信息：</h4>
-          <table class="info-table">
-            <tbody>
-              <tr>
-                <td class="info-label"><strong>PID：</strong></td>
-                <td class="info-value">{{ zeromqInfo.pid }}</td>
-              </tr>
-              <tr>
-                <td class="info-label"><strong>启动时间：</strong></td>
-                <td class="info-value">{{ zeromqInfo.start_time }}</td>
-              </tr>
-              <tr>
-                <td class="info-label"><strong>最后更新：</strong></td>
-                <td class="info-value">{{ zeromqInfo.last_update }}</td>
-              </tr>
-              <tr>
-                <td class="info-label"><strong>zmq自动启停管理：</strong></td>
-                <td class="info-value">{{ zmq_auto }}</td>
-              </tr>
-              <tr>
-                <td class="info-label"><strong>zmq自动停止时间间隔：</strong></td>
-                <td class="info-value">{{ zmq_auto_kill_timedelta }}</td>
-              </tr>
-            </tbody>
-          </table>
-          <table class="msg-table">
-            <tbody>
-              <tr v-for="(value, key) in zeromqInfo.msg_dict" :key="key">
-                <td class="msg-key">{{ key }}</td>
-                <td class="msg-value">{{ value }}</td>
-              </tr>
-            </tbody>
-          </table>
+      <!-- ZeroMQ Process Management Card -->
+      <NCard title="ZeroMQ 进程管理" :bordered="true" class="service-card">
+        <div class="service-content">
+          <p>管理 ZeroMQ 地图更新进程。</p>
+          <div class="zeromq-controls">
+            <NButton type="success" @click="startZeromqProcess" :loading="zeromqLoading && !isStopActionPending"
+              :disabled="zeromqStatus === 'running'" size="small">启动进程</NButton>
+            <NButton type="error" @click="stopZeromqProcess" :loading="zeromqLoading && isStopActionPending"
+              :disabled="zeromqStatus !== 'running'" size="small">停止进程</NButton>
+            <NButton @click="getZeromqInfo" :loading="zeromqLoading" size="small">刷新</NButton>
+          </div>
+          <div class="status-indicator">
+            <span :class="['status-badge', zeromqStatus === 'running' ? 'status-running' : zeromqStatus === 'stopped' ? 'status-stopped' : 'status-error']">
+              状态: {{ zeromqStatus }}
+            </span>
+          </div>
+          <div v-if="zeromqInfo" class="zeromq-info">
+            <table class="info-table">
+              <tbody>
+                <tr><td class="info-label">PID</td><td class="info-value">{{ zeromqInfo.pid }}</td></tr>
+                <tr><td class="info-label">启动时间</td><td class="info-value">{{ zeromqInfo.start_time }}</td></tr>
+                <tr><td class="info-label">最后更新</td><td class="info-value">{{ zeromqInfo.last_update }}</td></tr>
+                <tr><td class="info-label">自动启停</td><td class="info-value">{{ zmq_auto }}</td></tr>
+                <tr><td class="info-label">自动停止间隔</td><td class="info-value">{{ zmq_auto_kill_timedelta }}</td></tr>
+              </tbody>
+            </table>
+            <table class="msg-table">
+              <tbody>
+                <tr v-for="(value, key) in zeromqInfo.msg_dict" :key="key">
+                  <td class="msg-key">{{ key }}</td><td class="msg-value">{{ value }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div v-if="zeromqResult" class="result-container">
+            <NResult :status="hasErrorInResult(zeromqResult) ? 'error' : 'info'" :title="getResultTitle(zeromqResult)"
+              :description="zeromqResult.message || zeromqResult.error" size="small" />
+          </div>
         </div>
-
-        <div v-if="zeromqResult" class="result-container">
-          <NResult :status="hasErrorInResult(zeromqResult) ? 'error' : 'info'" :title="getResultTitle(zeromqResult)"
-            :description="zeromqResult.message || zeromqResult.error" size="small">
-            <template #footer>
-              <div v-if="zeromqResult.info" class="result-info">
-                <p><strong>PID：</strong> {{ zeromqResult.info.pid }}</p>
-                <p><strong>状态：</strong> {{ zeromqResult.info.start_time ? '运行中' : '已停止' }}</p>
-              </div>
-            </template>
-          </NResult>
-        </div>
-      </div>
-    </NCard>
+      </NCard>
+    </div>
 
     <!-- Redis Info Card -->
     <RedisInfo />

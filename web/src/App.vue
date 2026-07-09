@@ -39,6 +39,7 @@ import { useRoute, useRouter } from 'vue-router';
 import GossipNotifToast from './components/GossipNotifToast.vue';
 import ShellPanel from './components/ShellPanel.vue';
 import { applyBodyBg } from './composables/bg';
+import { useAccentColor } from './composables/theme';
 import { sendPagePath } from './composables/gossipNotif';
 import { ribbon } from './composables/ribbon';
 import { useShellStore } from './composables/useShellStore';
@@ -121,6 +122,9 @@ watch(route, (newRoute) => {
 provide('darkMode', darkMode);
 
 const theme = computed(() => darkMode.value ? darkTheme : lightTheme);
+
+const { accentColor, themeOverrides, loadFromServer } = useAccentColor()
+loadFromServer()
 
 // Helper function to render icons
 const renderIcon = (icon) => {
@@ -314,7 +318,7 @@ onUnmounted(() => {
 
 <template>
 
-  <n-config-provider :locale="zhCN" :date-locale="dateZhCN" :theme="theme">
+  <n-config-provider :locale="zhCN" :date-locale="dateZhCN" :theme="theme" :theme-overrides="themeOverrides">
     <n-notification-provider>
     <n-message-provider>
       <n-dialog-provider>

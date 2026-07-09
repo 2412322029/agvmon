@@ -147,15 +147,30 @@
           </tbody>
         </n-table>
 
+        <!-- 下载进度条 -->
+        <div v-if="downloadLoading" style="margin-top: 16px;">
+          <n-text depth="3" style="font-size: 12px; margin-bottom: 4px; display: block;">
+            {{ downloadTotal ? `正在下载 ${formatFileSize(downloadLoaded)} / ${formatFileSize(downloadTotal)}` : `正在下载 ${formatFileSize(downloadLoaded)}` }}
+          </n-text>
+          <n-progress
+            type="line"
+            :percentage="downloadProgress"
+            :show-indicator="true"
+            :indicator-placement="'inside'"
+            :processing="downloadLoading"
+          />
+        </div>
+
         <!-- 操作按钮 -->
         <n-space justify="space-between" style="margin-top: 20px; width: 100%;">
           <n-button type="error" size="large" @click="confirmDeleteFile(selectedFile.stored_filename)"
-            :disabled="deleteLoading">
+            :disabled="deleteLoading || downloadLoading">
             删除
           </n-button>
           <n-button type="primary" size="large"
+            :loading="downloadLoading"
             @click="downloadFile(selectedFile.stored_filename, selectedFile.original_filename)">
-            下载
+            {{ downloadLoading ? '下载中...' : '下载' }}
           </n-button>
 
         </n-space>
@@ -277,6 +292,10 @@ const editFile = ref(null)
 const newExpireDays = ref(7)
 const selectedFile = ref(null)
 const isMobile = ref(window.innerWidth < 768)
+const downloadLoading = ref(false)
+const downloadProgress = ref(0)
+const downloadLoaded = ref(0)
+const downloadTotal = ref(0)
 
 // 上传表单
 const uploadForm = ref({
@@ -426,23 +445,68 @@ const deleteFile = async () => {
   }
 }
 
-// 下载文件
+// 下载文件（fetch + ReadableStream 读取进度）
 const downloadFile = async (storedFilename, originalFilename) => {
-  try {
-    // 构建下载链接
-    const downloadUrl = `/api/util/download/${storedFilename}`
+  downloadLoading.value = true
+  downloadProgress.value = 0
+  downloadLoaded.value = 0
+  downloadTotal.value = 0
 
-    // 创建一个隐藏的链接元素来触发下载
+  try {
+    // 优先用文件详情已有的 size 作为总大小（不受代理影响）
+    if (selectedFile.value?.size) {
+      downloadTotal.value = selectedFile.value.size
+    }
+
+    const downloadUrl = `/api/util/download/${storedFilename}`
+    const response = await fetch(downloadUrl)
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({ error: '下载失败' }))
+      message.error(err.error || `HTTP ${response.status}`)
+      return
+    }
+
+    // Content-Length 兜底（直连后端时有，走代理可能被吞）
+    const contentLength = response.headers.get('Content-Length')
+    if (contentLength && downloadTotal.value === 0) {
+      downloadTotal.value = parseInt(contentLength, 10)
+    }
+
+    // 流式读取，追踪进度
+    const reader = response.body.getReader()
+    const chunks = []
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      chunks.push(value)
+      downloadLoaded.value += value.length
+
+      if (downloadTotal.value > 0) {
+        downloadProgress.value = Math.round((downloadLoaded.value / downloadTotal.value) * 100)
+      }
+    }
+
+    // 组装 blob 并触发浏览器下载
+    const blob = new Blob(chunks)
+    const blobUrl = URL.createObjectURL(blob)
     const link = document.createElement('a')
-    link.href = downloadUrl
+    link.href = blobUrl
     link.download = originalFilename
-    link.target = '_blank'  // 在新标签页打开，允许浏览器处理下载
     link.style.display = 'none'
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+    URL.revokeObjectURL(blobUrl)
+
+    downloadProgress.value = 100
+    message.success('下载完成')
   } catch (error) {
     message.error('下载失败: ' + error.message)
+  } finally {
+    downloadLoading.value = false
   }
 }
 
