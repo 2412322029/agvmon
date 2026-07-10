@@ -45,7 +45,7 @@ async function checkForUpdates() {
       status.value = 'error'
       errorMessage.value = data.error
     } else {
-      status.value = 'idle'
+      status.value = 'up_to_date'
       errorMessage.value = data.error || ''
     }
     _initDone = true

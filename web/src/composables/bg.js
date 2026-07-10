@@ -8,7 +8,7 @@ const FILTER_MAP = {
   saturate:    (s) => `saturate(${(s || 30) / 100})`,
 }
 
-export async function applyBodyBg(overrides = {}) {
+export async function applyBodyBg(overrides = {}, { bustCache } = {}) {
   const hasCustom = localStorage.getItem('has_custom_bg') === '1'
   if (!hasCustom) return null
 
@@ -30,7 +30,10 @@ export async function applyBodyBg(overrides = {}) {
   const filterValue = fn(strength)
 
   // body 设背景图 + 面板透明度
-  document.body.style.backgroundImage = "url('/api/util/background')"
+  const bgUrl = bustCache
+    ? `/api/util/background?${Date.now()}`
+    : '/api/util/background'
+  document.body.style.backgroundImage = `url('${bgUrl}')`
   document.body.style.backgroundSize = 'cover'
   document.body.style.backgroundPosition = 'center'
   document.body.style.backgroundAttachment = 'fixed'
@@ -51,7 +54,7 @@ export async function applyBodyBg(overrides = {}) {
         position: fixed;
         inset: 0;
         z-index: -1;
-        background-image: url('/api/util/background');
+        background-image: url('${bgUrl}');
         background-size: cover;
         background-position: center;
         filter: ${filterValue};
@@ -83,5 +86,4 @@ export function resetBodyBg() {
   document.documentElement.style.removeProperty('--body-opacity')
   const cbg = document.getElementById('cbg')
   if (cbg) cbg.style.display = ''
-  localStorage.removeItem('has_custom_bg')
 }

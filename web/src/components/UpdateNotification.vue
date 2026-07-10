@@ -85,6 +85,18 @@
       </template>
     </n-alert>
 
+    <!-- Up to date -->
+    <n-alert
+      v-else-if="status === 'up_to_date'"
+      type="success"
+      :bordered="false"
+      class="update-alert"
+    >
+      <template #header>
+        <span>当前已是最新版本</span>
+      </template>
+    </n-alert>
+
     <!-- Error -->
     <n-alert
       v-else-if="status === 'error'"
