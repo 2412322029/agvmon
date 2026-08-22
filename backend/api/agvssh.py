@@ -12,7 +12,7 @@ from fastapi import APIRouter, Body, File, Response, UploadFile
 from fastapi.responses import StreamingResponse
 
 from util.config import cfg, r
-from util.dmdecoder import all_size, decode_dmdtx, encode_dmdtx, encode_dmdtx_svg
+# from util.dmdecoder import all_size, decode_dmdtx, encode_dmdtx, encode_dmdtx_svg
 from util.ssh import SSHManager, validate_local_path, validate_remote_path
 from util.yuv2png import y_only_to_rgb, y_only_to_rgb_stream
 
@@ -289,6 +289,7 @@ async def decode_dmdtx_file(file: UploadFile = File(...)):
     :param file: 文件对象
     :return: 解码结果
     """
+    return json_response(error="该接口已弃用", code=200)
     try:
         content = await file.read()
         img = Image.open(io.BytesIO(content))
@@ -305,6 +306,7 @@ async def decode_dmdtx_file(file: UploadFile = File(...)):
 
 @agv_web_router.post("/decode_remote_dmdtx_file")
 async def decode_remote_dmdtx_file(id: str = Body(...), filepath: str = Body(...)):
+    return json_response(error="该接口已弃用", code=200)
     ssh_manager = SSHManager.get_ssh_manager(id)
     if not ssh_manager:
         return json_response(error="连接失败, id不存在")
@@ -343,6 +345,7 @@ async def encode_dmdtx_file(data: str, size: str = "14x14",scale:int=1, types: s
     :param file: 上传的文件对象
     :return: 编码结果
     """
+    return json_response(error="该接口已弃用", code=200)
     if size not in all_size():
         return json_response(error=f"无效的尺寸: {size}", code=200)
     img_io = io.BytesIO()
@@ -368,6 +371,7 @@ async def get_dmdtx_all_size():
     获取所有支持的尺寸
     :return: 尺寸列表
     """
+    return json_response(error="该接口已弃用", code=200)
     return Response(
         json.dumps(all_size(), ensure_ascii=False), media_type="application/json"
     )

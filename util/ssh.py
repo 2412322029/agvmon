@@ -137,6 +137,8 @@ class SSHManager:
         self.connection: Optional[asyncssh.SSHClientConnection] = None
         self.name = f"{self.username}@{self.host}"
         self.create_time = datetime.now()
+        self.id = uuid.uuid4().hex
+        self._registered = False
 
     async def connect(self) -> Tuple[bool, Optional[str]]:
         """建立SSH连接"""
@@ -149,15 +151,16 @@ class SSHManager:
                 known_hosts=None,
                 connect_timeout=5,
             )
-            self.id = uuid.uuid4().hex
-            SSHManager.all_ssh_managers.append(
-                {
-                    "id": self.id,
-                    "manager": self,
-                    "create_time": self.create_time,
-                    "name": self.name,
-                }
-            )
+            if not self._registered:
+                SSHManager.all_ssh_managers.append(
+                    {
+                        "id": self.id,
+                        "manager": self,
+                        "create_time": self.create_time,
+                        "name": self.name,
+                    }
+                )
+                self._registered = True
             logger.info(f"SSH连接到 {self.name} 成功")
             return True, None
         except asyncio.TimeoutError:
@@ -190,10 +193,10 @@ class SSHManager:
             await self.connection.wait_closed()
             logger.info(f"SSH连接 {self.name} 已断开")
             self.connection = None
-            for item in SSHManager.all_ssh_managers:
-                if item["id"] == self.id:
-                    SSHManager.all_ssh_managers.remove(item)
-                    break
+        SSHManager.all_ssh_managers[:] = [
+            item for item in SSHManager.all_ssh_managers if item["id"] != self.id
+        ]
+        self._registered = False
 
     @staticmethod
     def get_ssh_manager(id: str) -> Optional["SSHManager"]:

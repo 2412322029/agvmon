@@ -25,3 +25,5 @@ util/data/bssid_map.json
 .env
 updates/*
 config.toml
+util/data/bg-custom.jpg
+util/data/bg-settings.json
