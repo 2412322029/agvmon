@@ -90,6 +90,15 @@ const router = createRouter({
       },
       component: () => import('../views/AGVProtocolParser.vue'),
     },
+    // Lift (电梯 AB66) Protocol Tool Page
+    {
+      path: '/lift-protocol',
+      name: 'lift-protocol',
+      meta: {
+        disc: '电梯报文工具',
+      },
+      component: () => import('../views/LiftProtocolView.vue'),
+    },
     // SSH View Page
     {
       path: '/ssh',

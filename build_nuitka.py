@@ -253,7 +253,7 @@ def build_with_nuitka(
     nuitka_cmd = [
         sys.executable,
         "-m",
-        "nuitka",
+        "nuitka --msvc=latest",
         "--standalone",
         "--plugin-enable=pyzmq",
         "--include-data-dir=web/dist=./web/dist",

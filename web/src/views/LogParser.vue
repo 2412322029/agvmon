@@ -5,7 +5,7 @@ import {
   NModal, NPopconfirm, NPagination, NRadioButton, NRadioGroup, NSelect, NSpace, NSpin, NTabPane,
   NTabs, NTag, NText, useMessage
 } from 'naive-ui';
-import { h, ref, watch } from 'vue';
+import { computed, h, ref, shallowRef, watch } from 'vue';
 import AGVProtocolParser from './AGVProtocolParser.js';
 
 const message = useMessage();
@@ -69,7 +69,8 @@ const pioInfoMap = ['正常状态', '上仓位', '下仓位', '上料请求', '�
 // ── WCS Logs state ────────────────────────────────────────────────────
 const wcsFiles = ref([]);
 const wcsFilesLoading = ref(false);
-const wcsParseResult = ref(null);
+// 解析结果用浅响应式：日志动辄数万行，深层 proxy 会明显拖慢渲染
+const wcsParseResult = shallowRef(null);
 const wcsParsing = ref(false);
 const wcsForm = ref({ filenames: [], shortcode: '', trayid: '', taskid: '', device_type: '' });
 const deviceTypeOptions = ['Detector', 'Rotate', 'Pallet', 'Cargo', 'Lift', 'Door'];
@@ -77,6 +78,8 @@ const wcsDetailModal = ref(false);
 const wcsDetailRow = ref(null);
 const wcsDetailReq = ref(null);
 const wcsDetailResp = ref(null);
+const wcsDetailLiftReq = ref(null);   // Lift 电梯报文（AB66）请求解析
+const wcsDetailLiftResp = ref(null);  // Lift 电梯报文（AB66）应答解析
 const wcsDetailCollapse = ref(['resp']);
 const wcsResultTab = ref('');
 
@@ -475,6 +478,7 @@ async function parseWcsLog() {
   wcsParsing.value = true;
   wcsParseResult.value = null;
   _parseCache.clear();
+  excludedLines.value = new Set();
   try {
     const body = { filenames: wcsForm.value.filenames };
     if (wcsForm.value.shortcode) body.shortcode = wcsForm.value.shortcode;
@@ -488,9 +492,9 @@ async function parseWcsLog() {
     });
     const data = await res.json();
     if (res.ok) {
-      wcsParseResult.value = data;
       const files = Object.keys(data.results || {});
       if (files.length) wcsResultTab.value = files[0];
+      applyWcsResult(data);
       const total = Object.values(data.results || {}).reduce((s, r) => s + (r.count || 0), 0);
       message.success(`解析完成，${files.length} 个文件，共 ${total} 条记录`);
     } else {
@@ -669,6 +673,254 @@ function cachedParseEQ(hex) {
   return r;
 }
 
+// ── 电梯（Lift · AB66 纯轿厢式电梯/模式切换）报文解析 ──────────────
+// request/response 中以 AB66 开头的报文按电梯协议解析，多帧粘连自动逐帧扫描
+const LIFT_COLOR = '#9254de';
+
+function looksLikeLiftFrame(raw) {
+  return typeof raw === 'string' && raw.toUpperCase().includes('AB66');
+}
+function cachedParseLift(raw) {
+  if (!raw) return null;
+  const key = 'lift:' + raw;
+  if (_parseCache.has(key)) return _parseCache.get(key);
+  const r = agvParser.parseElevatorStream(raw);
+  _parseCache.set(key, r);
+  return r;
+}
+/** AB66 电梯报文解析结果；非电梯报文或解析失败返回 null */
+function liftStream(raw) {
+  if (!looksLikeLiftFrame(raw)) return null;
+  const r = cachedParseLift(raw);
+  return r?.isValid ? r : null;
+}
+/** 该行是否为 Lift（电梯）设备记录 */
+function isLiftRow(row) {
+  return /^Lift[_-]/i.test(row?.task_key || '')
+    || looksLikeLiftFrame(row?.request) || looksLikeLiftFrame(row?.response);
+}
+function liftFrameNames(stream) {
+  return (stream?.frames || []).map(f => f.command.name).join(' → ');
+}
+const wcsDetailLiftReqFrame = computed(() => wcsDetailLiftReq.value?.frames?.[0] || null);
+const wcsDetailLiftRespFrame = computed(() => wcsDetailLiftResp.value?.frames?.[0] || null);
+const liftFieldColumns = [
+  { title: '字段', key: 'field', width: 180 },
+  { title: '原始值', key: 'value', width: 110 },
+  { title: '说明', key: 'note' },
+];
+
+// ── 报文行视图：把每个文件的 Request / Response 逐行列出并收集 ─────────
+// 用于把多帧 AB66 电梯报文一次性送到「电梯报文工具」做多帧解析
+// 性能要点：① 解析完成后一次性预建行索引（之后筛选只是取数组）
+//          ② 行视图虚拟滚动，只渲染可视区的十几行
+//          ③ 选择状态用 Set，避免逐行 includes 的 O(n²)
+const LIFT_TOOL_PATH = '/lift-protocol';
+const LIFT_HANDOFF_KEY = 'lift-protocol:frames';
+const LIFT_HANDOFF_SRC = 'lift-protocol:source';
+
+const LINE_META_H = 21;      // .frame-meta 高度 + 行分隔线
+const LINE_ROW_H = 22;       // .frame-line 单行高度
+const LINE_VIEW_H = 460;     // 可视区高度
+const LINE_OVERSCAN = 8;     // 上下预渲染行数
+
+const wcsResultView = ref('table');        // table: 表格视图 / lines: 报文行视图
+const framesOnlyLift = ref(true);          // 仅收集 AB66 电梯报文
+const collectScope = ref('file');          // file: 当前文件 / all: 全部文件
+const excludedLines = ref(new Set());      // 手工取消选中的行 key
+const lineScrollTop = ref(0);
+const lineScrollRef = ref(null);
+
+/** 一次遍历建立行索引：byFile[file] = { items, ab66Items, flat, flatAb66 } */
+function buildLineIndex(data) {
+  const byFile = {};
+  const flat = [];
+  const flatAb66 = [];
+  for (const [file, entry] of Object.entries(data?.results || {})) {
+    const items = [];
+    const ab66Items = [];
+    const fileFlat = [];
+    const fileFlatAb66 = [];
+    const rows = entry?.rows || [];
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const lines = [];
+      for (const kind of ['request', 'response']) {
+        const raw = (row[kind] || '').trim();
+        if (!raw) continue;
+        const line = {
+          kind, raw, file,
+          key: `${file}#${i}#${kind}`,
+          ab66: looksLikeLiftFrame(raw),
+        };
+        lines.push(line);
+        fileFlat.push(line);
+        if (line.ab66) fileFlatAb66.push(line);
+      }
+      if (!lines.length) continue;
+      items.push({ i, row, lines });
+      const ab66Lines = lines.length === 2 && lines[0].ab66 && lines[1].ab66
+        ? lines : lines.filter(l => l.ab66);
+      if (ab66Lines.length) ab66Items.push({ i, row, lines: ab66Lines });
+    }
+    byFile[file] = { items, ab66Items, flat: fileFlat, flatAb66: fileFlatAb66 };
+    flat.push(...fileFlat);
+    flatAb66.push(...fileFlatAb66);
+  }
+  return { byFile, flat, flatAb66 };
+}
+const wcsLineIndex = shallowRef(buildLineIndex(null));
+
+/** 解析完成后统一更新结果 / 行索引 / 选择状态 */
+function applyWcsResult(data) {
+  wcsParseResult.value = data;
+  wcsLineIndex.value = buildLineIndex(data);
+  excludedLines.value = new Set();
+  resetLineScroll();
+  _parseCache.clear();
+}
+
+function lineKey(file, rowIdx, kind) {
+  return `${file}#${rowIdx}#${kind}`;
+}
+function isLineExcluded(key) {
+  return excludedLines.value.has(key);
+}
+function toggleLine(key) {
+  const next = new Set(excludedLines.value);
+  if (next.has(key)) next.delete(key);
+  else next.add(key);
+  excludedLines.value = next;
+}
+
+/** 当前文件的可展示行（随「仅 AB66」切换，取预建索引，不做字符串处理） */
+const activeLineRows = computed(() => {
+  const entry = wcsLineIndex.value.byFile[wcsResultTab.value];
+  if (!entry) return [];
+  return framesOnlyLift.value ? entry.ab66Items : entry.items;
+});
+
+/** 待收集的全部候选行（按 当前文件 / 全部文件 + 仅 AB66 过滤） */
+const candidateLines = computed(() => {
+  const idx = wcsLineIndex.value;
+  if (collectScope.value === 'all') return framesOnlyLift.value ? idx.flatAb66 : idx.flat;
+  const entry = idx.byFile[wcsResultTab.value];
+  if (!entry) return [];
+  return framesOnlyLift.value ? entry.flatAb66 : entry.flat;
+});
+
+const selectedLines = computed(() => {
+  const excluded = excludedLines.value;
+  const lines = candidateLines.value;
+  return excluded.size ? lines.filter(l => !excluded.has(l.key)) : lines;
+});
+const selectedText = computed(() => selectedLines.value.map(l => l.raw).join('\n'));
+
+// WCS 明细表格列：提出到脚本里，避免每次渲染都重建列定义（大日志下开销明显）
+const wcsRowColumns = [
+  { title: '时间', key: 'time', width: 130 },
+  { title: 'Task Key', key: 'task_key', width: 150, ellipsis: { tooltip: true } },
+  { title: 'Action', key: 'action_type', width: 100 },
+  { title: 'Step', key: 'task_step', width: 120 },
+  { title: 'Request', key: 'request', width: 90, render: (r) => renderReqCell(r) },
+  { title: 'Response', key: 'response', width: 90, render: (r) => renderRespCell(r) },
+  {
+    title: 'Result', key: 'result', width: 45,
+    render: (r) => h(NTag, { type: r.result?.toLowerCase() === 'yes' ? 'success' : 'error', size: 'small' }, { default: () => r.result }),
+  },
+  {
+    title: '操作', key: 'actions', width: 45,
+    render: (r) => h(NButton, { size: 'tiny', onClick: () => showWcsDetail(r) }, { default: () => '详情' }),
+  },
+];
+const wcsRowKey = (_, i) => i;
+
+// ── 虚拟滚动：按行高前缀和 + 二分查可视窗口 ──────────────────────────
+const lineLayout = computed(() => {
+  const items = activeLineRows.value;
+  const offsets = new Array(items.length + 1);
+  let acc = 0;
+  for (let i = 0; i < items.length; i++) {
+    offsets[i] = acc;
+    acc += LINE_META_H + items[i].lines.length * LINE_ROW_H;
+  }
+  offsets[items.length] = acc;
+  return { offsets, total: acc, count: items.length };
+});
+
+const visibleWindow = computed(() => {
+  const { offsets, total, count } = lineLayout.value;
+  if (!count) return { start: 0, end: 0, padTop: 0, padBottom: 0 };
+  const top = Math.max(0, lineScrollTop.value - LINE_OVERSCAN * LINE_ROW_H * 2);
+  const bottom = lineScrollTop.value + LINE_VIEW_H + LINE_OVERSCAN * LINE_ROW_H * 2;
+
+  let lo = 0;
+  let hi = count;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (offsets[mid] < top) lo = mid + 1;
+    else hi = mid;
+  }
+  const start = Math.max(0, lo - 1);
+  let end = start;
+  while (end < count && offsets[end] < bottom) end++;
+  return { start, end, padTop: offsets[start], padBottom: total - offsets[end] };
+});
+
+const visibleLineRows = computed(() => activeLineRows.value.slice(visibleWindow.value.start, visibleWindow.value.end));
+
+let _scrollRaf = 0;
+function onLineScroll(e) {
+  const top = e.target.scrollTop;
+  if (_scrollRaf) return;
+  _scrollRaf = requestAnimationFrame(() => {
+    _scrollRaf = 0;
+    lineScrollTop.value = top;
+  });
+}
+function resetLineScroll() {
+  lineScrollTop.value = 0;
+  if (lineScrollRef.value) lineScrollRef.value.scrollTop = 0;
+}
+watch([wcsResultTab, framesOnlyLift, collectScope], resetLineScroll);
+
+function selectAllLines() {
+  excludedLines.value = new Set();
+}
+function clearAllLines() {
+  excludedLines.value = new Set(candidateLines.value.map(l => l.key));
+}
+
+/** 把选中的多帧报文送到「电梯报文工具」解析 */
+function openLiftTool() {
+  const text = selectedText.value;
+  if (!text) {
+    message.warning('没有可发送的报文，请检查过滤条件或选择行');
+    return;
+  }
+  const src = collectScope.value === 'all'
+    ? `${Object.keys(wcsParseResult.value?.results || {}).length} 个文件`
+    : wcsResultTab.value;
+  try {
+    sessionStorage.setItem(LIFT_HANDOFF_KEY, text);
+    sessionStorage.setItem(LIFT_HANDOFF_SRC, src);
+  } catch (e) { /* 忽略存储失败，仍可复制手动粘贴 */ }
+  router.push(LIFT_TOOL_PATH);
+}
+
+async function copyText(text) {
+  if (!text) {
+    message.warning('没有可复制的内容');
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(text);
+    message.success('已复制到剪贴板');
+  } catch (e) {
+    message.error('复制失败，请手动选择复制');
+  }
+}
+
 const hoverTip = ref({ show: false, raw: '', title: '', lines: [], highlight: '' });
 let _hideTimer = null;
 
@@ -688,8 +940,30 @@ function _cellSpan(raw, color) {
   }, raw.slice(0, 16) + '…');
 }
 
+/** 渲染 AB66 电梯报文单元格（isResponse=true 时按应答结果着色） */
+function renderLiftCell(raw, isResponse) {
+  const lift = cachedParseLift(raw);
+  const f = lift?.frames?.[0];
+  if (!lift?.isValid || !f) {
+    return h('span', {
+      style: 'color:var(--n-warning-color);cursor:default;font-size:12px',
+      onMouseenter: (e) => _showTip(e, raw, '电梯报文(AB66) 解析失败',
+        [lift?.error || '未知错误', ...(lift?.errors || []).slice(0, 2)]),
+      onMouseleave: _hideTip,
+    }, raw.slice(0, 16) + '…');
+  }
+  const color = !isResponse || f.result === undefined ? LIFT_COLOR
+    : (f.result ? 'var(--n-success-color)' : 'var(--n-warning-color)');
+  return h('span', {
+    style: `color:${color};cursor:default;font-size:12px`,
+    onMouseenter: (e) => _showTip(e, raw, `电梯报文 · ${f.command.name}（${f.directionText}）`, agvParser.elevatorTipLines(lift)),
+    onMouseleave: _hideTip,
+  }, raw.slice(0, 16) + '…');
+}
+
 function renderReqCell(row) {
   const raw = row.request || '';
+  if (looksLikeLiftFrame(raw)) return renderLiftCell(raw, false);
   const isEqQuery = raw.toUpperCase().startsWith('0506E002');
   const p = cachedParseAGV(raw);
   if (!p?.isValid) {
@@ -715,6 +989,7 @@ function renderReqCell(row) {
 function renderRespCell(row) {
   const raw = row.response || '';
   const ok = row.result?.toLowerCase() === 'yes';
+  if (looksLikeLiftFrame(raw)) return renderLiftCell(raw, true);
   const p = cachedParseEQ(raw);
   if (!p?.isValid) {
     return h('span', {
@@ -750,6 +1025,8 @@ function fmtLogLabel(f) {
 
 function showWcsDetail(row) {
   wcsDetailRow.value = row;
+  wcsDetailLiftReq.value = liftStream(row.request);
+  wcsDetailLiftResp.value = liftStream(row.response);
   try { wcsDetailReq.value = agvParser.parseAGVCommand(row.request); } catch (e) { wcsDetailReq.value = { error: e.message }; }
   try { wcsDetailResp.value = agvParser.parseEQStatus(row.response); } catch (e) { wcsDetailResp.value = { error: e.message }; }
   wcsDetailModal.value = true;
@@ -1037,8 +1314,41 @@ loadCleanUsage();
               </n-form>
 
               <div v-if="wcsParseResult" class="wcs-result">
-                <n-divider>解析结果（{{ Object.values(wcsParseResult.results||{}).reduce((s,r) => s + (r.count||0), 0) }} 条，{{ Object.keys(wcsParseResult.results||{}).length }} 个文件）</n-divider>
-                <div class="hover-bar" :class="{ on: hoverTip.show }">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+                  <n-divider style="margin:8px 0;flex:1;min-width:200px">
+                    解析结果（{{ Object.values(wcsParseResult.results||{}).reduce((s,r) => s + (r.count||0), 0) }} 条，{{ Object.keys(wcsParseResult.results||{}).length }} 个文件）
+                  </n-divider>
+                  <n-radio-group v-model:value="wcsResultView" size="small">
+                    <n-radio-button value="table">表格视图</n-radio-button>
+                    <n-radio-button value="lines">报文行视图</n-radio-button>
+                  </n-radio-group>
+                </div>
+
+                <!-- 报文行视图工具条：收集多帧 → 电梯报文工具 -->
+                <div v-if="wcsResultView === 'lines'" class="line-toolbar">
+                  <n-space align="center" size="small" style="flex:1">
+                    <n-checkbox v-model:checked="framesOnlyLift">仅 AB66 电梯报文</n-checkbox>
+                    <n-radio-group v-model:value="collectScope" size="small">
+                      <n-radio-button value="file">当前文件</n-radio-button>
+                      <n-radio-button value="all">全部文件</n-radio-button>
+                    </n-radio-group>
+                    <n-text depth="3" style="font-size:12px">
+                      已选 {{ selectedLines.length }} / {{ candidateLines.length }} 帧
+                      · 显示 {{ activeLineRows.length }} 行 / 共 {{ lineLayout.count }} 行
+                    </n-text>
+                    <n-text depth="3" style="font-size:11px">点击报文行可加入 / 移出收集</n-text>
+                  </n-space>
+                  <n-space align="center" size="small">
+                    <n-button size="tiny" secondary @click="selectAllLines">全选</n-button>
+                    <n-button size="tiny" secondary @click="clearAllLines">清空</n-button>
+                    <n-button size="tiny" :disabled="!selectedLines.length" @click="copyText(selectedText)">复制报文</n-button>
+                    <n-button size="tiny" type="primary" :disabled="!selectedLines.length" @click="openLiftTool">
+                      在电梯报文工具中多帧解析 →
+                    </n-button>
+                  </n-space>
+                </div>
+
+                <div v-if="wcsResultView === 'table'" class="hover-bar" :class="{ on: hoverTip.show }">
                   <span v-if="hoverTip.show">
                     <span class="hover-bar-title">{{ hoverTip.title }}</span>
                     <span v-for="(l, i) in hoverTip.lines" :key="i" class="hover-bar-line"
@@ -1051,19 +1361,44 @@ loadCleanUsage();
                 <n-tabs v-model:value="wcsResultTab" type="card" size="small" style="margin-top:8px">
                   <n-tab-pane v-for="(r, fn) in wcsParseResult.results" :key="fn" :name="fn" :tab="fn.length > 50 ? fn.slice(0,47)+'...' : fn">
                     <n-text v-if="r.error" type="error">{{ r.error }}</n-text>
-                    <n-dataTable v-else
-                    :columns="[
-                      { title: '时间', key: 'time', width: 130 },
-                      { title: 'Task Key', key: 'task_key', width: 150, ellipsis: { tooltip: true } },
-                      { title: 'Action', key: 'action_type', width: 100 },
-                      { title: 'Step', key: 'task_step', width: 120 },
-                      { title: 'Request', key: 'request', width: 90, render: (r) => renderReqCell(r) },
-                      { title: 'Response', key: 'response', width: 90, render: (r) => renderRespCell(r) },
-                      { title: 'Result', key: 'result', width: 45, render: (r) => h(NTag, { type: r.result?.toLowerCase() === 'yes' ? 'success' : 'error', size: 'small' }, { default: () => r.result }) },
-                      { title: '操作', key: 'actions', width: 45, render: (r) => h(NButton, { size: 'tiny', onClick: () => showWcsDetail(r) }, { default: () => '详情' }) },
-                    ]"
+
+                    <!-- 表格视图 -->
+                    <n-dataTable v-else-if="wcsResultView === 'table'"
+                    :columns="wcsRowColumns"
                     :data="r.rows" size="small" :bordered="false" max-height="450" virtual-scroll
-                    :row-key="(_, i) => i" />
+                    :row-key="wcsRowKey" />
+
+                    <!-- 报文行视图：Request / Response 逐行列在一起（虚拟滚动） -->
+                    <div v-else class="frame-lines" ref="lineScrollRef" @scroll.passive="onLineScroll">
+                      <n-text v-if="!activeLineRows.length" depth="3" style="font-size:12px">
+                        当前文件没有符合条件的报文行{{ framesOnlyLift ? '（已开启「仅 AB66 电梯报文」）' : '' }}。
+                      </n-text>
+                      <template v-else>
+                        <div class="frame-spacer" :style="{ height: visibleWindow.padTop + 'px' }"></div>
+                        <div v-for="item in visibleLineRows" :key="item.i" class="frame-row"
+                          :style="{ height: (LINE_META_H + item.lines.length * LINE_ROW_H) + 'px' }">
+                          <div class="frame-meta">
+                            <span class="frame-idx">{{ item.i + 1 }}</span>
+                            <span class="frame-time">{{ (item.row.time || '').slice(11) }}</span>
+                            <span class="frame-step">{{ item.row.action_type }}<template v-if="item.row.task_step"> / {{ item.row.task_step }}</template></span>
+                            <span v-if="isLiftRow(item.row)" class="frame-flag lift">Lift</span>
+                            <span class="frame-flag" :class="item.row.result?.toLowerCase() === 'yes' ? 'ok' : 'bad'">{{ item.row.result }}</span>
+                            <span class="frame-task" :title="item.row.task_key">{{ item.row.task_key }}</span>
+                          </div>
+                          <div v-for="l in item.lines" :key="l.kind" class="frame-line"
+                            :class="{ off: isLineExcluded(l.key), ab66: l.ab66 }"
+                            :title="l.raw" @click="toggleLine(l.key)">
+                            <span class="frame-kind" :class="l.kind">{{ l.kind === 'request' ? 'REQ ' : 'RESP' }}</span>
+                            <span class="frame-hex">{{ l.raw }}</span>
+                            <span class="frame-act">
+                              <span class="act" @click.stop="copyText(l.raw)">复制</span>
+                              <span class="act" @click.stop="showWcsDetail(item.row)">详情</span>
+                            </span>
+                          </div>
+                        </div>
+                        <div class="frame-spacer" :style="{ height: visibleWindow.padBottom + 'px' }"></div>
+                      </template>
+                    </div>
                   </n-tab-pane>
                 </n-tabs>
               </div>
@@ -1259,9 +1594,27 @@ loadCleanUsage();
             <n-text depth="2">
               {{ wcsDetailRow.time }} | {{ wcsDetailRow.task_key }} | {{ wcsDetailRow.action_type }} | {{ wcsDetailRow.task_step }}
             </n-text>
+            <n-tag v-if="isLiftRow(wcsDetailRow)" size="tiny" type="info" style="margin-left:8px">Lift · 电梯报文 AB66</n-tag>
             <n-collapse v-model="wcsDetailCollapse" :default-expanded-names="['req']" style="margin-top:8px">
-              <n-collapse-item title="Request (AGV 控制指令)" name="req">
-                <div v-if="wcsDetailReq?.isValid" style="font-size:12px;line-height:1.8">
+              <n-collapse-item
+                :title="wcsDetailLiftReq ? `Request (电梯报文 AB66${wcsDetailLiftReq.count > 1 ? ' × ' + wcsDetailLiftReq.count : ''})` : 'Request (AGV 控制指令)'"
+                name="req">
+                <div v-if="wcsDetailLiftReqFrame" style="font-size:12px;line-height:1.8">
+                  <n-text depth="2">
+                    {{ wcsDetailLiftReqFrame.directionText }} · {{ wcsDetailLiftReqFrame.command.name }}
+                    (0x{{ wcsDetailLiftReqFrame.command.hex }}) |
+                    组编号 BNK={{ wcsDetailLiftReqFrame.bnk }} · 设备编号 NOD={{ wcsDetailLiftReqFrame.nod }} · LEN={{ wcsDetailLiftReqFrame.len }}
+                  </n-text>
+                  <n-data-table :columns="liftFieldColumns" :data="wcsDetailLiftReqFrame.fields"
+                    size="small" :bordered="false" style="margin-top:4px;margin-bottom:4px" />
+                  <n-text v-if="wcsDetailLiftReq.count > 1" depth="3" style="font-size:12px">
+                    报文共 {{ wcsDetailLiftReq.count }} 帧（仅展示第 1 帧）：{{ liftFrameNames(wcsDetailLiftReq) }}
+                  </n-text>
+                  <div v-for="w in wcsDetailLiftReq.errors" :key="w">
+                    <n-text type="warning" style="font-size:12px">⚠ {{ w }}</n-text>
+                  </div>
+                </div>
+                <div v-else-if="wcsDetailReq?.isValid" style="font-size:12px;line-height:1.8">
                   <n-text>
                     指令类型: {{ wcsDetailReq.command.commandTypeText }} |
                     层级: {{ wcsDetailReq.command.layerText }} |
@@ -1281,8 +1634,28 @@ loadCleanUsage();
             </n-collapse>
 
             <n-collapse v-model="wcsDetailCollapse">
-              <n-collapse-item title="Response (EQ 状态)" name="resp" style="">
-                <div v-if="wcsDetailResp?.isValid">
+              <n-collapse-item
+                :title="wcsDetailLiftResp ? `Response (电梯报文 AB66${wcsDetailLiftResp.count > 1 ? ' × ' + wcsDetailLiftResp.count : ''})` : 'Response (EQ 状态)'"
+                name="resp" style="">
+                <div v-if="wcsDetailLiftRespFrame" style="font-size:12px;line-height:1.8">
+                  <n-text depth="2">
+                    {{ wcsDetailLiftRespFrame.directionText }} · {{ wcsDetailLiftRespFrame.command.name }}
+                    (0x{{ wcsDetailLiftRespFrame.command.hex }}) |
+                    楼层 {{ wcsDetailLiftRespFrame.floorText }} |
+                    结果 <n-tag size="tiny" :type="wcsDetailLiftRespFrame.result === undefined ? 'default' : wcsDetailLiftRespFrame.result ? 'success' : 'error'">
+                      {{ wcsDetailLiftRespFrame.result === undefined ? '不适用' : wcsDetailLiftRespFrame.result ? '成功' : '失败' }}
+                    </n-tag>
+                  </n-text>
+                  <n-data-table :columns="liftFieldColumns" :data="wcsDetailLiftRespFrame.fields"
+                    size="small" :bordered="false" style="margin-top:4px;margin-bottom:4px" />
+                  <n-text v-if="wcsDetailLiftResp.count > 1" depth="3" style="font-size:12px">
+                    报文共 {{ wcsDetailLiftResp.count }} 帧（仅展示第 1 帧）：{{ liftFrameNames(wcsDetailLiftResp) }}
+                  </n-text>
+                  <div v-for="w in wcsDetailLiftResp.errors" :key="w">
+                    <n-text type="warning" style="font-size:12px">⚠ {{ w }}</n-text>
+                  </div>
+                </div>
+                <div v-else-if="wcsDetailResp?.isValid">
                     下层光栅：{{ wcsDetailResp.gratingStatus.lowerGrating.text }} ； 
                     上层光栅：{{ wcsDetailResp.gratingStatus.upperGrating.text }}
                   <n-dataTable
@@ -1526,5 +1899,151 @@ loadCleanUsage();
   color: var(--n-text-color-3);
   font-size: 11px;
   margin-top: 2px;
+}
+
+/* ── 报文行视图 ─────────────────────────────────────────────────── */
+.line-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 10px;
+  margin-bottom: 4px;
+  border-radius: 6px;
+  background: var(--n-color-embedded);
+}
+.frame-lines {
+  /* 虚拟滚动容器：固定高度，行高与脚本中的 LINE_META_H / LINE_ROW_H 保持一致 */
+  height: 460px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  font-family: 'Consolas', 'Courier New', monospace;
+  contain: content;
+}
+.frame-spacer {
+  width: 100%;
+  pointer-events: none;
+}
+.frame-row {
+  box-sizing: border-box;
+  padding: 0 6px;
+  border-bottom: 1px dashed var(--n-border-color, #e0e0e0);
+  overflow: hidden;
+}
+.frame-row:hover {
+  background: var(--n-color-embedded);
+}
+.frame-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 20px;
+  font-size: 11px;
+  color: var(--n-text-color-3);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.frame-idx {
+  min-width: 26px;
+  text-align: right;
+  color: var(--n-text-color-3);
+}
+.frame-time {
+  color: var(--n-text-color-2);
+}
+.frame-step {
+  color: var(--n-text-color-2);
+}
+.frame-flag {
+  flex-shrink: 0;
+  font-size: 10px;
+  padding: 0 4px;
+  border-radius: 3px;
+  border: 1px solid transparent;
+}
+.frame-flag.lift {
+  color: #9254de;
+  border-color: #9254de;
+  background: rgba(146, 84, 222, 0.12);
+}
+.frame-flag.ok {
+  color: var(--n-success-color);
+  border-color: var(--n-success-color);
+}
+.frame-flag.bad {
+  color: var(--n-error-color);
+  border-color: var(--n-error-color);
+}
+.frame-task {
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.frame-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 22px;
+  padding: 0 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 22px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.frame-line:hover {
+  background: rgba(32, 128, 240, 0.08);
+}
+.frame-line.ab66 .frame-hex {
+  color: #9254de;
+  font-weight: 600;
+}
+.frame-line.off {
+  opacity: 0.4;
+  text-decoration: line-through;
+}
+.frame-kind {
+  flex-shrink: 0;
+  width: 30px;
+  text-align: center;
+  font-size: 10px;
+  border-radius: 3px;
+  background: var(--n-color-embedded);
+  color: var(--n-text-color-3);
+}
+.frame-kind.request {
+  color: var(--n-primary-color);
+}
+.frame-kind.response {
+  color: var(--n-success-color);
+}
+.frame-hex {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.frame-act {
+  flex-shrink: 0;
+  display: flex;
+  gap: 6px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+.frame-line:hover .frame-act {
+  opacity: 1;
+}
+.frame-act .act {
+  font-size: 11px;
+  color: var(--n-primary-color);
+  cursor: pointer;
+}
+.frame-act .act:hover {
+  text-decoration: underline;
 }
 </style>

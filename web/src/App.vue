@@ -1,6 +1,7 @@
 <script setup>
 import {
   ApiOutlined,
+  ApartmentOutlined,
   CodeOutlined,
   ControlFilled,
   ExceptionOutlined,
@@ -187,6 +188,12 @@ const menuOptions = computed(() => [
         key: '/agv-eq-protocol-parser',
         icon: renderIcon(SwitcherOutlined),
         onClick: () => router.push('/agv-eq-protocol-parser')
+      },
+      {
+        label: '电梯报文工具',
+        key: '/lift-protocol',
+        icon: renderIcon(ApartmentOutlined),
+        onClick: () => router.push('/lift-protocol')
       },
       {
         label: '文件上传管理',
