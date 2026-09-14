@@ -45,6 +45,15 @@ const router = createRouter({
       },
       component: () => import('../views/MapView.vue'),
     },
+    // AGV Topology Map (MapCfg XML) / ground code tool
+    {
+      path: '/topology',
+      name: 'topology',
+      meta: {
+        disc: '拓扑地图/地码',
+      },
+      component: () => import('../views/TopologyMapView.vue'),
+    },
     // Task Query Page
     {
       path: '/task-query',

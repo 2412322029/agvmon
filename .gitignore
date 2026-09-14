@@ -30,3 +30,4 @@ util/data/bg-settings.json
 util/data/wcs_device_local.jsonc
 util/data/wcs_protocol_message.jsonc
 util/data/1.csv
+script/version_result.csv

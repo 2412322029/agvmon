@@ -251,6 +251,12 @@ const menuOptions = computed(() => [
         onClick: () => router.push('/map')
       },
       {
+        label: '拓扑地图/地码',
+        key: '/topology',
+        icon: renderIcon(ApartmentOutlined),
+        onClick: () => router.push('/topology')
+      },
+      {
         label: 'WCS设备状态',
         key: '/wcs-status',
         icon: renderIcon(ControlFilled),
