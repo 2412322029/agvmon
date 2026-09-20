@@ -177,6 +177,12 @@ const menuOptions = computed(() => [
         key: '/user-script',
         icon: renderIcon(FunctionOutlined),
         onClick: () => router.push('/user-script')
+      },
+      {
+        label: 'Lua 帮助',
+        key: '/lua-help',
+        icon: renderIcon(FileTextOutlined),
+        onClick: () => router.push('/lua-help')
       }
     ]
   },

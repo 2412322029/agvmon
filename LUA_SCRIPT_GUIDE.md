@@ -5,7 +5,7 @@
 > **事实来源**：本文每一条都对应仓库当前实现 —— 运行时 `util/lua_sandbox.py` / `util/lua_runtime.py`、
 > 外部 HTTP `util/lua_http.py`、接口层 `backend/api/user_script.py`、脚本库 `util/user_script_store.py`、
 > 默认配置 `util/config.toml`。改代码时请同步改本文。
-
+> 一般不用读取修改py.
 ---
 
 ## 目录

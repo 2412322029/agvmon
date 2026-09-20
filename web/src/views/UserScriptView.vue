@@ -315,6 +315,10 @@
             <!-- ── 说明 ── -->
             <n-tab-pane name="help" tab="脚本约定">
               <div class="help">
+                <n-alert type="info" size="small" class="help-link" :bordered="false">
+                  这里只是速查要点，完整版编写指南（运行模型、JSON 坑、HTTP 策略、反模式等）见
+                  <router-link to="/lua-help">Lua 帮助</router-link>。
+                </n-alert>
                 <p>
                   脚本被执行时拿到一个 <code>ctx</code> 参数（同时 <code>input</code> /
                   <code>output</code> 也在全局），返回值就是响应内容：
@@ -1242,6 +1246,10 @@ onMounted(async () => {
 .help {
   font-size: 13px;
   line-height: 1.7;
+}
+
+.help-link {
+  margin-bottom: 8px;
 }
 
 .help p {

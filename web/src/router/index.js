@@ -144,6 +144,15 @@ const router = createRouter({
       },
       component: () => import('../views/UserScriptView.vue'),
     },
+    // Lua 脚本编写指南（LUA_SCRIPT_GUIDE.md 随 Vite 打包进前端）
+    {
+      path: '/lua-help',
+      name: 'lua-help',
+      meta: {
+        disc: 'Lua 帮助',
+      },
+      component: () => import('../views/LuaHelp.vue'),
+    },
     // File Upload View Page
     {
       path: '/file-upload',

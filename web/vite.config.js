@@ -59,6 +59,10 @@ export default defineConfig({
     },
   },
   server: {
+    // 允许 dev server 读取 web/ 目录之外的仓库根目录文件（LUA_SCRIPT_GUIDE.md 用 ?raw 引入）
+    fs: {
+      allow: ['..'],
+    },
     // 配置代理服务器
     proxy: {
       // API 代理
