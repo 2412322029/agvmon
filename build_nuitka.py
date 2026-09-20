@@ -210,6 +210,7 @@ def upload_to_update_server(
 def build_with_nuitka(
     skip_compress=False,
     skip_upload=False,
+    skip_verify=False,
     channel="stable",
 ):
     """
@@ -249,6 +250,18 @@ def build_with_nuitka(
     print(f"已导出 git 历史 ({len(git_history)} 条) 到 {history_path}")
 
     libdmtx_dll = venv_dir / "Lib" / "site-packages" / "pylibdmtx" / "libdmtx-64.dll"
+    lupa_dir = venv_dir / "Lib" / "site-packages" / "lupa"
+
+    # 用户 Lua 脚本沙箱：lupa 的 Lua VM 是静态链进 .pyd 的（如 lua55.cp313-win_amd64.pyd），
+    # 且 lupa/__init__ 用 os.listdir + __import__ 动态挑版本，静态分析理论上跟不到。
+    # 实测 Nuitka 2.8.9 下 --include-package=lupa 就能把 7 个变体（lua51..lua55、
+    # luajit20/21）全部收进 dist/lupa/ 并重命名为 lua55.pyd（lupa 的正则仍匹配）；
+    # 显式 include-module 与 copy_lupa_native_files 是防 Nuitka 行为变化的兜底。
+    lupa_args = ["--include-package=lupa", "--include-package-data=lupa"]
+    lupa_variants = lupa_variant_modules(lupa_dir)
+    if lupa_variants:
+        lupa_args += [f"--include-module=lupa.{name}" for name in lupa_variants]
+    print(f"lupa 变体模块: {', '.join(lupa_variants) if lupa_variants else '未找到（用户脚本功能可能不可用）'}")
 
     nuitka_cmd = [
         sys.executable,
@@ -256,6 +269,7 @@ def build_with_nuitka(
         "nuitka --msvc=latest",
         "--standalone",
         "--plugin-enable=pyzmq",
+        *lupa_args,
         "--include-data-dir=web/dist=./web/dist",
         "--include-data-dir=static=./static",
         "--include-data-dir=util/data/cache=./util/data/cache",
@@ -305,6 +319,21 @@ def build_with_nuitka(
             for item in dist_dir.iterdir():
                 print(f"- {item}")
 
+        # lupa 原生模块兜底复制 + 产物内 Lua 沙箱冒烟验证
+        copy_lupa_native_files(dist_dir, lupa_dir)
+        if not skip_verify:
+            if not verify_packaged_lua(dist_dir):
+                print(
+                    "\n构建中止：打包产物里的用户脚本（Lua）沙箱不可用，"
+                    "不压缩、不上传。\n"
+                    "  排查方向：lupa 是否已安装、dist/main.dist/lupa/ 下是否有 lua55*.pyd、"
+                    "构建日志里 lupa 相关告警。\n"
+                    "  确需跳过请加 --skip-verify。"
+                )
+                sys.exit(1)
+        else:
+            print("\n已跳过打包产物验证 (--skip-verify)")
+
         # 压缩
         zip_path = None
         if not skip_compress:
@@ -318,6 +347,120 @@ def build_with_nuitka(
     except Exception as e:
         print(f"发生未知错误: {e}")
         sys.exit(1)
+
+
+def lupa_variant_modules(lupa_dir: Path) -> list[str]:
+    """枚举已安装 lupa 自带的 Lua 变体模块名（lua55 / lua54 / luajit21 ...）。
+
+    lupa 一个 wheel 里同时带多个变体，每个都是形如 ``lua55.cp313-win_amd64.pyd``
+    的扩展模块，运行期由 ``lupa/__init__._import_newest_lib`` 动态挑最新的。
+    这里按实际文件枚举，避免硬编码 lua55 在换 lupa/Python 版本后失效。
+    """
+    if not lupa_dir.exists():
+        return []
+    names = []
+    for path in sorted(lupa_dir.glob("lua*.pyd")):
+        match = re.match(r"(lua[a-z]*\d*)[.\-]", path.name)
+        if match:
+            names.append(match.group(1))
+    return names
+
+
+def copy_lupa_native_files(dist_dir: Path, lupa_dir: Path) -> None:
+    """兜底：把 lupa 的原生 Lua VM（各 .pyd）按原名复制到 dist/lupa。
+
+    lupa 的 ``__init__._import_newest_lib`` 用 ``os.listdir(package_dir)`` 找形如
+    ``lua55.*.pyd`` 的文件再 ``__import__``，属于运行期动态发现，Nuitka 的静态分析
+    跟不全；显式 ``--include-module`` 之外再复制一份保证运行期一定能找到。
+
+    实测 Nuitka 会把它收集到的扩展模块重命名为 ``lua55.pyd``（去掉
+    ``.cp313-win_amd64`` 后缀），lupa 的正则依然能匹配；因此这里**只补 Nuitka 没
+    收集到的变体**，避免同目录出现同一变体的两份副本。
+    """
+    if not (lupa_dir.exists() and dist_dir.exists()):
+        return
+    target = dist_dir / "lupa"
+    target.mkdir(parents=True, exist_ok=True)
+
+    copied, skipped = [], []
+    for src in sorted(lupa_dir.glob("*.pyd")):
+        match = re.match(r"(lua[a-z]*\d*)[.\-]", src.name)
+        variant = match.group(1) if match else src.stem
+        if (target / f"{variant}.pyd").exists():
+            skipped.append(variant)
+            continue
+        shutil.copy2(src, target / src.name)
+        copied.append(src.name)
+
+    if copied:
+        print(f"已补充复制 lupa 原生模块到 {target}: {', '.join(copied)}")
+    if skipped:
+        print(f"lupa 原生模块已由 Nuitka 收集，无需复制: {', '.join(sorted(set(skipped)))}")
+    if not copied and not skipped:
+        print(f"警告：{lupa_dir} 下没找到 lupa 的 .pyd，用户脚本沙箱可能不可用")
+
+
+def verify_packaged_lua(dist_dir: Path) -> bool:
+    """直接调用打包产物里的 worker 子命令，验证 Lua 沙箱真的能跑。
+
+    ``agvmon.exe run lua-worker`` 不启动服务器，只读 stdin 执行一次沙箱自检，
+    因此可以安全地作为构建后的冒烟测试。
+    """
+    exe = dist_dir / "agvmon.exe"
+    if not exe.exists():
+        print(f"  跳过验证：找不到 {exe}")
+        return False
+
+    job = json.dumps(
+        {
+            "mode": "run",
+            "script_id": "__build_verify__",
+            "code": "print('verify') return {ok = true, lua = _VERSION, "
+                    "escape = type(os.execute), json = json.encode({a = 1})}",
+            "payload_json": '{"hello":"打包验证"}',
+            "limits": {},
+        },
+        ensure_ascii=False,
+    ).encode("utf-8")
+
+    print(f"\n验证打包产物中的 Lua 沙箱: {exe} run lua-worker")
+    try:
+        proc = subprocess.run(
+            [str(exe), "run", "lua-worker"],
+            input=job,
+            capture_output=True,
+            timeout=180,
+            cwd=str(dist_dir),
+        )
+    except Exception as exc:
+        print(f"  ✗ 无法运行打包产物: {type(exc).__name__}: {exc}")
+        return False
+
+    stdout = proc.stdout.decode("utf-8", errors="replace")
+    lowered = stdout.lower()
+    if "not a valid win32 application" in lowered or "no module named" in lowered:
+        print("  ✗ 产物报错，lupa 原生模块可能缺失")
+
+    marker = "__AGVMON_LUA_RESULT__"
+    for line in reversed(stdout.splitlines()):
+        if line.strip().startswith(marker):
+            try:
+                result = json.loads(line.strip()[len(marker):].strip())
+            except json.JSONDecodeError:
+                break
+            if result.get("ok"):
+                print(f"  ✓ Lua 沙箱可用: {result.get('result')}")
+                return True
+            print(f"  ✗ 沙箱返回失败: {result.get('error')}")
+            return False
+
+    stderr = proc.stderr.decode("utf-8", errors="replace")[-1500:]
+    print(f"  ✗ 未拿到沙箱结果（退出码 {proc.returncode}）")
+    if stdout.strip():
+        print(f"    stdout: {stdout.strip()[-800:]}")
+    if stderr.strip():
+        print(f"    stderr: {stderr.strip()}")
+    return False
 
 
 def find_7z():
@@ -397,6 +540,11 @@ if __name__ == "__main__":
     parser.add_argument("--skip-compress", action="store_true", help="跳过压缩")
     parser.add_argument("--skip-upload", action="store_true", help="跳过上传")
     parser.add_argument(
+        "--skip-verify",
+        action="store_true",
+        help="跳过打包产物中 Lua 沙箱的冒烟验证",
+    )
+    parser.add_argument(
         "--channel",
         choices=["stable", "beta"],
         default="stable",
@@ -424,5 +572,6 @@ if __name__ == "__main__":
         build_with_nuitka(
             skip_compress=args.skip_compress,
             skip_upload=args.skip_upload,
+            skip_verify=args.skip_verify,
             channel=args.channel,
         )

@@ -135,6 +135,15 @@ const router = createRouter({
       },
       component: () => import('../views/TCPClientView.vue'),
     },
+    // 用户自定义脚本（Lua 沙箱）管理页
+    {
+      path: '/user-script',
+      name: 'user-script',
+      meta: {
+        disc: '用户脚本',
+      },
+      component: () => import('../views/UserScriptView.vue'),
+    },
     // File Upload View Page
     {
       path: '/file-upload',

@@ -49,6 +49,37 @@ allow_hosts = []
 [chat]
 expire_days = 7
 
+# 用户自定义 Lua 脚本（沙箱执行）
+# 默认只允许本机调用；要对外开放必须同时设置 allow_remote = true 和 api_key。
+[user_script]
+enabled = true
+allow_remote = false
+api_key = ""
+timeout_ms = 8000          # 单次执行墙钟超时，超时直接杀进程。
+                           # 联网脚本要留够（一次外网调用 1-3s，示例脚本要调两次）；
+                           # 这也是死循环能烧 CPU 的时间窗口，别设得过于宽松
+max_memory_mb = 64         # Lua 分配器硬上限
+max_payload_kb = 256       # 请求体上限
+max_script_kb = 128        # 脚本正文上限
+max_result_kb = 256        # 结果上限
+max_log_lines = 200        # print/console 最多保留多少行
+max_concurrency = 4        # 同时执行数上限
+max_depth = 64             # 结果 JSON 嵌套深度上限
+max_nodes = 50000          # 结果 JSON 节点数上限
+
+# 脚本里 http.get / http.post 这套外部接口的权限（脚本"调外部 API + 中转"靠它）
+[user_script.http]
+enabled = true                 # 关掉后所有请求返回 error_type = http_disabled
+allowed_hosts = []             # 白名单，空 = 允许任意主机；支持 "*.example.com"
+blocked_hosts = []             # 黑名单，优先级高于白名单
+allow_private_hosts = false    # 是否允许内网/回环地址（默认禁止，防 SSRF）
+timeout_ms = 4000              # 单次请求超时（还会被 [user_script] timeout_ms 卡住）
+max_request_kb = 256           # 请求体上限
+max_response_kb = 512          # 响应体上限，超出部分截断（truncated = true）
+max_requests_per_run = 6       # 单次执行最多发几次请求
+max_redirects = 3              # 最多跟随几次重定向（每一跳都会重新过策略）
+user_agent = "agvmon-user-script/1.0"
+
 [update]
 auto_check = true
 channel = "stable"

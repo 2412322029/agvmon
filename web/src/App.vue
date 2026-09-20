@@ -6,6 +6,7 @@ import {
   ControlFilled,
   ExceptionOutlined,
   FileTextOutlined,
+  FunctionOutlined,
   HomeOutlined,
   InfoCircleOutlined,
   LinkOutlined,
@@ -170,6 +171,12 @@ const menuOptions = computed(() => [
         key: '/tcp-client',
         icon: renderIcon(SwapOutlined),
         onClick: () => router.push('/tcp-client')
+      },
+      {
+        label: '用户脚本',
+        key: '/user-script',
+        icon: renderIcon(FunctionOutlined),
+        onClick: () => router.push('/user-script')
       }
     ]
   },

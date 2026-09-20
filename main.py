@@ -1,5 +1,18 @@
 import argparse
+import sys
 import time
+
+# --- 用户 Lua 脚本 worker 快速通道 -------------------------------------
+# 必须在导入 util.config / util.logger 之前分流：这两个模块会拉起 redis 与
+# loguru（实测约 200ms 冷启动），而脚本本身通常只跑几毫秒、worker 每次执行都
+# 要重启一次进程，这笔开销必须省掉。
+# 该子命令不注册进 argparse（内部命令，不出现在 help 里）；若 argv 形态意外
+# 不符，argparse 会以 "invalid choice" 报错退出，宿主侧会把 stderr 带回来，
+# 因此失败也是可诊断的，而不是静默无输出。
+if __name__ == "__main__" and "lua-worker" in sys.argv[1:3]:
+    from util.lua_worker import main as _lua_worker_main
+
+    sys.exit(_lua_worker_main())
 
 from util.config import cfg
 from util.logger import logger

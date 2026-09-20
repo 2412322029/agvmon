@@ -83,20 +83,17 @@
 
       <!-- 右栏：收发面板 -->
       <div class="col-right">
-        <n-card size="small" :bordered="false">
+        <n-card size="small" :bordered="false" class="panel-card">
           <template #header>
-            <span>{{ activeSession ? activeSession.name : '收发面板' }}</span>
-            <n-text v-if="activeSession" depth="3" style="font-size: 12px; margin-left: 8px">
-              {{ activeSession.host }}:{{ activeSession.port }}
-              <template v-if="activeSession.connected_at"> · {{ activeSession.connected_at }}</template>
-            </n-text>
+            <div class="panel-head">
+              <span class="panel-name" :title="activeSession ? `${activeSession.host}:${activeSession.port}` : ''">
+                {{ activeSession ? activeSession.name : '收发面板' }}
+              </span>
+              <span class="panel-meta" :title="activeSession?.connected_at || ''">{{ panelMeta }}</span>
+            </div>
           </template>
           <template #header-extra>
-            <n-space size="small" align="center">
-              <n-checkbox v-model:checked="liftOnlyAb66" size="small"
-                title="只交接电梯报文：AB66 开头的帧及其分片续帧，其它噪声（心跳/文本）会被丢掉">
-                仅 AB66
-              </n-checkbox>
+            <div class="panel-tools">
               <n-dropdown trigger="click" :options="liftMenuOptions" :disabled="!liftTotal" @select="sendBatchToLift">
                 <n-button size="small" :disabled="!liftTotal" title="把收发记录以 HEX 形式送到「电梯报文解析」">
                   <template #icon>
@@ -105,6 +102,10 @@
                   报文解析
                 </n-button>
               </n-dropdown>
+              <n-checkbox v-model:checked="liftOnlyAb66" size="small"
+                title="只交接电梯报文：AB66 开头的帧及其分片续帧，其它噪声（心跳/文本）会被丢掉">
+                仅 AB66
+              </n-checkbox>
               <n-radio-group v-model:value="displayMode" size="small">
                 <n-radio-button value="text">文本</n-radio-button>
                 <n-radio-button value="hex">HEX</n-radio-button>
@@ -113,7 +114,7 @@
               <n-checkbox v-model:checked="showSys" size="small">系统消息</n-checkbox>
               <n-checkbox v-model:checked="autoScroll" size="small">自动滚动</n-checkbox>
               <n-button size="small" :disabled="!activeSession" @click="clearLog()">清空</n-button>
-            </n-space>
+            </div>
           </template>
 
           <div ref="logBox" class="log-box">
@@ -273,6 +274,18 @@ const logBox = ref(null)
 
 // ── 计算属性 ──
 const activeSession = computed(() => sessions.value.find((s) => s.id === activeId.value) || null)
+
+/** 面板标题下的副标题：名称已等于 host:port 时不重复，时间只显示时分秒 */
+const panelMeta = computed(() => {
+  const s = activeSession.value
+  if (!s) return '请选择或新建连接'
+  const addr = `${s.host}:${s.port}`
+  const parts = []
+  if (s.name !== addr) parts.push(addr)
+  parts.push(s.state === 'connected' && s.connected_at ? `连接于 ${shortTime(s.connected_at)}` : stateLabel(s.state))
+  return parts.join(' · ')
+})
+
 const visibleEntries = computed(() => (showSys.value ? entries.value : entries.value.filter((e) => e.direction !== 'sys')))
 const canSend = computed(
   () => !!activeSession.value && activeSession.value.state === 'connected' && !!sendText.value.trim(),
@@ -307,6 +320,17 @@ function dirLabel(direction) {
 
 function dirName(direction) {
   return { tx: '发送', rx: '接收', sys: '系统' }[direction] || direction
+}
+
+/** 2026-09-20 14:33:12 → 今天只显示 14:33:12，其它日期显示 09-20 14:33:12 */
+function shortTime(value) {
+  if (!value) return ''
+  const m = String(value).match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}:\d{2}:\d{2})/)
+  if (!m) return String(value)
+  const now = new Date()
+  const isToday =
+    Number(m[1]) === now.getFullYear() && Number(m[2]) === now.getMonth() + 1 && Number(m[3]) === now.getDate()
+  return isToday ? m[4] : `${m[2]}-${m[3]} ${m[4]}`
 }
 
 function fmtBytes(size) {
@@ -989,6 +1013,52 @@ onUnmounted(() => {
 }
 
 /* ── 收发日志 ── */
+/* 面板标题：名称 + 副标题（窄屏堆叠，超长省略而不是换行乱掉） */
+.panel-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.panel-name {
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.panel-meta {
+  font-size: 12px;
+  opacity: 0.6;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 工具栏按钮自动换行，不再挤成一行或溢出 */
+.panel-tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 10px;
+  justify-content: flex-end;
+}
+
+.panel-card :deep(.n-card-header) {
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.panel-card :deep(.n-card-header__main) {
+  min-width: 0;
+}
+
+.panel-card :deep(.n-card-header__extra) {
+  margin-left: auto;
+}
+
 .log-box {
   height: 52vh;
   min-height: 260px;
@@ -1099,8 +1169,23 @@ onUnmounted(() => {
   }
 }
 
-/* 小屏：省略长度列与解析按钮，保证时间列完整 */
+/* 移动端：标题与工具栏各占一行，工具栏左对齐换行 */
 @media (max-width: 640px) {
+  .panel-card :deep(.n-card-header) {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .panel-card :deep(.n-card-header__extra) {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .panel-tools {
+    justify-content: flex-start;
+    gap: 6px 8px;
+  }
+
   .entry {
     grid-template-columns: max-content max-content minmax(0, 1fr);
     column-gap: 6px;

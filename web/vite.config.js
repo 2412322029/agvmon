@@ -39,6 +39,14 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes("node_modules")) {
+            // monaco（VS Code 编辑器内核，~3.4MB）是「用户脚本」页里动态 import 进来的，
+            // 这里返回 undefined 交给 rolldown 自动分包：只有打开那个页面才会下载。
+            // 注意别把 monaco 塞进 vendor —— 那样每个页面首屏都要多下 3.4MB；
+            // 也别给它手工指定 chunk 名 —— 试过，preload helper 会被一起塞进那个
+            // chunk，反而让入口 chunk 静态 import 它，同样变成首屏加载。
+            if (id.includes("monaco-editor")) {
+              return undefined;
+            }
             return "vendor";
           }
         },

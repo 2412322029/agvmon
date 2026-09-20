@@ -25,6 +25,11 @@ util/data/bssid_map.json
 .env
 updates/*
 config.toml
+# 用户脚本库（与 config.toml 同级，放在 main.dist 外部以免被更新覆盖）
+# 注意锚定根目录：写成 "data/" 会连带忽略 util/data/ 下的新文件
+/data/
+# 用户自定义 Lua 脚本（用户数据，不进仓库）
+/lua_script/
 util/data/bg-custom.jpg
 util/data/bg-settings.json
 util/data/wcs_device_local.jsonc

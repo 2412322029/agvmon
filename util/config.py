@@ -5,13 +5,17 @@ import sys
 import redis
 import toml
 
-# 配置文件放在 main.dist 外部，防止更新时被覆盖
+# 配置文件与用户数据放在 exe 同级目录，更新包只覆盖包内文件、不做清理，因此不会被覆盖
 _BUNDLED_CFG = __file__.replace("config.py", "config.toml")
 
 if getattr(sys, "frozen", False) or "__compiled__" in globals():
     _APP_ROOT = pathlib.Path(sys.executable).parent
 else:
     _APP_ROOT = pathlib.Path.cwd()
+
+# 应用根目录（打包后为 exe 所在目录，开发时为工作目录）。
+# 需要"更新后仍然保留"的数据（如用户脚本库 lua_script/）都应放这里。
+APP_ROOT = _APP_ROOT
 
 CFG_PATH = str(_APP_ROOT / "config.toml")
 

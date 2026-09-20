@@ -879,8 +879,8 @@ const freeagv = async (agvcode = "", stop = false) => {
                   <span class="value">{{ selectedRobot.alarm?.solution || '无' }}</span>
                 </div>
                 <NSpace>
-                  <NButton @click="stopagv(selectedRobot.RobotId, stop = true)" type="error">停止</NButton>
-                  <NButton @click="stopagv(selectedRobot.RobotId, stop = false)" type="primary">恢复</NButton>
+                  <NButton @click="stopagv(selectedRobot.RobotId, true)" type="error">停止</NButton>
+                  <NButton @click="stopagv(selectedRobot.RobotId, false)" type="primary">恢复</NButton>
                   <NButton @click="openAddExceptionModal" type="warning">添加异常记录</NButton>
                 </NSpace>
               </div>

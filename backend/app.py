@@ -27,6 +27,7 @@ from backend.api.static_routes import (
     setup_static_files,
 )
 from backend.api.tcp_client import tcp_client_router, websocket_tcp_client_endpoint
+from backend.api.user_script import user_script_router
 from backend.api.wcsapi import wcs_web_router
 from backend.api.webshell import shell_router, websocket_shell_endpoint, websocket_shell_monitor
 from backend.api.websocket import websocket_robot_status_endpoint
@@ -154,6 +155,9 @@ app.include_router(shell_router)
 
 # 包含TCP客户端（调试工具）REST路由 — 页面位于 管理 → TCP 客户端
 app.include_router(tcp_client_router, prefix="/api")
+
+# 包含用户自定义 Lua 脚本（沙箱执行）REST路由 — 默认仅本机可调用
+app.include_router(user_script_router, prefix="/api")
 
 # 设置WebSocket路由
 @app.websocket("/ws/robot-status")
