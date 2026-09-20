@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import pathlib
 from datetime import datetime
+from urllib.parse import quote
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
@@ -25,7 +26,6 @@ _BASE = pathlib.Path(__file__).parent.parent.parent
 _MAP_DIRS = (
     _BASE / "util" / "data" / "download",
     _BASE / "util" / "data" / "map",
-    _BASE / "util" / "data",
 )
 # 单文件上限，避免误把超大文件当拓扑地图
 _MAX_SIZE = 64 * 1024 * 1024
@@ -98,5 +98,5 @@ def get_map_raw(name: str):
     return FileResponse(
         path,
         media_type="application/xml",
-        headers={"Cache-Control": "no-cache", "X-Map-File": path.name},
+        headers={"Cache-Control": "no-cache", "X-Map-File": quote(path.name, safe="")},
     )

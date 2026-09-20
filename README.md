@@ -25,6 +25,7 @@ AGV 实时监控与运维管理平台，提供机器人状态监控、任务调�
 │       ├── rcswebapi.py    # RCS2000 Web 接口
 │       ├── wcsapi.py       # WCS 设备状态接口
 │       ├── agvssh.py       # AGV SSH 远程连接
+│       ├── tcp_client.py   # TCP 调试客户端接口（REST + WebSocket）
 │       ├── log_parser.py   # 日志分析 API（AGV/WCS/Clean）
 │       ├── websocket.py    # WebSocket 实时推送
 │       ├── startup.py      # 启动事件
@@ -33,6 +34,7 @@ AGV 实时监控与运维管理平台，提供机器人状态监控、任务调�
 │   ├── config.py           # 配置管理器（TOML）
 │   ├── config.toml         # 配置文件
 │   ├── rabbitmq.py         # RabbitMQ 客户端
+│   ├── tcp_client.py       # TCP 调试客户端（连接管理 / 收发记录）
 │   ├── zeromq_sub.py       # ZeroMQ 订阅
 │   ├── ssh_manager.py      # SSH 连接管理
 │   ├── yuv2png.py          # YUV 图像转换
@@ -142,6 +144,13 @@ agvmon --help
 - DataMatrix 条码编码（SVG 输出）
 - 解码识别
 - 适用于 AGV 路径物理标记识别
+
+### TCP 调试客户端（管理 → TCP 客户端）
+- 连接任意 `host:port`，文本 / HEX 双向收发
+- 收发记录由后端保留（每会话默认 500 条），WebSocket 实时推送（`/ws/tcp-client/{id}`）
+- 断线自动重连、定时发送、编码可选（utf-8 / gbk / ascii …）、收发方向过滤与自动滚动
+- 接口：`/api/tcp/sessions*`（REST），配置见 `[tcp_client]`（白名单、上限、超时等）
+- 冒烟测试：`python test_tcp_client.py`（本地回环，无需 Redis / RCMS）
 
 ### 日志分析
 - **AGV 日志**：远程下载（SSE 实时进度）、本地管理、PIO 信号位对比分析

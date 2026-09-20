@@ -16,6 +16,7 @@ import {
   RadiusSettingOutlined,
   SettingOutlined,
   SwitcherOutlined,
+  SwapOutlined,
   ToolOutlined,
   WifiOutlined,
 } from '@vicons/antd';
@@ -163,6 +164,12 @@ const menuOptions = computed(() => [
         key: '/ssh-mgr',
         icon: renderIcon(RadiusSettingOutlined),
         onClick: () => router.push('/ssh-mgr')
+      },
+      {
+        label: 'TCP 客户端',
+        key: '/tcp-client',
+        icon: renderIcon(SwapOutlined),
+        onClick: () => router.push('/tcp-client')
       }
     ]
   },

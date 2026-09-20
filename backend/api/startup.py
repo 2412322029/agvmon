@@ -148,3 +148,10 @@ def setup_startup_event(app: FastAPI):
     @app.on_event("shutdown")
     async def shutdown_event():
         stop_default()
+        # 关闭所有 TCP 客户端会话（管理 → TCP 客户端）
+        try:
+            from util.tcp_client import tcp_clients
+
+            await tcp_clients.close_all()
+        except Exception:
+            pass

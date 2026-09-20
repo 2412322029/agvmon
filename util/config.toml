@@ -37,6 +37,15 @@ disconnect_timeout = 10
 cols = 120
 rows = 40
 
+# 管理 → TCP 客户端（通用 TCP 调试工具）
+[tcp_client]
+max_sessions = 8
+max_log_entries = 500
+max_preview_bytes = 2048
+connect_timeout = 8.0
+reconnect_delay = 3.0
+allow_hosts = []
+
 [chat]
 expire_days = 7
 

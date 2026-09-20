@@ -4,7 +4,7 @@ import {
   NForm, NFormItem, NInput, NInputNumber, NRadioButton, NRadioGroup, NSelect, NSpace,
   NTabPane, NTabs, NTag, NText, useMessage
 } from 'naive-ui';
-import { computed, h, onMounted, reactive, ref, watch } from 'vue';
+import { computed, h, nextTick, onMounted, reactive, ref, watch } from 'vue';
 import AGVProtocolParser from './AGVProtocolParser.js';
 
 const message = useMessage();
@@ -25,6 +25,38 @@ const handoffSource = ref('');
 // ══════════════════════════════════════════════════════════════════════
 const parseInput = ref('');
 const activeIdx = ref(0);
+
+/**
+ * 输入净化：去掉空格类字符（半角/全角/不间断空格、制表符），保留换行以便多帧分列显示。
+ * 制表符、粘贴来的「AB 66 00 …」都会在输入框里被自动清理掉，解析器只需处理紧凑 HEX。
+ */
+function stripSpaces(text) {
+  return String(text ?? '')
+    .replace(/[ \t\u00A0\u3000]+/g, '')
+    .replace(/\r\n?/g, '\n')
+    .replace(/\n{2,}/g, '\n');
+}
+
+/** NInput 的 update:value：写入前净化，并尽量保持光标位置 */
+function onParseValue(val) {
+  const cleaned = stripSpaces(val);
+  if (cleaned === val) {
+    parseInput.value = val;
+    return;
+  }
+  const el = document.activeElement;
+  const focused = el && el.tagName === 'TEXTAREA' ? el : null;
+  const caret = focused ? focused.selectionStart : null;
+  const nextCaret = caret == null ? null : stripSpaces(String(val).slice(0, caret)).length;
+  parseInput.value = cleaned;
+  if (nextCaret != null) {
+    nextTick(() => {
+      if (focused && document.activeElement === focused) {
+        focused.setSelectionRange(nextCaret, nextCaret);
+      }
+    });
+  }
+}
 
 const parseResult = computed(() => (parseInput.value.trim() ? parser.parseElevatorStream(parseInput.value) : null));
 const frames = computed(() => parseResult.value?.frames || []);
@@ -137,13 +169,13 @@ const SAMPLE = [
 ].join('\n');
 
 function fillParse(hex) {
-  parseInput.value = hex;
+  parseInput.value = stripSpaces(hex);
   activeIdx.value = 0;
   mainTab.value = 'parse';
 }
-function loadSample() { parseInput.value = SAMPLE; activeIdx.value = 0; }
+function loadSample() { parseInput.value = stripSpaces(SAMPLE); activeIdx.value = 0; }
 
-/** 接收「日志分析」跳转交接过来的多帧报文 */
+/** 接收其它页面（日志分析 / TCP 客户端）跳转交接过来的多帧报文 */
 onMounted(() => {
   let text = '';
   try {
@@ -153,11 +185,11 @@ onMounted(() => {
     sessionStorage.removeItem(LIFT_HANDOFF_SRC);
   } catch (e) { /* 忽略 */ }
   if (!text.trim()) { handoffSource.value = ''; return; }
-  parseInput.value = text;
+  parseInput.value = stripSpaces(text);
   activeIdx.value = 0;
   mainTab.value = 'parse';
-  const count = parser.parseElevatorStream(text).count;
-  message.success(`已从日志分析载入 ${count} 帧报文${handoffSource.value ? '（' + handoffSource.value + '）' : ''}`);
+  const count = parser.parseElevatorStream(parseInput.value).count;
+  message.success(`已载入 ${count} 帧报文${handoffSource.value ? '（来源：' + handoffSource.value + '）' : ''}`);
 });
 
 // ══════════════════════════════════════════════════════════════════════
@@ -249,7 +281,7 @@ function resetGen() {
 
 /** 把生成结果送到解析页签做回读校验 */
 function sendToParse(hex) {
-  parseInput.value = hex;
+  parseInput.value = stripSpaces(hex);
   activeIdx.value = 0;
   mainTab.value = 'parse';
   message.success('已发送到解析');
@@ -374,12 +406,12 @@ const notes = [
       <n-tab-pane name="parse" tab="报文解析">
         <n-card size="small" title="十六进制报文">
           <n-alert v-if="handoffSource" type="info" closable style="margin-bottom:8px" @close="handoffSource = ''">
-            已从「日志分析 · 报文行视图」载入 {{ frames.length }} 帧报文（来源：{{ handoffSource }}），下方按帧逐条解析。
+            已载入 {{ frames.length }} 帧报文（来源：{{ handoffSource }}），下方按帧逐条解析。
           </n-alert>
           <n-form label-placement="left" label-width="90">
             <n-form-item label="报文输入">
-              <n-input v-model:value="parseInput" type="textarea" :rows="6" class="mono"
-                placeholder="AB660000030100FF0003&#10;支持空格/逗号/换行分隔，可一次粘贴多帧（如请求 + 应答）" />
+              <n-input :value="parseInput" type="textarea" :rows="6" class="mono" @update:value="onParseValue"
+                placeholder="AB660000030100FF0003&#10;可一次粘贴多帧（如请求 + 应答），支持逗号/换行分隔&#10;空格会被自动去除，无需手工整理" />
             </n-form-item>
             <n-form-item>
               <n-space>

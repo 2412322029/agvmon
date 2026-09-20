@@ -126,6 +126,15 @@ const router = createRouter({
       },
       component: () => import('../views/SSHConnectionManagementView.vue'),
     },
+    // TCP Client (debug tool) Page
+    {
+      path: '/tcp-client',
+      name: 'tcp-client',
+      meta: {
+        disc: 'TCP 客户端',
+      },
+      component: () => import('../views/TCPClientView.vue'),
+    },
     // File Upload View Page
     {
       path: '/file-upload',
