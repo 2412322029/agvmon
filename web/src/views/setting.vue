@@ -417,10 +417,12 @@ const FIELD_META = {
 
   'web.host': { label: '监听地址', desc: 'uvicorn 绑定的 IP 地址', hint: '0.0.0.0 所有网卡 / 127.0.0.1 仅本机' },
   'web.port': { label: 'Web 端口', desc: 'FastAPI 服务端口', hint: '1-65535' },
-  'web.workers': { label: '工作进程数', desc: 'uvicorn worker 数量', hint: '建议 1-4' },
+  'web.workers': { label: '工作进程数', desc: 'uvicorn worker 数量，超过一个会有多进程数据不一致问题', hint: '建议 1-4' },
 
   'agv.usernames': { label: 'AGV SSH 用户名', desc: 'SSH 连接 AGV 小车时依次尝试的用户名列表' },
   'agv.passwords': { label: 'AGV SSH 密码', desc: 'SSH 连接 AGV 小车时依次尝试的密码列表，非本机隐藏' },
+
+  'agvlog.parser': { label: 'AGV 日志解析器', desc: '默认Python的解析实现、跨平台, exe: 备选实现：调用原 parsezlib_2_7_8.exe' , hint: 'python / exe' },
 
   'webshell.enabled': { label: '启用 Web Shell', desc: '关闭后隐藏前端菜单并拒绝所有连接' },
   'webshell.allowed_hosts': { label: '允许访问的 IP', desc: 'Web Shell 访问白名单' },
@@ -471,10 +473,11 @@ const FIELD_META = {
 
 const SECTION_LABELS = {
   '': '全局',
+  'agvlog': 'AGV 日志解析器',
   'rcms': 'RCMS 连接',
-  'redis': 'Redis',
+  'redis': 'Redis 服务',
   'web': 'Web 服务',
-  'agv': 'AGV SSH',
+  'agv': 'AGV SSH 登录',
   'webshell': 'Web Shell',
   'tcp_client': 'TCP 客户端',
   'user_script': '用户脚本',
