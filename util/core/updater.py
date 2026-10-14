@@ -65,7 +65,7 @@ class UpdateManager:
 
     def _get_config(self) -> dict:
         try:
-            from util.config import cfg
+            from util.core.config import cfg
 
             return {
                 "update_url": (
@@ -114,7 +114,7 @@ class UpdateManager:
 
     async def check(self) -> dict:
         """Check update server for a newer version."""
-        from util.__version__ import version as current_ver
+        from util.core.__version__ import version as current_ver
 
         self._status = "checking"
         config = self._get_config()

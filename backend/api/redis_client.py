@@ -1,4 +1,4 @@
-from util.config import r
+from util.core.config import r
 
 
 

@@ -85,3 +85,9 @@ auto_check = true
 channel = "stable"
 check_interval_hours = 24
 update_url = "https://unrun.top/"
+
+# AGV 日志解析器
+#   python = 内置纯 Python 解压（util/logs/parse_agvlog.py），输出与原 exe 逐字节一致
+#   exe    = 原 parsezlib_2_7_8.exe（util/tool/），备选
+[agvlog]
+parser = "python"

@@ -5,11 +5,11 @@
     <APP_ROOT>/lua_script/
         user_scripts.db      元信息 + 执行审计（SQLite）
         demo.echo.lua        脚本正文 —— **真身**，可以直接用外部编辑器改
-        .backup/             覆盖或删除前的历史正文（每脚本最多留 5 份）
+        .backup/             覆盖或删除前的历史正文（每脚本最多留 3 份）
 
 放在 ``<APP_ROOT>``（打包后就是 ``agvmon.exe`` 所在目录）而不是别处：更新流程是用
 robocopy 把更新包覆盖上去、**不做清理**，包内也不含 ``lua_script/``，所以脚本不会被
-版本更新冲掉（与 ``util/config.py`` 里 config.toml 的处理一致）。
+版本更新冲掉（与 ``util/core/config.py`` 里 config.toml 的处理一致）。
 
 **正文以 .lua 文件为准**：读取时永远先看文件，文件内容与库里的副本不一致
 （说明有人直接编辑了文件）就以文件为准回写副本并递增版本；文件被误删时用库里
@@ -24,14 +24,14 @@ import sqlite3
 from datetime import datetime
 from pathlib import Path
 
-from util.config import APP_ROOT
+from util.core.config import APP_ROOT
 
 # 脚本目录名（相对 APP_ROOT）与库文件名
 SCRIPT_DIR_NAME = "lua_script"
 INDEX_DB_NAME = "user_scripts.db"
 BACKUP_DIR_NAME = ".backup"
 # 每个脚本保留的历史正文份数（覆盖 / 删除前自动留一份）
-MAX_BACKUPS = 5
+MAX_BACKUPS = 3
 
 # 旧版把库放在 <APP_ROOT>/data/user_scripts.db，首次启动时自动搬过来
 LEGACY_DB_RELATIVE = Path("data") / "user_scripts.db"
@@ -547,7 +547,7 @@ class UserScriptStore:
 
         if moved:
             try:
-                from util.logger import logger
+                from util.core.logger import logger
 
                 logger.info(f"用户脚本库已迁移到 {self.root_dir}：{moved} 个脚本")
             except Exception:

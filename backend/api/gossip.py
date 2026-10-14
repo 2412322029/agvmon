@@ -6,7 +6,7 @@ import time
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
-from util.gossip import get_local_info, get_node
+from util.net.gossip import get_local_info, get_node
 
 logger = logging.getLogger("gossip.ws")
 

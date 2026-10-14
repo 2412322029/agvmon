@@ -6,6 +6,8 @@ import xml.etree.ElementTree as ET
 
 from PIL import Image, ImageDraw, ImageFont
 
+from util.core.paths import DATA_DIR
+
 logger = logging.getLogger(__name__)
 
 
@@ -146,7 +148,7 @@ def AlarmType(t: str):
         else:
             main_code, sub_code = t, None
         # 构建AmrStatusInfo.json文件路径
-        file_path = os.path.join(os.path.dirname(__file__), "data", "AlarmInfo.json")
+        file_path = os.path.join(DATA_DIR, "AlarmInfo.json")
         with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
         # 查找主告警类型
@@ -205,7 +207,7 @@ def AmrStatusType(t: str, types="1"):
     """
 
     # 构建AmrStatusInfo.json文件路径
-    file_path = os.path.join(os.path.dirname(__file__), "data", "AmrStatusInfo.json")
+    file_path = os.path.join(DATA_DIR, "AmrStatusInfo.json")
 
     try:
         with open(file_path, "r", encoding="utf-8") as f:

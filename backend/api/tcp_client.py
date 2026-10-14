@@ -32,8 +32,8 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
-from util.logger import logger
-from util.tcp_client import TcpClientError, tcp_clients
+from util.core.logger import logger
+from util.net.tcp_client import TcpClientError, tcp_clients
 
 tcp_client_router = APIRouter(
     prefix="/tcp",

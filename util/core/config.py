@@ -1,3 +1,4 @@
+import os
 import pathlib
 import shutil
 import sys
@@ -5,8 +6,10 @@ import sys
 import redis
 import toml
 
+from util.core.paths import UTIL_DIR
+
 # 配置文件与用户数据放在 exe 同级目录，更新包只覆盖包内文件、不做清理，因此不会被覆盖
-_BUNDLED_CFG = __file__.replace("config.py", "config.toml")
+_BUNDLED_CFG = os.path.join(UTIL_DIR, "config.toml")
 
 if getattr(sys, "frozen", False) or "__compiled__" in globals():
     _APP_ROOT = pathlib.Path(sys.executable).parent

@@ -235,7 +235,7 @@ def build_with_nuitka(
     print(f"Build Time: {build_time}")
 
     # 更新 __version__.py
-    version_file = project_dir / "util" / "__version__.py"
+    version_file = project_dir / "util" / "core" / "__version__.py"
     with open(version_file, "w", encoding="utf-8") as f:
         f.write(f'version = "{version}"\n')
         f.write(f'build_time = "{build_time}"\n')

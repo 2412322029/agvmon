@@ -17,7 +17,7 @@ from fastapi import (
 )
 from fastapi.responses import FileResponse
 
-from util.config import cfg, r
+from util.core.config import cfg, r
 
 util_web_router = APIRouter(
     prefix="/util",
@@ -478,7 +478,7 @@ def redis_info():
 def get_backend_version():
     """返回后端版本信息"""
     try:
-        from util.__version__ import build_time, git_hash, version
+        from util.core.__version__ import build_time, git_hash, version
         return {
             "version": version,
             "build_time": build_time,

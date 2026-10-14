@@ -18,7 +18,7 @@ export const LUA_KEYWORDS = [
   'true', 'until', 'while',
 ]
 
-/** 与 util/lua_sandbox.py 白名单一致的全局 */
+/** 与 util/lua/lua_sandbox.py 白名单一致的全局 */
 export const SANDBOX_GLOBALS = [
   { name: '_G', kind: 'property', detail: '全局表', doc: '沙箱全局表本体，只包含白名单里的东西。' },
   { name: '_VERSION', kind: 'constant', detail: 'Lua 版本', doc: '例如 `"Lua 5.5"`。' },

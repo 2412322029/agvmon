@@ -8,11 +8,12 @@ from hashlib import md5, sha256
 
 import httpx
 
-from util.config import cfg
+from util.core.config import cfg
+from util.core.paths import DATA_DIR
 
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger()
-cache_path = pathlib.Path(os.path.join(os.path.dirname(__file__), "data/cache"))
+cache_path = pathlib.Path(os.path.join(DATA_DIR, "cache"))
 if not cache_path.exists():
     cache_path.mkdir()
 

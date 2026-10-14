@@ -31,7 +31,7 @@ from backend.api.user_script import user_script_router
 from backend.api.wcsapi import wcs_web_router
 from backend.api.webshell import shell_router, websocket_shell_endpoint, websocket_shell_monitor
 from backend.api.websocket import websocket_robot_status_endpoint
-from util.config import cfg
+from util.core.config import cfg
 
 # 创建FastAPI应用
 app = FastAPI(

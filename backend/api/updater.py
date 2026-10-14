@@ -21,7 +21,7 @@ update_router = APIRouter(tags=["update"])
 @update_router.get("/update/check")
 async def check_update():
     """Check if a newer version is available on the update server."""
-    from util.updater import get_updater
+    from util.core.updater import get_updater
 
     updater = get_updater()
     result = await updater.check()
@@ -31,7 +31,7 @@ async def check_update():
 @update_router.get("/update/download")
 async def download_update():
     """Stream the update ZIP download via SSE with progress events."""
-    from util.updater import get_updater
+    from util.core.updater import get_updater
 
     updater = get_updater()
 
@@ -53,7 +53,7 @@ async def download_update():
 @update_router.post("/update/apply")
 async def apply_update():
     """Extract the downloaded update and trigger restart."""
-    from util.updater import get_updater
+    from util.core.updater import get_updater
 
     updater = get_updater()
     result = updater.apply()
@@ -73,7 +73,7 @@ async def apply_update():
 @update_router.get("/update/status")
 async def update_status():
     """Get current update state."""
-    from util.updater import get_updater
+    from util.core.updater import get_updater
 
     updater = get_updater()
     return {

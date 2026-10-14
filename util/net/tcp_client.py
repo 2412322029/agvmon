@@ -31,8 +31,8 @@ import uuid
 from collections import deque
 from datetime import datetime
 
-from util.config import cfg
-from util.logger import logger
+from util.core.config import cfg
+from util.core.logger import logger
 
 # ---- 默认参数 ----
 DEFAULT_MAX_SESSIONS = 8

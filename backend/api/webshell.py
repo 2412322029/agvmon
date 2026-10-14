@@ -21,7 +21,7 @@ from concurrent.futures import ThreadPoolExecutor
 from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
 from winpty import PtyProcess
 
-from util.config import cfg
+from util.core.config import cfg
 
 # ---------------------------------------------------------------------------
 # PTY 读写线程池 — 避免占用 FastAPI 默认线程池

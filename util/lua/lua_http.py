@@ -4,7 +4,7 @@
 ==================
 
 脚本里的 ``http`` 表是纯 Lua 写的，但它不能自己联网 —— 真正的请求动作由宿主
-Python 完成。桥接方式见 ``util/lua_sandbox.py`` 的 ``__install_http``：
+Python 完成。桥接方式见 ``util/lua/lua_sandbox.py`` 的 ``__install_http``：
 
 * Lua → Python 只传一个 JSON 字符串（请求描述）；
 * Python → Lua 只回一个 JSON 字符串（结果）；

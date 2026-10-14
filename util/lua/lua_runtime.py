@@ -26,8 +26,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from util import lua_http
-from util.config import APP_ROOT, cfg
+from util.lua import lua_http
+from util.core.config import APP_ROOT, cfg
+from util.core.paths import PROJECT_ROOT
 
 RESULT_MARKER = "__AGVMON_LUA_RESULT__"
 MAX_STDERR_CHARS = 2000
@@ -57,7 +58,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
     # 结果 JSON 的嵌套深度与节点数上限（防爆栈/防巨表）
     "max_depth": 64,
     "max_nodes": 50000,
-    # 外部 HTTP 策略（[user_script.http]），由 util/lua_http.py 解释
+    # 外部 HTTP 策略（[user_script.http]），由 util/lua/lua_http.py 解释
     "http": dict(lua_http.DEFAULT_POLICY),
 }
 
@@ -124,7 +125,7 @@ def worker_command() -> list[str]:
     """
     if getattr(sys, "frozen", False) or "__compiled__" in globals():
         return [sys.executable, "run", "lua-worker"]
-    main_py = Path(__file__).resolve().parent.parent / "main.py"
+    main_py = Path(PROJECT_ROOT) / "main.py"
     return [sys.executable, str(main_py), "run", "lua-worker"]
 
 

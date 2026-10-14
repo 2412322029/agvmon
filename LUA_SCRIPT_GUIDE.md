@@ -2,8 +2,8 @@
 
 > **读者**：需要为本平台**生成、修改、审查用户脚本**的 AI（人类同样适用）。
 > **目标**：写出来的脚本第一次跑就通、能当 API 端点给别的服务调用、出错时能被快速定位。
-> **事实来源**：本文每一条都对应仓库当前实现 —— 运行时 `util/lua_sandbox.py` / `util/lua_runtime.py`、
-> 外部 HTTP `util/lua_http.py`、接口层 `backend/api/user_script.py`、脚本库 `util/user_script_store.py`、
+> **事实来源**：本文每一条都对应仓库当前实现 —— 运行时 `util/lua/lua_sandbox.py` / `util/lua/lua_runtime.py`、
+> 外部 HTTP `util/lua/lua_http.py`、接口层 `backend/api/user_script.py`、脚本库 `util/lua/user_script_store.py`、
 > 默认配置 `util/config.toml`。改代码时请同步改本文。
 > 一般不用读取修改py.
 ---
@@ -86,7 +86,7 @@ HTTP 请求
    │    ├─ 把请求变成入参（query + body 合并）
    │    └─ 落一条执行审计（user_script_runs）
    │
-   ├─ 起一个**独立子进程**跑 worker（util/lua_worker.py）
+   ├─ 起一个**独立子进程**跑 worker（util/lua/lua_worker.py）
    │    ├─ stdin 收一个 JSON job（code / payload / limits / http 策略 / request 元信息）
    │    ├─ lupa 建 Lua 5.5 运行时（lupa 在 C 层限制内存）
    │    ├─ 白名单锁定全局表（先清空所有全局，再装回允许的那些）

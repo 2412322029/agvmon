@@ -17,8 +17,9 @@ import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from util.__version__ import build_time, git_hash, version
-from util.config import cfg
+from util.core.__version__ import build_time, git_hash, version
+from util.core.config import cfg
+from util.core.paths import DATA_DIR
 
 logger = logging.getLogger("gossip")
 
@@ -301,7 +302,7 @@ class GossipNode:
         # BSSID 位置映射
         self._bssid_map: dict[str, dict] = {}
         self._bssid_map_lock = threading.Lock()
-        self._bssid_map_path = Path(__file__).parent / "data" / "bssid_map.json"
+        self._bssid_map_path = Path(DATA_DIR) / "bssid_map.json"
         self._load_bssid_map()
 
     # ---- 生命周期 ----

@@ -7,8 +7,8 @@ from fastapi import APIRouter, Body, Request
 from pydantic import BaseModel, Field
 
 # from backend.api.rcswebapi import refresh_rcs_api
-from util.config import cfg, r
-from util.xml2json import safe_lxml_parse
+from util.core.config import cfg, r
+from util.codec.xml2json import safe_lxml_parse
 
 # 导入异常日志数据库
 from .exception_log import ExceptionLogDB
@@ -19,8 +19,8 @@ try:
 except RuntimeError:
     pass  # 如果已经设置过则跳过
 
-from util.rcms_api import RcmsApi
-from util.zeromq import Map_info_update
+from util.net.rcms_api import RcmsApi
+from util.net.zeromq import Map_info_update
 
 # 创建RcmsApi实例
 rapi = RcmsApi()
@@ -50,7 +50,7 @@ current_zeromq_process = None  # 保存当前的进程引用
 
 # 全局函数，用于在子进程中启动Map_info_update
 def start_map_update_process():
-    from util.rcms_api import RcmsApi
+    from util.net.rcms_api import RcmsApi
 
     fresh_rapi = RcmsApi()
     fresh_rapi.build_from_cache()
@@ -371,7 +371,7 @@ def genmap_api():
 @rcms_router.post("/saveport")
 async def saveport_api():
     """保存 bufferPort / machinePort 到缓存"""
-    from util.rcs_web_api import RcsWebApi
+    from util.net.rcs_web_api import RcsWebApi
 
     try:
         async with RcsWebApi() as rcs_api:
@@ -384,7 +384,7 @@ async def saveport_api():
 @rcms_router.post("/transport")
 def transport_api():
     """从缓存 bufferPort / machinePort 生成 cmsindexmap"""
-    from util.rcs_web_api import RcsWebApi
+    from util.net.rcs_web_api import RcsWebApi
 
     try:
         RcsWebApi().transport()

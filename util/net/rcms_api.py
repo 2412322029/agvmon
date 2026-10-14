@@ -5,19 +5,20 @@ import pathlib
 
 import httpx
 
-from util.xml2json import safe_lxml_parse
+from util.codec.xml2json import safe_lxml_parse
 
-from .config import cfg
-from .dataparse import generate_map_image, parse_ShareMapInfo
-from .helper import sharemap2json
+from util.core.config import cfg
+from util.core.helper import sharemap2json
+from util.core.paths import DATA_DIR
+from util.codec.dataparse import generate_map_image, parse_ShareMapInfo
 
 logger = logging.getLogger(__name__)
 
 
-fake_path = pathlib.Path(os.path.join(os.path.dirname(__file__), "data/fake"))
+fake_path = pathlib.Path(os.path.join(DATA_DIR, "fake"))
 if not fake_path.exists():
     fake_path.mkdir()
-cache_path = pathlib.Path(os.path.join(os.path.dirname(__file__), "data/cache"))
+cache_path = pathlib.Path(os.path.join(DATA_DIR, "cache"))
 if not cache_path.exists():
     cache_path.mkdir()
 

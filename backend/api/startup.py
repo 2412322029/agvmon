@@ -8,8 +8,8 @@ from fastapi import FastAPI
 from backend.api.other import cleanup_expired_files
 from backend.api.rcmsapi import rapi
 from backend.api.websocket import broadcast_robot_status, start_zeromq_management_task
-from util.config import cfg
-from util.gossip import get_local_info, get_node, stop_default
+from util.core.config import cfg
+from util.net.gossip import get_local_info, get_node, stop_default
 
 logger = logging.getLogger("gossip.state")
 
@@ -150,7 +150,7 @@ def setup_startup_event(app: FastAPI):
         stop_default()
         # 关闭所有 TCP 客户端会话（管理 → TCP 客户端）
         try:
-            from util.tcp_client import tcp_clients
+            from util.net.tcp_client import tcp_clients
 
             await tcp_clients.close_all()
         except Exception:

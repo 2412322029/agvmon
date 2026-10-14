@@ -5,16 +5,20 @@ import os
 import subprocess
 from ipaddress import ip_address
 
-from util.config import cfg
+from util.core.config import cfg
 
 # import time
-from util.logger import logger
-from util.rcs_web_api import RcsWebApi
-from util.ssh import SSHManager
+from util.core.logger import logger
+from util.core.paths import DATA_DIR, TOOL_DIR, UTIL_DIR
+from util.logs.parse_agvlog import output_name_for, parse_file
+from util.net.rcs_web_api import RcsWebApi
+from util.net.ssh import SSHManager
 
-agv_log_dir = os.path.join(os.path.dirname(__file__), "data", "agvlog")
+agv_log_dir = os.path.join(DATA_DIR, "agvlog")
 if not os.path.exists(agv_log_dir):
     os.makedirs(agv_log_dir)
+
+PARSEZLIB_EXE = os.path.join(TOOL_DIR, "parsezlib_2_7_8.exe")
 
 
 def parse_time_from_filename(filename: str):
@@ -32,22 +36,97 @@ def parse_time_from_filename(filename: str):
     )
 
 
+def _parse_agv_log_python(log_file_path: str, txt_file_path: str | None, carid: str):
+    """用纯 Python 实现（parse_agvlog）解压，行为对齐原 exe。
+
+    parse_file() 不抛异常，失败信息在 ParseResult 里，这里翻译回异常，
+    以保持调用方（backend/api/log_parser.py）的 400/404/500 映射不变。
+    """
+    res = parse_file(log_file_path, txt_file_path, overwrite=True)
+    if not res.ok:
+        # 失败时可能已写出半成品，删掉，避免下次被缓存命中当成成功
+        partial = res.dst or txt_file_path
+        if partial and os.path.exists(partial):
+            try:
+                os.remove(partial)
+            except OSError:
+                pass
+        raise Exception(f"解析失败: {res.error}")
+
+    logger.info(
+        f"解析AGV日志文件 {os.path.basename(log_file_path)} 完成(python): "
+        f"{res.chunks} 块, {res.in_bytes} -> {res.out_bytes} 字节"
+    )
+    return res.dst or txt_file_path, carid
+
+
+def _parse_agv_log_exe(log_file_path: str, carid: str):
+    """备选实现：调用原 parsezlib_2_7_8.exe（Windows 专用二进制）。
+
+    由 config.toml 的 [agvlog] parser = "exe" 启用。
+    """
+    if not os.path.exists(PARSEZLIB_EXE):
+        raise FileNotFoundError(f"parsezlib 工具不存在: {PARSEZLIB_EXE}")
+
+    log_dir = os.path.dirname(log_file_path)
+    log_filename = os.path.basename(log_file_path)
+
+    try:
+        result = subprocess.run(
+            [PARSEZLIB_EXE, log_filename],
+            cwd=log_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        logger.info(f"解析AGV日志文件 {log_filename} 输出: {result.stdout.strip()}")
+
+        # exe 按 0x4013c0 规则命名输出：{文件名后4位}_{去掉后5位的原名}.txt
+        try:
+            txt_file_path = os.path.join(
+                log_dir, output_name_for(log_filename, rule="exe")
+            )
+        except ValueError:
+            txt_file_path = None
+        if txt_file_path and os.path.exists(txt_file_path):
+            return txt_file_path, carid
+
+        # 文件名不足以推出输出名时，退回目录下最新的 txt
+        txt_files = [f for f in os.listdir(log_dir) if f.endswith(".txt")]
+        if txt_files:
+            txt_files.sort(
+                key=lambda x: os.path.getmtime(os.path.join(log_dir, x)), reverse=True
+            )
+            return os.path.join(log_dir, txt_files[0]), carid
+
+        raise Exception("解析成功但未找到生成的 txt 文件")
+
+    except subprocess.CalledProcessError as e:
+        raise Exception(f"解析失败: {e.stderr.strip()}")
+    except Exception as e:
+        raise Exception(f"解析过程出错: {str(e)}")
+
+
 def parse_agv_log(log_filename: str):
     """
-    使用 parsezlib_2_7_8.exe 工具解析 AGV 日志文件
+    解析 AGV 日志文件，生成 txt。
+
+    默认用内置的纯 Python 实现（util/logs/parse_agvlog.py，输出与原 exe 逐字节
+    一致）；把 config.toml 的 [agvlog] parser 设为 "exe" 可切回原
+    parsezlib_2_7_8.exe（util/tool/），作为备选。
 
     Args:
         log_filename: AGV 日志文件名
 
     Returns:
-        tuple: 生成的 txt 文件路径和AGV编号
+        tuple: (生成的 txt 文件路径, AGV编号)
     """
     if not log_filename.startswith("AGV_"):
         raise ValueError(f"AGV 日志文件名必须以 AGV_ 开头: {log_filename}")
     carid = log_filename.split("_CASTOR_")[1]
 
-    # 先检查当前目录
-    log_file_path = os.path.join(os.path.dirname(__file__), log_filename)
+    # 先检查当前目录（util/）
+    log_file_path = os.path.join(UTIL_DIR, log_filename)
     if not os.path.exists(log_file_path):
         # 再检查 data/agvlog 目录
         log_file_path = os.path.join(agv_log_dir, log_filename)
@@ -58,62 +137,27 @@ def parse_agv_log(log_filename: str):
     log_dir = os.path.dirname(log_file_path)
     log_filename = os.path.basename(log_file_path)
 
-    # 构建 parsezlib 工具路径
-    parsezlib_exe = os.path.join(
-        os.path.dirname(__file__), "tool", "parsezlib_2_7_8.exe"
-    )
-
-    if not os.path.exists(parsezlib_exe):
-        raise FileNotFoundError(f"parsezlib 工具不存在: {parsezlib_exe}")
-
-    # 生成的 txt 文件名格式: {编号}_{原文件名}_CASTOR.txt
-    # 从原文件名提取编号，例如 AGV_2026_04_24_15_15_12_CASTOR_1032 -> 1032
-    parts = log_filename.split("_")
-    if len(parts) > 0:
-        suffix = parts[-1]
-        if suffix.isdigit():
-            txt_filename = f"{suffix}_{'_'.join(parts[:-1])}.txt"
-            txt_file_path = os.path.join(log_dir, txt_filename)
-            if os.path.exists(txt_file_path):
-                logger.info(f"AGV日志文件 {log_filename} 已解析，直接返回 txt 文件")
-                return txt_file_path, carid
-
-    # 执行解析命令
+    # 输出名只推算一次：output_name_for(rule="exe") 就是原 exe 0x4013c0 的规则，
+    # 对任意设备号位数都与 exe 实际写出的文件名一致（原实现用 parts[-1].isdigit()
+    # 近似预测，设备号非 4 位时会猜错并退化到"取目录下最新 txt"，可能拿到别的车的
+    # 解析结果）。
     try:
-        result = subprocess.run(
-            [parsezlib_exe, log_filename],
-            cwd=log_dir,
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-        logger.info(f"解析AGV日志文件 {log_filename} 输出: {result.stdout.strip()}")
+        txt_file_path = os.path.join(log_dir, output_name_for(log_filename, rule="exe"))
+    except ValueError:
+        txt_file_path = None
 
-        # 生成的 txt 文件名格式: {编号}_{原文件名}_CASTOR.txt
-        # 从原文件名提取编号，例如 AGV_2026_04_24_15_15_12_CASTOR_1032 -> 1032
-        parts = log_filename.split("_")
-        if len(parts) > 0:
-            suffix = parts[-1]
-            if suffix.isdigit():
-                txt_filename = f"{suffix}_{'_'.join(parts[:-1])}.txt"
-                txt_file_path = os.path.join(log_dir, txt_filename)
-                if os.path.exists(txt_file_path):
-                    return txt_file_path, carid
+    if txt_file_path and os.path.exists(txt_file_path):
+        logger.info(f"AGV日志文件 {log_filename} 已解析，直接返回 txt 文件")
+        return txt_file_path, carid
 
-        # 如果无法解析文件名格式，返回目录下最新的 txt 文件
-        txt_files = [f for f in os.listdir(log_dir) if f.endswith(".txt")]
-        if txt_files:
-            txt_files.sort(
-                key=lambda x: os.path.getmtime(os.path.join(log_dir, x)), reverse=True
-            )
-            return os.path.join(log_dir, txt_files[0])
+    mode = (cfg.get("agvlog.parser") or "python").strip().lower()
+    if mode not in ("python", "exe"):
+        logger.warning(f"未知的 agvlog.parser={mode!r}，改用 python 解析器")
+        mode = "python"
 
-        raise Exception("解析成功但未找到生成的 txt 文件")
-
-    except subprocess.CalledProcessError as e:
-        raise Exception(f"解析失败: {e.stderr.strip()}")
-    except Exception as e:
-        raise Exception(f"解析过程出错: {str(e)}")
+    if mode == "exe":
+        return _parse_agv_log_exe(log_file_path, carid)
+    return _parse_agv_log_python(log_file_path, txt_file_path, carid)
 
 
 def parse_agv_logs(log_filenames: list[str]):
@@ -664,7 +708,7 @@ if __name__ == "__main__":
     files = asyncio.run(
         download_agv_logs(
             "172.26.126.120",
-            prefix="/mnt/d/24123/code/py/agvmon/util/data/agvlog/",
+            prefix=agv_log_dir.replace(os.sep, "/") + "/",
             new_count=2,
         )
     )

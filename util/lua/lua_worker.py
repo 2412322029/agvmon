@@ -12,7 +12,7 @@ stdout 一行标记结果（不是裸 JSON）::
 
     __AGVMON_LUA_RESULT__ {"ok": true, ...}
 
-为什么用标记行而不是直接输出纯 JSON：``util/logger.py`` 把 loguru 的 sink 挂到了
+为什么用标记行而不是直接输出纯 JSON：``util/core/logger.py`` 把 loguru 的 sink 挂到了
 ``sys.stdout``，而本进程经由 ``main.py`` 启动时会带上它，任何日志都会混进 stdout。
 宿主侧只认最后一个标记行，其余内容忽略。
 
@@ -26,7 +26,7 @@ import sys
 import time
 import traceback
 
-# 与 util/lua_runtime.py 保持一致（不 import 对方，避免 worker 拉起多余依赖）
+# 与 util/lua/lua_runtime.py 保持一致（不 import 对方，避免 worker 拉起多余依赖）
 RESULT_MARKER = "__AGVMON_LUA_RESULT__"
 
 # 单条日志最大长度，防止 print(巨长字符串) 把响应撑爆
@@ -138,7 +138,7 @@ def main() -> int:
         return 0
 
     try:
-        from util import lua_sandbox
+        from util.lua import lua_sandbox
     except Exception as exc:
         _emit(
             _fail(
@@ -159,7 +159,7 @@ def main() -> int:
         # 单次请求超时会按"脚本剩余时间"再收一道，避免 3 个请求各等 2.5s
         # 结果被父进程的墙钟超时直接杀掉、报错信息还看不懂。
         try:
-            from util import lua_http
+            from util.lua import lua_http
 
             policy = lua_http.HttpPolicy.from_config(job.get("http"))
             http_bridge = lua_http.HttpBridge(policy, budget_ms=int(limits["timeout_ms"]))

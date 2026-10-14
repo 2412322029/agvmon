@@ -700,7 +700,7 @@ def lua_worker_csp_problems() -> list[str]:
 
 
 def main() -> int:
-    from util import lua_runtime
+    from util.lua import lua_runtime
 
     # ------------------------------------------------------------------
     section("1. worker 链路与运行时")
@@ -911,8 +911,8 @@ def main() -> int:
     try:
         from fastapi.testclient import TestClient
 
-        from util import user_script_store
-        from util.user_script_store import UserScriptStore, default_script_dir
+        from util.lua import user_script_store
+        from util.lua.user_script_store import UserScriptStore, default_script_dir
 
         check("默认脚本目录 = <根>/lua_script", default_script_dir() == ROOT / "lua_script",
               str(default_script_dir()))
@@ -1133,7 +1133,7 @@ def main() -> int:
     # ------------------------------------------------------------------
     section("9. 外部 HTTP：脚本「调外部 API + 中转」的底座")
     # ------------------------------------------------------------------
-    from util import lua_http
+    from util.lua import lua_http
 
     server, port, received = make_mock_server()
     base_url = f"http://127.0.0.1:{port}"
@@ -1364,7 +1364,7 @@ return {
     # ------------------------------------------------------------------
     section("10. 前后端一致性：沙箱全局 / 示例脚本能被真 Lua 编译")
     # ------------------------------------------------------------------
-    from util import lua_sandbox
+    from util.lua import lua_sandbox
 
     js_names = frontend_sandbox_names()
     check("前端提示目录里有沙箱全局", len(js_names) > 20, f"{len(js_names)} 个")

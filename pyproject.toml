@@ -40,6 +40,11 @@ include-package = [
     "backend",
     "backend.api",
     "util",
+    "util.core",
+    "util.net",
+    "util.logs",
+    "util.codec",
+    "util.lua",
     # 用户脚本沙箱的原生 Lua 运行时（lupa 的 Lua VM 静态链在 .pyd 里）
     "lupa",
 ]
@@ -51,8 +56,13 @@ include-data-dir = [
 ]
 follow-import-to = [
     "backend",
-    "backend.api", 
+    "backend.api",
     "util",
+    "util.core",
+    "util.net",
+    "util.logs",
+    "util.codec",
+    "util.lua",
 ]
 output-dir = "dist"
 remove-output = true

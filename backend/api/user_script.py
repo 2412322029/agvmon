@@ -36,9 +36,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
-from util import lua_runtime
-from util.logger import logger
-from util.user_script_store import (
+from util.lua import lua_runtime
+from util.core.logger import logger
+from util.lua.user_script_store import (
     ScriptIdInvalid,
     ScriptNotFound,
     get_store,

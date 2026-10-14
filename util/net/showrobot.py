@@ -4,7 +4,7 @@ import time
 
 from colorama import Fore, Style, init
 
-from .config import cfg, r
+from util.core.config import cfg, r
 
 # 初始化colorama
 init(autoreset=True)

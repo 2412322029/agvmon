@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Body
 
-from util.wcs import Wcs
+from util.net.wcs import Wcs
 
 wcs_web_router = APIRouter(
     prefix="/wcs",

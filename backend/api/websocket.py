@@ -9,7 +9,7 @@ from fastapi import WebSocket
 from fastapi.websockets import WebSocketDisconnect
 
 from backend.api import rcmsapi
-from util.config import cfg, r
+from util.core.config import cfg, r
 
 logger = logging.getLogger(__name__)
 

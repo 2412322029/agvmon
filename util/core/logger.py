@@ -5,11 +5,12 @@ import sys
 
 from loguru import logger
 
-from .config import cfg
+from util.core.config import cfg
+from util.core.paths import APP_LOG_DIR
 
 __all__ = ["logger"]
 
-log_path = pathlib.Path(os.path.join(os.path.dirname(__file__), "../log"))
+log_path = pathlib.Path(APP_LOG_DIR)
 log_path.mkdir(exist_ok=True)
 
 # logging 包的目录路径，用于判断帧是否在 logging 内部

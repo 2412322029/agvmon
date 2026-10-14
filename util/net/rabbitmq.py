@@ -3,7 +3,7 @@ import logging
 
 import pika
 
-from .rcms_api import RcmsApi
+from util.net.rcms_api import RcmsApi
 
 logger = logging.getLogger(__name__)
 

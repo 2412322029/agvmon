@@ -10,13 +10,15 @@ from datetime import datetime
 from typing import Any
 
 # Allow running this file directly from the project root
+# （这里不能用 util.core.paths：直接执行时 util 还不在 sys.path 上）
 if __name__ == "__main__":
-    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
 import httpx
 
-from util.agv_protocol_parser import AGVProtocolParser
-from util.config import cfg
+from util.codec.agv_protocol_parser import AGVProtocolParser
+from util.core.config import cfg
+from util.core.paths import DATA_DIR
 
 logger = logging.getLogger(__name__)
 _parser = AGVProtocolParser()
@@ -30,7 +32,7 @@ PATTERN = re.compile(
     r"result\s*=\s*'([^']*)'"
 )
 
-WCSLOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "wcslog")
+WCSLOG_DIR = os.path.join(DATA_DIR, "wcslog")
 MAX_FILE_SIZE = 15 * 1024 * 1024  # 15 MB
 MAX_FILES = 20
 

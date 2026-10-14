@@ -1,6 +1,6 @@
 import httpx
 
-from util.config import cfg
+from util.core.config import cfg
 
 
 class Wcs:

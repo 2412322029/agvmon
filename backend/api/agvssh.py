@@ -11,10 +11,10 @@ import PIL.Image as Image
 from fastapi import APIRouter, Body, File, Response, UploadFile
 from fastapi.responses import StreamingResponse
 
-from util.config import cfg, r
-# from util.dmdecoder import all_size, decode_dmdtx, encode_dmdtx, encode_dmdtx_svg
-from util.ssh import SSHManager, validate_local_path, validate_remote_path
-from util.yuv2png import y_only_to_rgb, y_only_to_rgb_stream
+from util.core.config import cfg, r
+# from util.codec.dmdecoder import all_size, decode_dmdtx, encode_dmdtx, encode_dmdtx_svg
+from util.net.ssh import SSHManager, validate_local_path, validate_remote_path
+from util.codec.yuv2png import y_only_to_rgb, y_only_to_rgb_stream
 
 agv_web_router = APIRouter(
     prefix="/agv",

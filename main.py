@@ -3,25 +3,25 @@ import sys
 import time
 
 # --- 用户 Lua 脚本 worker 快速通道 -------------------------------------
-# 必须在导入 util.config / util.logger 之前分流：这两个模块会拉起 redis 与
+# 必须在导入 util.core.config / util.core.logger 之前分流：这两个模块会拉起 redis 与
 # loguru（实测约 200ms 冷启动），而脚本本身通常只跑几毫秒、worker 每次执行都
 # 要重启一次进程，这笔开销必须省掉。
 # 该子命令不注册进 argparse（内部命令，不出现在 help 里）；若 argv 形态意外
 # 不符，argparse 会以 "invalid choice" 报错退出，宿主侧会把 stderr 带回来，
 # 因此失败也是可诊断的，而不是静默无输出。
 if __name__ == "__main__" and "lua-worker" in sys.argv[1:3]:
-    from util.lua_worker import main as _lua_worker_main
+    from util.lua.lua_worker import main as _lua_worker_main
 
     sys.exit(_lua_worker_main())
 
-from util.config import cfg
-from util.logger import logger
+from util.core.config import cfg
+from util.core.logger import logger
 
 #logger.setLevel("INFO")
 
 
 def main():
-    from util.__version__ import version, build_time, git_hash
+    from util.core.__version__ import version, build_time, git_hash
 
     parser = argparse.ArgumentParser(
         description="AGV监控系统命令行界面",
@@ -190,13 +190,13 @@ def main():
     match (args.command, subcmd):
         # -- build raw --
         case ("build", "raw"):
-            from util.rcms_api import RcmsApi
+            from util.net.rcms_api import RcmsApi
 
             RcmsApi().build_from_raw()
 
         # -- build cache --
         case ("build", "cache"):
-            from util.rcms_api import RcmsApi
+            from util.net.rcms_api import RcmsApi
 
             rapi = RcmsApi()
             retmsg = rapi.build_from_cache()
@@ -207,7 +207,7 @@ def main():
 
         # -- build genmap --
         case ("build", "genmap"):
-            from util.rcms_api import RcmsApi
+            from util.net.rcms_api import RcmsApi
 
             rapi = RcmsApi()
             rapi.build_from_cache()
@@ -217,7 +217,7 @@ def main():
         case ("build", "saveport"):
             import asyncio
 
-            from util.rcs_web_api import RcsWebApi
+            from util.net.rcs_web_api import RcsWebApi
 
             async def _saveport():
                 async with RcsWebApi() as rcs_api:
@@ -227,14 +227,14 @@ def main():
 
         # -- build transport --
         case ("build", "transport"):
-            from util.rcs_web_api import RcsWebApi
+            from util.net.rcs_web_api import RcsWebApi
 
             RcsWebApi().transport()
 
         # -- run zeromq --
         case ("run", "zeromq"):
-            from util.rcms_api import RcmsApi
-            from util.zeromq import Map_info_update
+            from util.net.rcms_api import RcmsApi
+            from util.net.zeromq import Map_info_update
 
             rapi = RcmsApi()
             rapi.build_from_cache()
@@ -245,8 +245,8 @@ def main():
 
         # -- run rabbitmq --
         case ("run", "rabbitmq"):
-            from util.rabbitmq import run_rabbitmq_server
-            from util.rcms_api import RcmsApi
+            from util.net.rabbitmq import run_rabbitmq_server
+            from util.net.rcms_api import RcmsApi
 
             rapi = RcmsApi()
             rapi.build_from_cache()
@@ -260,7 +260,7 @@ def main():
 
         # -- tools show-robot --
         case ("tools", "show-robot"):
-            from util.showrobot import show_robot_status
+            from util.net.showrobot import show_robot_status
 
             if args.interval is not None:
                 show_robot_status(args.interval)
@@ -269,14 +269,14 @@ def main():
 
         # -- tools rk --
         case ("tools", "rk"):
-            from util.zeromq import removekey
+            from util.net.zeromq import removekey
 
             removekey()
 
         # -- tools clean --
         case ("tools", "clean"):
             import os
-            from util.clean import interactive_clean
+            from util.logs.clean import interactive_clean
 
             target = getattr(args, "clean_target", None)
             base = os.path.join(os.path.dirname(os.path.abspath(__file__)), "util", "data")
@@ -304,7 +304,7 @@ def main():
             wcslog_cmd = getattr(args, "wcslog_command", None)
             if wcslog_cmd == "list":
                 import asyncio
-                from util.parse_wcs_log import list_wcs_logs
+                from util.logs.parse_wcs_log import list_wcs_logs
 
                 async def _list():
                     files = await list_wcs_logs()
@@ -319,7 +319,7 @@ def main():
 
             elif wcslog_cmd == "download":
                 import asyncio
-                from util.parse_wcs_log import download_wcs_log, list_wcs_logs
+                from util.logs.parse_wcs_log import download_wcs_log, list_wcs_logs
 
                 async def _download():
                     files = await list_wcs_logs()
@@ -373,7 +373,7 @@ def main():
                 asyncio.run(_download())
 
             else:  # parse (默认)
-                from util.parse_wcs_log import run
+                from util.logs.parse_wcs_log import run
                 run(args.files if hasattr(args, 'files') else None,
                     args.code if hasattr(args, 'code') else None,
                     taskid=getattr(args, 'taskid', None),
@@ -383,7 +383,7 @@ def main():
         case ("tools", "agvlog"):
             import asyncio
 
-            from util.agvlog import (
+            from util.logs.agvlog import (
                 browse_merged_info,
                 download_agv_logs,
                 get_pio_result,

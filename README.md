@@ -33,18 +33,43 @@ AGV 实时监控与运维管理平台，提供机器人状态监控、任务调�
 │       ├── websocket.py    # WebSocket 实时推送
 │       ├── startup.py      # 启动事件
 │       └── ...
-├── util/                   # 核心工具库
-│   ├── config.py           # 配置管理器（TOML）
+├── util/                   # 核心工具库（按职责域分子包）
 │   ├── config.toml         # 配置文件
-│   ├── rabbitmq.py         # RabbitMQ 客户端
-│   ├── tcp_client.py       # TCP 调试客户端（连接管理 / 收发记录）
-│   ├── zeromq_sub.py       # ZeroMQ 订阅
-│   ├── ssh_manager.py      # SSH 连接管理
-│   ├── lua_sandbox.py      # Lua 沙箱环境（白名单 + 纯 Lua JSON，仅 worker 导入）
-│   ├── lua_worker.py       # 脚本执行子进程入口（stdin/stdout JSON 协议）
-│   ├── lua_runtime.py      # 执行宿主（起进程、超时强杀、并发闸门）
-│   ├── user_script_store.py # 脚本库与执行流水（lua_script/：.lua 文件 + SQLite 索引）
-│   ├── yuv2png.py          # YUV 图像转换
+│   ├── core/               # 基础设施
+│   │   ├── config.py       # 配置管理器（TOML）
+│   │   ├── logger.py       # loguru 封装
+│   │   ├── paths.py        # 资源路径常量（DATA_DIR / TOOL_DIR / PROJECT_ROOT）
+│   │   ├── helper.py       # 通用辅助
+│   │   ├── updater.py      # 自更新
+│   │   └── __version__.py  # 版本号（打包时由 build_nuitka.py 改写）
+│   ├── net/                # 外部通信
+│   │   ├── ssh.py          # SSH 连接管理
+│   │   ├── rcms_api.py     # RCMS REST API
+│   │   ├── rcs_web_api.py  # RCS2000 Web API
+│   │   ├── wcs.py          # WCS 接口
+│   │   ├── rabbitmq.py     # RabbitMQ 客户端
+│   │   ├── zeromq.py       # ZeroMQ 订阅
+│   │   ├── tcp_client.py   # TCP 调试客户端（连接管理 / 收发记录）
+│   │   ├── gossip.py       # 设备发现
+│   │   └── showrobot.py    # 机器人状态展示
+│   ├── logs/               # 日志解析
+│   │   ├── agvlog.py       # AGV 日志下载 / 解压 / PIO 分析（主入口）
+│   │   ├── parse_agvlog.py # 纯 Python zlib 解压（parsezlib exe 的等价重写）
+│   │   ├── parse_wcs_log.py# WCS 日志下载与解析
+│   │   └── clean.py        # 磁盘清理
+│   ├── codec/              # 协议与编解码
+│   │   ├── agv_protocol_parser.py # AGV 二进制协议解析
+│   │   ├── dataparse.py    # 地图 / 告警 / 状态数据解析
+│   │   ├── dmdecoder.py    # DMDTX 编解码
+│   │   ├── xml2json.py     # XML → JSON
+│   │   └── yuv2png.py      # YUV 图像转换
+│   ├── lua/                # 用户 Lua 脚本
+│   │   ├── lua_sandbox.py  # 沙箱环境（白名单 + 纯 Lua JSON，仅 worker 导入）
+│   │   ├── lua_worker.py   # 脚本执行子进程入口（stdin/stdout JSON 协议）
+│   │   ├── lua_runtime.py  # 执行宿主（起进程、超时强杀、并发闸门）
+│   │   ├── lua_http.py     # 外部 HTTP 桥接
+│   │   └── user_script_store.py # 脚本库与执行流水（lua_script/：.lua 文件 + SQLite 索引）
+│   ├── tool/               # 随包二进制（parsezlib_2_7_8.exe）
 │   └── data/               # 缓存/模拟数据/图像资源
 ├── lua_script/             # 用户自定义 Lua 脚本（运行期数据，不进仓库）
 │   ├── <script_id>.lua     # 脚本正文（真身，可直接用编辑器改）

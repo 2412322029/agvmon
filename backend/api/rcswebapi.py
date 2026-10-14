@@ -2,8 +2,8 @@ from functools import wraps
 
 from fastapi import APIRouter, Body
 
-from util.config import cfg
-from util.rcs_web_api import RcsWebApi
+from util.core.config import cfg
+from util.net.rcs_web_api import RcsWebApi
 
 rcs_web_router = APIRouter(
     prefix="/rcs_web",

@@ -9,8 +9,8 @@ from ipaddress import ip_address
 from fastapi import APIRouter, Body, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
-from util.agv_protocol_parser import AGVProtocolParser
-from util.agvlog import (
+from util.codec.agv_protocol_parser import AGVProtocolParser
+from util.logs.agvlog import (
     agv_log_dir,
     delete_agv_logs,
     find_str,
@@ -18,9 +18,8 @@ from util.agvlog import (
     list_agv_logs,
     parse_agv_log,
 )
-from util.clean import _format_size
-from util.logger import logger
-from util.parse_wcs_log import MAX_FILES, WCSLOG_DIR, _collect_default_files, download_wcs_log, download_wcs_logbak, list_wcs_logbak, list_wcs_logs, parse
+from util.core.logger import logger
+from util.logs.parse_wcs_log import MAX_FILES, WCSLOG_DIR, _collect_default_files, download_wcs_log, download_wcs_logbak, list_wcs_logbak, list_wcs_logs, parse
 
 log_parser_router = APIRouter(
     prefix="/log_parser",
@@ -80,7 +79,7 @@ async def api_parse_agv_log(filename: str = Body(..., description="AGV log filen
 
 @log_parser_router.post("/agv_logs/batch_parse")
 async def api_parse_agv_logs(filenames: list[str] = Body(..., description="AGV log filenames, max 5")):
-    from util.agvlog import parse_agv_logs
+    from util.logs.agvlog import parse_agv_logs
 
     try:
         txt_files, carid = await asyncio.to_thread(parse_agv_logs, filenames)
@@ -167,8 +166,8 @@ async def api_agvlog_pio(
 
 async def _sse_download(ip_or_carid, filenames, prefix, count, is_agvlog, need_agv_prefix):
     """SSE 生成器：下载 AGV 日志，逐事件报告进度。"""
-    from util.agvlog import getip_from_carid, parse_time_from_filename
-    from util.ssh import SSHManager
+    from util.logs.agvlog import getip_from_carid, parse_time_from_filename
+    from util.net.ssh import SSHManager
 
     # 解析 IP / carid
     carid = None
@@ -269,8 +268,6 @@ async def _sse_download(ip_or_carid, filenames, prefix, count, is_agvlog, need_a
 
 async def _sse_download_and_pio(ip_or_carid, filenames, count):
     """SSE 生成器：下载 + PIO 分析，合并为一次请求。"""
-    from util.agvlog import parse_agv_logs
-
     # 先下载
     downloaded = []
     async for event in _sse_download(ip_or_carid, filenames, "/mnt/agv_log/", count, is_agvlog=True, need_agv_prefix=True):
@@ -307,7 +304,7 @@ async def api_agvlog_pio_local(
     filenames: list[str] = Body(..., description="本地 AGV 日志文件名列表"),
 ):
     """对本地已下载的 AGV 日志文件执行 PIO 分析。"""
-    from util.agvlog import get_pio_result
+    from util.logs.agvlog import get_pio_result
 
     try:
         merged = await asyncio.to_thread(get_pio_result, filenames)
@@ -323,8 +320,8 @@ async def api_ls_agv(
     ip_or_carid: str = Body(..., description="AGV IP address or car ID"),
     path: str = Body("/mnt", description="Remote directory path"),
 ):
-    from util.agvlog import getip_from_carid
-    from util.ssh import SSHManager
+    from util.logs.agvlog import getip_from_carid
+    from util.net.ssh import SSHManager
 
     if "." not in ip_or_carid and 0 < len(ip_or_carid) < 6:
         ip = await getip_from_carid(ip_or_carid)
@@ -354,8 +351,8 @@ async def api_list_remote_agv_files(
     ip_or_carid: str = Body(..., description="AGV IP address or car ID"),
 ):
     """列出远程 AGV /mnt/agv_log/ 下以 AGV_ 开头的文件，用于下载下拉选择。"""
-    from util.agvlog import getip_from_carid, parse_time_from_filename
-    from util.ssh import SSHManager
+    from util.logs.agvlog import getip_from_carid, parse_time_from_filename
+    from util.net.ssh import SSHManager
 
     carid = None
     if "." not in ip_or_carid and 0 < len(ip_or_carid) < 6:
@@ -695,7 +692,7 @@ async def api_extract_logbak(
 async def _sse_extract_logbak(filename: str):
     import shutil
 
-    from util.parse_wcs_log import (
+    from util.logs.parse_wcs_log import (
         _get_log_time_range,
         _ts_to_time_str,
         extract_tar_files,

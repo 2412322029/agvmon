@@ -6,9 +6,9 @@ import re
 import sys
 from datetime import datetime
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from ssh import SSHManager
+from util.net.ssh import SSHManager
 
 logging.basicConfig(
     level=logging.INFO,

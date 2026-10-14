@@ -13,7 +13,7 @@ from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import asyncssh
 
-from util.config import cfg
+from util.core.config import cfg
 
 logger = logging.getLogger(__name__)
 
