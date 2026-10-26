@@ -173,7 +173,13 @@
         </n-collapse-item>
       </n-collapse>
 
-      <n-alert type="info" size="small" style="margin-top:16px">修改需重启服务后生效</n-alert>
+      <div class="restart-row">
+        <n-alert type="info" size="small" class="restart-alert">修改需重启服务后生效</n-alert>
+        <n-button size="small" type="warning" secondary :loading="restartPending" @click="confirmRestart">
+          {{ restartPending ? '重启中…' : '重启服务' }}
+        </n-button>
+      </div>
+      <div v-if="restartHint" class="restart-hint">{{ restartHint }}</div>
     </n-card>
 
     <!-- 确认变更模态框 -->
@@ -203,9 +209,9 @@ import {
   NDescriptions, NDescriptionsItem, NDivider, NForm,
   NIcon,
   NInput, NInputNumber, NModal, NSelect, NSlider, NSpace, NSwitch, NText, NTooltip,
-  useMessage
+  useDialog, useMessage
 } from 'naive-ui'
-import { computed, inject, onMounted, reactive, ref, watch } from 'vue'
+import { computed, inject, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import UpdateNotification from '../components/UpdateNotification.vue'
 import { applyBodyBg, resetBodyBg } from '../composables/bg'
 import { useAccentColor } from '../composables/theme'
@@ -251,6 +257,63 @@ async function saveAccent() {
 }
 
 const message = useMessage()
+const dialog = useDialog()
+
+// ── 远程重启服务（/api/util/restart） ──
+const restartPending = ref(false)
+const restartHint = ref('')
+let restartPollTimer = null
+
+function confirmRestart() {
+  dialog.warning({
+    title: '重启服务',
+    content: '确定要重启 AGVmon 服务吗？重启期间页面将短暂无法访问（约 5~15 秒），恢复后自动重新加载配置。',
+    positiveText: '确认重启',
+    negativeText: '取消',
+    onPositiveClick: () => doRestart(),
+  })
+}
+
+async function doRestart() {
+  if (restartPending.value) return
+  restartPending.value = true
+  restartHint.value = '正在发送重启指令…'
+  try {
+    const resp = await fetch('/api/util/restart', { method: 'POST' })
+    const data = await resp.json()
+    if (data.status !== 'restarting') {
+      restartPending.value = false
+      restartHint.value = ''
+      message.error(data.message || data.detail || '重启失败')
+      return
+    }
+  } catch {
+    // 服务可能已立即退出，视为重启已开始，继续等待恢复
+  }
+  restartHint.value = '服务重启中，等待恢复…'
+  const startedAt = Date.now()
+  restartPollTimer = setInterval(async () => {
+    if (Date.now() - startedAt > 90000) {
+      clearInterval(restartPollTimer)
+      restartPending.value = false
+      restartHint.value = ''
+      message.error('等待超时：服务未在 90 秒内恢复，请检查服务端日志')
+      return
+    }
+    try {
+      const r = await fetch('/api/util/system', { cache: 'no-store' })
+      if (r.ok) {
+        clearInterval(restartPollTimer)
+        restartPending.value = false
+        restartHint.value = ''
+        message.success('服务已重启')
+        loadConfig() // 重启后重新拉取配置（展示文件中的持久值）
+      }
+    } catch { /* 重启中，继续等待 */ }
+  }, 2000)
+}
+
+onUnmounted(() => clearInterval(restartPollTimer))
 
 const loading = ref(false)
 const saving = ref(false)
@@ -422,7 +485,9 @@ const FIELD_META = {
   'agv.usernames': { label: 'AGV SSH 用户名', desc: 'SSH 连接 AGV 小车时依次尝试的用户名列表' },
   'agv.passwords': { label: 'AGV SSH 密码', desc: 'SSH 连接 AGV 小车时依次尝试的密码列表，非本机隐藏' },
 
-  'agvlog.parser': { label: 'AGV 日志解析器', desc: '默认Python的解析实现、跨平台, exe: 备选实现：调用原 parsezlib_2_7_8.exe' , hint: 'python / exe' },
+  'agvlog.parser': { label: 'AGV 日志解析器', desc: '默认Python的解析实现、跨平台；exe: 备选实现，调用原 parsezlib_2_7_8.exe（仅 Windows 携带，Linux 包不含该文件且自动回退 Python 实现）', hint: 'python / exe' },
+
+  'restart.allowed_hosts': { label: '重启白名单 IP', desc: '允许远程重启服务的来源 IP 列表；为空时仅本机可重启，本机始终允许。反向代理场景来源是代理 IP，需把代理 IP 加入白名单', hint: '如 192.168.1.100' },
 
   'webshell.enabled': { label: '启用 Web Shell', desc: '关闭后隐藏前端菜单并拒绝所有连接' },
   'webshell.allowed_hosts': { label: '允许访问的 IP', desc: 'Web Shell 访问白名单' },
@@ -483,6 +548,7 @@ const SECTION_LABELS = {
   'user_script': '用户脚本',
   'chat': '聊天',
   'update': '更新',
+  'restart': '服务重启',
 }
 
 function metaOf(key) {
@@ -660,6 +726,22 @@ onMounted(async () => {
   max-width: 860px;
   margin: 24px auto;
   padding: 0 16px;
+}
+
+/* ── 重启服务行 ── */
+.restart-row {
+  margin-top: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.restart-alert {
+  flex: 1;
+}
+.restart-hint {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--n-text-color-3);
 }
 
 .section-title {

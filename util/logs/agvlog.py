@@ -3,6 +3,7 @@ import datetime
 import logging
 import os
 import subprocess
+import sys
 from ipaddress import ip_address
 
 from util.core.config import cfg
@@ -63,7 +64,8 @@ def _parse_agv_log_python(log_file_path: str, txt_file_path: str | None, carid: 
 def _parse_agv_log_exe(log_file_path: str, carid: str):
     """备选实现：调用原 parsezlib_2_7_8.exe（Windows 专用二进制）。
 
-    由 config.toml 的 [agvlog] parser = "exe" 启用。
+    由 config.toml 的 [agvlog] parser = "exe" 启用；非 Windows 平台会在
+    parse_agv_log 入口处自动回退纯 Python 实现（Linux 包不携带该 exe）。
     """
     if not os.path.exists(PARSEZLIB_EXE):
         raise FileNotFoundError(f"parsezlib 工具不存在: {PARSEZLIB_EXE}")
@@ -113,7 +115,8 @@ def parse_agv_log(log_filename: str):
 
     默认用内置的纯 Python 实现（util/logs/parse_agvlog.py，输出与原 exe 逐字节
     一致）；把 config.toml 的 [agvlog] parser 设为 "exe" 可切回原
-    parsezlib_2_7_8.exe（util/tool/），作为备选。
+    parsezlib_2_7_8.exe（util/tool/，仅 Windows 携带；非 Windows 平台自动
+    回退 python 实现），作为备选。
 
     Args:
         log_filename: AGV 日志文件名
@@ -153,6 +156,12 @@ def parse_agv_log(log_filename: str):
     mode = (cfg.get("agvlog.parser") or "python").strip().lower()
     if mode not in ("python", "exe"):
         logger.warning(f"未知的 agvlog.parser={mode!r}，改用 python 解析器")
+        mode = "python"
+
+    # parsezlib_2_7_8.exe 是 Windows 专用二进制（Linux 包不携带，见 build_nuitka.py），
+    # 非 Windows 平台无论配置如何都走纯 Python 实现
+    if mode == "exe" and sys.platform != "win32":
+        logger.warning("parsezlib exe 仅 Windows 可用，当前平台自动改用 python 解析器")
         mode = "python"
 
     if mode == "exe":

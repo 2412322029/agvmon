@@ -12,6 +12,7 @@ from fastapi import (
     File,
     HTTPException,
     Query,
+    Request,
     UploadFile,
     WebSocket,
     WebSocketDisconnect,
@@ -606,6 +607,162 @@ def get_system_info():
         if avail:
             info["sys_mem_used_percent"] = round((total - avail) / total * 100, 1)
     return info
+
+
+# ── 服务重启（仅重启 agvmon 服务进程，不动操作系统） ──────────────────
+
+_RESTART_LAST_TS = 0.0  # 上次重启请求时间戳（30 秒防抖，防连点风暴）
+
+_RESTART_BAT = """@echo off
+title AGVmon Restart
+cd /d "%~dp0"
+echo Waiting for main process to exit...
+timeout /t 2 /nobreak >nul
+echo Starting AGVmon...
+start "" "..\\agvmon.exe" run web
+echo Done.
+timeout /t 2 /nobreak >nul
+del "%~f0" 2>nul
+"""
+
+_RESTART_SH = """#!/bin/bash
+# AGVmon Restart
+cd "$(dirname "$0")" || exit 1
+sleep 2
+cd ..
+setsid nohup ./agvmon run web >/dev/null 2>&1 &
+sleep 1
+rm -f -- "updates/restart.sh"
+"""
+
+
+def _is_frozen() -> bool:
+    """Nuitka 打包态判定（与 util/core/updater.py 的 get_app_root 一致）。"""
+    import sys as _sys
+
+    return bool(getattr(_sys, "frozen", False)) or "__compiled__" in globals()
+
+
+def _spawn_restart() -> str:
+    """分离拉起重启脚本/进程，返回执行方式描述（用于日志与前端提示）。
+
+    打包态：写 restart.bat / restart.sh 到 updates/，与更新器同一套
+    "等待主进程退出 → 重新拉起" 的机制；systemd 场景由 Restart=always 兜底。
+    开发态：直接分离重启同一命令行（python main.py run web）。
+    """
+    import subprocess
+    import sys as _sys
+
+    from util.core.updater import get_app_root
+
+    app_root = get_app_root()
+
+    if _is_frozen():
+        updates_dir = app_root / "updates"
+        updates_dir.mkdir(parents=True, exist_ok=True)
+        if _sys.platform == "win32":
+            bat = updates_dir / "restart.bat"
+            bat.write_text(_RESTART_BAT, encoding="gbk")
+            CREATE_NEW = 0x00000200
+            DETACHED = 0x00000008
+            subprocess.Popen(
+                ["cmd", "/c", "start", "AGVmon Restart", "/min", str(bat)],
+                creationflags=CREATE_NEW | DETACHED,
+                cwd=str(app_root),
+                close_fds=True,
+            )
+            return "restart.bat"
+        sh = updates_dir / "restart.sh"
+        sh.write_text(_RESTART_SH, encoding="utf-8")
+        subprocess.Popen(
+            ["bash", str(sh)],
+            cwd=str(app_root),
+            close_fds=True,
+            start_new_session=True,
+        )
+        return "restart.sh"
+
+    # 开发模式：分离重启当前命令行（python main.py run web）
+    updates_dir = app_root / "updates"
+    updates_dir.mkdir(parents=True, exist_ok=True)
+    script = pathlib.Path(_sys.argv[0]).resolve()
+    log_fh = open(updates_dir / "restart.log", "ab")  # noqa: SIM115 进程退出后由新进程接管
+    kwargs = {"creationflags": 0x00000200 | 0x00000008} if _sys.platform == "win32" else {"start_new_session": True}
+    subprocess.Popen(
+        [_sys.executable, str(script), *_sys.argv[1:]],
+        cwd=str(app_root),
+        stdin=subprocess.DEVNULL,
+        stdout=log_fh,
+        stderr=subprocess.STDOUT,
+        close_fds=True,
+        **kwargs,
+    )
+    return f"dev: {script.name} {' '.join(_sys.argv[1:])}"
+
+
+_RESTART_LOCAL = {"localhost", "127.0.0.1", "::1"}
+
+
+def _restart_access(request: Request) -> tuple[bool, str]:
+    """重启权限判定：本机或白名单 IP（config.toml [restart] allowed_hosts）。
+
+    带 X-Forwarded-For / X-Real-IP / Forwarded 转发头的请求一律不按本机放行：
+    同机反向代理会把所有外部来源都变成 127.0.0.1，直接信任等于闸门失效
+    （与 user_script 的访问闸门同一策略）。返回 (是否允许, 来源描述)。
+    """
+    client_host = request.client.host if request.client else ""
+    forwarded = bool(
+        request.headers.get("x-forwarded-for")
+        or request.headers.get("x-real-ip")
+        or request.headers.get("forwarded")
+    )
+    whitelist = cfg.get("restart.allowed_hosts")
+    if isinstance(whitelist, list) and whitelist and client_host in whitelist:
+        return True, f"白名单 {client_host}"
+    if client_host in _RESTART_LOCAL and not forwarded:
+        return True, "本机"
+    return False, client_host
+
+
+@util_web_router.post("/restart")
+async def restart_service(request: Request):
+    """重启 AGVmon 服务：分离拉起新进程后本进程退出（先返回响应再退出）。
+
+    仅允许本机或白名单 IP（[restart] allowed_hosts）调用。
+    """
+    global _RESTART_LAST_TS
+
+    allowed, source = _restart_access(request)
+    if not allowed:
+        print(f"[restart] 拒绝非授权重启请求，来源: {source or '未知'}")
+        raise HTTPException(
+            status_code=403,
+            detail=f"重启服务仅允许本机或白名单 IP 调用（当前来源: {source or '未知'}）",
+        )
+
+    import asyncio
+
+    now = time.time()
+    if now - _RESTART_LAST_TS < 30:
+        return {"status": "error", "message": "重启请求过于频繁，请 30 秒后再试"}
+    _RESTART_LAST_TS = now
+
+    try:
+        method = _spawn_restart()
+    except OSError as e:
+        _RESTART_LAST_TS = 0.0
+        return {"status": "error", "message": f"重启失败: {e}"}
+
+    print(f"[restart] 收到网页重启请求（{source}，{method}），进程即将退出")
+
+    # 与 /update/apply 相同：先让 HTTP 响应发出，1 秒后退出进程
+    def _exit():
+        os._exit(0)
+
+    loop = asyncio.get_event_loop()
+    loop.call_later(1, _exit)
+
+    return {"status": "restarting", "method": method, "message": "服务正在重启，约 5~15 秒后恢复"}
 
 
 @util_web_router.get("/changelog")

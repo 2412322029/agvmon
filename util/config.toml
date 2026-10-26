@@ -91,3 +91,9 @@ update_url = "https://unrun.top/"
 #   exe    = 原 parsezlib_2_7_8.exe（util/tool/），备选
 [agvlog]
 parser = "python"
+
+# 网页重启服务（POST /api/util/restart）
+#   本机（localhost / 127.0.0.1 / ::1）始终允许；远程来源必须在白名单内。
+#   反向代理场景下来源是代理的 IP，需要把代理 IP 加入白名单。
+[restart]
+allowed_hosts = []

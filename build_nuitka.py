@@ -380,13 +380,21 @@ def build_with_nuitka(
                 else:
                     print("提示：pylibdmtx 未自带 libdmtx，目标机需安装系统包：sudo apt install libdmtx0b")
 
-        # 复制 util/tool 目录到输出
+        # 复制 util/tool 目录到输出；parsezlib_2_7_8.exe 是 Windows 专用二进制，
+        # Linux 包不携带（Linux 侧 AGV 日志解析固定走纯 Python 实现，见 agvlog.py）
         tool_src = project_dir / "util" / "tool"
         tool_dst = dist_dir / "util" / "tool"
         if tool_src.exists() and dist_dir.exists():
             if tool_dst.exists():
                 shutil.rmtree(tool_dst)
-            shutil.copytree(tool_src, tool_dst)
+            if PLATFORM_TAG == "win64":
+                shutil.copytree(tool_src, tool_dst)
+            else:
+                shutil.copytree(
+                    tool_src, tool_dst,
+                    ignore=shutil.ignore_patterns("parsezlib_2_7_8.exe"),
+                )
+                print("Linux 包不携带 parsezlib_2_7_8.exe（Windows 专用）")
             print(f"已复制 tool 目录到 {tool_dst}")
 
         if dist_dir.exists():
