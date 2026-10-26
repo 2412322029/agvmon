@@ -10,6 +10,12 @@
       <span v-if="backendVersion.version" class="ver">
         v{{ backendVersion.version }} · {{ backendVersion.build_time }} · {{ backendVersion.git_hash }}
       </span>
+      <span v-if="sysInfo.platform" class="ver sysline">
+        {{ sysInfo.platform }} · {{ sysInfo.machine }} · Python {{ sysInfo.python }}
+      </span>
+      <span v-if="sysInfo.platform" class="ver sysline">
+        已运行 {{ uptimeText }} · 进程内存 {{ sysInfo.process_rss_mb ?? '—' }} MB<template v-if="sysInfo.sys_mem_used_percent != null"> · 系统内存 {{ sysInfo.sys_mem_used_percent }}%</template>
+      </span>
     </div>
 
     <n-tabs type="line" size="large" default-value="changelog" class="tabs">
@@ -197,11 +203,34 @@ uv run python build_nuitka.py
 
 <script setup>
 import { NCard, NDataTable, NDivider, NTabPane, NTabs } from 'naive-ui'
-import { h, onMounted, ref } from 'vue'
+import { computed, h, onMounted, onUnmounted, ref } from 'vue'
 import router from '../router'
 
 const backendVersion = ref({ version: '', build_time: '', git_hash: '' })
 const gitHistory = ref([])
+
+// ── 服务器运行信息（/api/util/system，纯标准库接口） ──
+const sysInfo = ref({})
+const sysFetchedAt = ref(0)
+const nowTick = ref(Date.now())
+
+// 运行时间 = 后端秒数 + 本地流逝（每秒走表，30 秒向后端校准）
+const uptimeText = computed(() => {
+  const base = sysInfo.value.uptime_seconds
+  if (base == null) return ''
+  const s = Math.max(0, Math.round(base + (nowTick.value - sysFetchedAt.value) / 1000))
+  const d = Math.floor(s / 86400)
+  const hh = Math.floor((s % 86400) / 3600)
+  const mm = Math.floor((s % 3600) / 60)
+  const ss = s % 60
+  if (d) return `${d}天${hh}小时${mm}分`
+  if (hh) return `${hh}小时${mm}分${ss}秒`
+  if (mm) return `${mm}分${ss}秒`
+  return `${ss}秒`
+})
+
+let sysPollTimer = null
+let tickTimer = null
 
 onMounted(async () => {
   try {
@@ -212,6 +241,24 @@ onMounted(async () => {
     if (v.ok) backendVersion.value = await v.json()
     if (h.ok) gitHistory.value = await h.json()
   } catch { /* 离线静默 */ }
+
+  const loadSys = async () => {
+    try {
+      const r = await fetch('/api/util/system')
+      if (r.ok) {
+        sysInfo.value = await r.json()
+        sysFetchedAt.value = Date.now()
+      }
+    } catch { /* 离线静默 */ }
+  }
+  loadSys()
+  sysPollTimer = setInterval(loadSys, 30000)
+  tickTimer = setInterval(() => { nowTick.value = Date.now() }, 1000)
+})
+
+onUnmounted(() => {
+  clearInterval(sysPollTimer)
+  clearInterval(tickTimer)
 })
 
 // ── Git 列 ──
@@ -328,6 +375,10 @@ const pageList = router.getRoutes()
   font-size: 12px;
   font-family: monospace;
   color: var(--n-text-color-3);
+}
+.sysline {
+  margin-top: 4px;
+  font-size: 12px;
 }
 .tabs {
   margin-top: 8px;

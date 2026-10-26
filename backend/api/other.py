@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 import pathlib
+import time
 from datetime import datetime
 from urllib.parse import quote
 
@@ -486,6 +487,125 @@ def get_backend_version():
         }
     except Exception as e:
         return {"error": str(e)}
+
+
+# ── 服务器运行信息 ────────────────────────────────────────────────────
+
+_STARTED_AT = time.time()  # 模块加载 ≈ 服务启动时刻（uvicorn 首次导入路由时）
+
+
+def _meminfo():
+    """返回 (进程工作集字节, 系统总内存字节, 系统可用内存字节)，取不到的项为 0。
+
+    纯标准库：Windows 用 ctypes 调 psapi/kernel32，Linux 读 /proc。
+    """
+    import sys as _sys
+
+    try:
+        if _sys.platform == "win32":
+            import ctypes
+            from ctypes import wintypes
+
+            class _MEM_STAT_EX(ctypes.Structure):
+                _fields_ = [
+                    ("dwLength", wintypes.DWORD),
+                    ("dwMemoryLoad", wintypes.DWORD),
+                    ("ullTotalPhys", ctypes.c_ulonglong),
+                    ("ullAvailPhys", ctypes.c_ulonglong),
+                    ("ullTotalPageFile", ctypes.c_ulonglong),
+                    ("ullAvailPageFile", ctypes.c_ulonglong),
+                    ("ullTotalVirtual", ctypes.c_ulonglong),
+                    ("ullAvailVirtual", ctypes.c_ulonglong),
+                    ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
+                ]
+
+            total = avail = 0
+            ms = _MEM_STAT_EX()
+            ms.dwLength = ctypes.sizeof(_MEM_STAT_EX)
+            kernel32 = ctypes.windll.kernel32
+            kernel32.GlobalMemoryStatusEx.argtypes = [ctypes.POINTER(_MEM_STAT_EX)]
+            kernel32.GlobalMemoryStatusEx.restype = wintypes.BOOL
+            if kernel32.GlobalMemoryStatusEx(ctypes.byref(ms)):
+                total, avail = ms.ullTotalPhys, ms.ullAvailPhys
+
+            class _PMC(ctypes.Structure):
+                _fields_ = [
+                    ("cb", wintypes.DWORD),
+                    ("PageFaultCount", wintypes.DWORD),
+                    ("PeakWorkingSetSize", ctypes.c_size_t),
+                    ("WorkingSetSize", ctypes.c_size_t),
+                    ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
+                    ("QuotaPagedPoolUsage", ctypes.c_size_t),
+                    ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
+                    ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+                    ("PagefileUsage", ctypes.c_size_t),
+                    ("PeakPagefileUsage", ctypes.c_size_t),
+                ]
+
+            rss = 0
+            pmc = _PMC()
+            pmc.cb = ctypes.sizeof(_PMC)
+            # 必须声明 argtypes：伪句柄 -1 按 32 位 int 传会变无效句柄（GetLastError 6）
+            psapi = ctypes.windll.psapi
+            psapi.GetProcessMemoryInfo.argtypes = [
+                wintypes.HANDLE,
+                ctypes.POINTER(_PMC),
+                wintypes.DWORD,
+            ]
+            psapi.GetProcessMemoryInfo.restype = wintypes.BOOL
+            if psapi.GetProcessMemoryInfo(
+                wintypes.HANDLE(-1),  # GetCurrentProcess() 伪句柄
+                ctypes.byref(pmc),
+                pmc.cb,
+            ):
+                rss = pmc.WorkingSetSize
+            return rss, total, avail
+
+        # Linux / 其他 Unix：读 /proc
+        rss = total = avail = 0
+        try:
+            with open("/proc/self/status", encoding="ascii") as f:
+                for line in f:
+                    if line.startswith("VmRSS:"):
+                        rss = int(line.split()[1]) * 1024
+                        break
+        except OSError:
+            pass
+        try:
+            vals = {}
+            with open("/proc/meminfo", encoding="ascii") as f:
+                for line in f:
+                    k, v = line.split(":", 1)
+                    if k in ("MemTotal", "MemAvailable"):
+                        vals[k] = int(v.strip().split()[0]) * 1024
+            total = vals.get("MemTotal", 0)
+            avail = vals.get("MemAvailable", 0)
+        except OSError:
+            pass
+        return rss, total, avail
+    except Exception:
+        return 0, 0, 0
+
+
+@util_web_router.get("/system")
+def get_system_info():
+    """返回服务器运行信息：平台 / 运行时间 / 内存占用（仅标准库）。"""
+    import platform as _platform
+
+    rss, total, avail = _meminfo()
+    info = {
+        "platform": f"{_platform.system()} {_platform.release()}",
+        "machine": _platform.machine(),
+        "python": _platform.python_version(),
+        "started_at": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(_STARTED_AT)),
+        "uptime_seconds": int(time.time() - _STARTED_AT),
+        "process_rss_mb": round(rss / 1048576, 1) if rss else None,
+    }
+    if total:
+        info["sys_mem_total_mb"] = round(total / 1048576, 1)
+        if avail:
+            info["sys_mem_used_percent"] = round((total - avail) / total * 100, 1)
+    return info
 
 
 @util_web_router.get("/changelog")

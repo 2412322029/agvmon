@@ -2,8 +2,11 @@
 Update management for Nuitka-packaged AGVmon.
 
 Talks to the AGVmon Update Server (update_server.py):
-- GET  /api/update/latest.json          -> check for updates
+- GET  /api/update/latest-<platform>.json -> check for updates (win64/linux64)
 - GET  /api/update/download/<filename>  -> download ZIP
+
+服务器没有平台清单时，win64 回退旧版 latest.json（老服务器兼容）；
+linux64 无平台清单视为无更新，绝不安装别的平台的包。
 """
 
 import hashlib
@@ -17,6 +20,13 @@ from pathlib import Path
 from typing import Optional
 
 import httpx
+
+
+# -- Platform --
+
+def platform_tag() -> str:
+    """本机平台标签，与构建产物的 _win64/_linux64 后缀一致（见 build_nuitka.py）。"""
+    return "win64" if sys.platform == "win32" else "linux64"
 
 
 # -- Version utilities --
@@ -87,6 +97,15 @@ class UpdateManager:
             }
 
     def _manifest_url(self, config: dict) -> str:
+        """按本机平台的清单：latest-win64.json / latest-linux64[-beta].json。"""
+        base = config["update_url"].rstrip("/")
+        channel = config.get("channel", "stable")
+        suffix = "" if channel == "stable" else f"-{channel}"
+        name = f"latest-{platform_tag()}{suffix}.json"
+        return f"{base}/agvmon/api/update/{name}"
+
+    def _legacy_manifest_url(self, config: dict) -> str:
+        """不分平台的旧版清单（老服务器兼容）。"""
         base = config["update_url"].rstrip("/")
         channel = config.get("channel", "stable")
         name = "latest.json" if channel == "stable" else f"latest-{channel}.json"
@@ -127,13 +146,21 @@ class UpdateManager:
             return result
 
         manifest_url = self._manifest_url(config)
+        tag = platform_tag()
 
         try:
             async with httpx.AsyncClient(timeout=15, follow_redirects=True) as client:
                 resp = await client.get(manifest_url)
+                if resp.status_code == 404 and tag == "win64":
+                    # 老服务器只有不分平台的清单，win64 回退兼容
+                    resp = await client.get(self._legacy_manifest_url(config))
                 if resp.status_code == 404:
                     self._status = "idle"
-                    result["error"] = "no version available"
+                    result["error"] = (
+                        "no version available"
+                        if tag == "win64"
+                        else f"no {tag} manifest on server"
+                    )
                     return result
                 if resp.status_code != 200:
                     self._status = "error"
@@ -149,6 +176,16 @@ class UpdateManager:
         except json.JSONDecodeError:
             self._status = "error"
             self._status_message = "invalid manifest format"
+            result["error"] = self._status_message
+            return result
+
+        # 双保险：清单带平台字段时必须与本机一致，防止回退/错配时装上对方的包
+        manifest_platform = (latest.get("platform") or "").strip()
+        if manifest_platform and manifest_platform != tag:
+            self._status = "error"
+            self._status_message = (
+                f"manifest is for {manifest_platform}, not {tag}"
+            )
             result["error"] = self._status_message
             return result
 
@@ -262,7 +299,8 @@ class UpdateManager:
                         shutil.copyfileobj(src, dst)
 
             # Validate extraction
-            exe = staging / "agvmon.exe"
+            exe_name = "agvmon.exe" if platform_tag() == "win64" else "agvmon"
+            exe = staging / exe_name
             file_count = sum(1 for _ in staging.rglob("*") if _.is_file())
             if not exe.exists() or file_count < 5:
                 shutil.rmtree(staging)
@@ -271,22 +309,32 @@ class UpdateManager:
                 self._status_message = msg
                 return {"status": "error", "message": msg}
 
-            # Write update.bat
+            # Write updater script and launch detached
             self.download_dir.mkdir(parents=True, exist_ok=True)
-            bat_path = self.download_dir / "update.bat"
-            bat_path.write_text(_BAT_SCRIPT, encoding="gbk")
+            if sys.platform == "win32":
+                bat_path = self.download_dir / "update.bat"
+                bat_path.write_text(_BAT_SCRIPT, encoding="gbk")
 
-            # Launch as detached process
-            CREATE_NEW = 0x00000200
-            DETACHED = 0x00000008
-            flags = (CREATE_NEW | DETACHED) if sys.platform == "win32" else 0
-
-            subprocess.Popen(
-                ["cmd", "/c", "start", "AGVmon Update", "/min", str(bat_path)],
-                creationflags=flags,
-                cwd=str(self.app_root),
-                close_fds=True,
-            )
+                CREATE_NEW = 0x00000200
+                DETACHED = 0x00000008
+                flags = CREATE_NEW | DETACHED
+                subprocess.Popen(
+                    ["cmd", "/c", "start", "AGVmon Update", "/min", str(bat_path)],
+                    creationflags=flags,
+                    cwd=str(self.app_root),
+                    close_fds=True,
+                )
+            else:
+                sh_path = self.download_dir / "update.sh"
+                sh_path.write_text(_SH_SCRIPT, encoding="utf-8")
+                # systemd(Restart=always) 场景由 systemd 拉起，脚本内的自启是
+                # 裸跑场景的兜底；多起一个实例会因端口占用自行退出，无副作用
+                subprocess.Popen(
+                    ["bash", str(sh_path)],
+                    cwd=str(self.app_root),
+                    close_fds=True,
+                    start_new_session=True,
+                )
 
             self._status_message = "update prepared, restarting..."
             return {"status": "applying", "message": self._status_message}
@@ -329,6 +377,34 @@ start "" "..\\agvmon.exe"
 echo Update complete.
 timeout /t 2 /nobreak >nul
 del "%~f0" 2>nul
+"""
+
+
+# -- Shell script (Linux, copy from staging, no destructive moves) --
+
+_SH_SCRIPT = """#!/bin/bash
+# AGVmon Updater (Linux)
+cd "$(dirname "$0")" || exit 1
+if [ ! -f ".staging/agvmon" ]; then
+    echo "ERROR: Update package not found"
+    rm -f -- "$0"
+    exit 1
+fi
+echo "Waiting for main process to exit..."
+sleep 3
+echo "Installing update..."
+if ! cp -a ".staging/." ".."; then
+    echo "ERROR: Install failed"
+    exit 1
+fi
+echo "Cleaning up staging..."
+rm -rf ".staging"
+echo "Starting new version..."
+cd ..
+setsid nohup ./agvmon run web >/dev/null 2>&1 &
+echo "Update complete."
+sleep 2
+rm -f -- "updates/update.sh"
 """
 
 

@@ -6,15 +6,19 @@ AGVmon 更新服务器 — 单文件独立部署
     # 或
     python update_server.py --port 9000 --api-key my-secret-key
 
-客户端检查更新:
-    GET /agvmon/api/update/latest.json          # stable 通道
-    GET /agvmon/api/update/latest-beta.json     # beta 通道
+客户端检查更新（按平台）:
+    GET /agvmon/api/update/latest-win64.json     # stable 通道 win64
+    GET /agvmon/api/update/latest-linux64.json   # stable 通道 linux64
+    GET /agvmon/api/update/latest-<platform>-beta.json   # beta 通道
+
+    旧版不分平台清单 latest.json / latest-beta.json 仍保留:
+    上传 win64 包时会同步更新它，兼容未升级的旧客户端。
 
 客户端下载:
     GET /agvmon/api/update/download/<filename>
 
 构建脚本上传:
-    POST /agvmon/api/update/upload              # multipart: zip + manifest 字段
+    POST /agvmon/api/update/upload   # multipart: zip + manifest 字段 + platform
 """
 
 import argparse
@@ -26,7 +30,7 @@ from pathlib import Path
 
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import APIRouter, FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import APIRouter, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 
 _dotenv_path = Path(__file__).parent / ".env"
@@ -40,6 +44,23 @@ HOST = os.environ.get("UPDATE_HOST", "0.0.0.0")
 UPLOAD_DIR = Path(os.environ.get("UPDATE_DIR", Path(__file__).parent / "updates"))
 MANIFEST_FILE = "latest.json"
 BETA_MANIFEST_FILE = "latest-beta.json"
+PLATFORMS = ("win64", "linux64")
+
+
+def manifest_names(platform: str, channel: str) -> list:
+    """按平台+通道计算上传后应写入的清单文件名列表。
+
+    - platform 为空: 旧行为，只写不分平台的清单（旧构建脚本兼容）
+    - win64: 平台清单 + legacy 清单（兼容未升级的旧客户端）
+    - linux64: 只写平台清单
+    """
+    suffix = "" if channel == "stable" else f"-{channel}"
+    if not platform:
+        return [f"latest{suffix}.json"]
+    names = [f"latest-{platform}{suffix}.json"]
+    if platform == "win64":
+        names.append(f"latest{suffix}.json")
+    return names
 
 # ── App ───────────────────────────────────────────────────────
 
@@ -54,17 +75,20 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 @router.get("/")
 def root():
-    """首页 — 显示当前版本信息和可用文件。"""
-    stable_path = UPLOAD_DIR / MANIFEST_FILE
-    beta_path = UPLOAD_DIR / BETA_MANIFEST_FILE
-
+    """首页 — 显示各平台当前版本信息和可用文件。"""
     def load_manifest(p):
         if p.exists():
-            return json.loads(p.read_text(encoding="utf-8"))
+            try:
+                return json.loads(p.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                return None
         return None
 
-    stable = load_manifest(stable_path)
-    beta = load_manifest(beta_path)
+    manifests = []
+    for p in sorted(UPLOAD_DIR.glob("latest*.json")):
+        m = load_manifest(p)
+        if m:
+            manifests.append((p.name, m))
 
     # 列出所有 zip 文件
     files = sorted(
@@ -72,22 +96,34 @@ def root():
         key=lambda f: f.stat().st_mtime,
         reverse=True,
     )
+    current_urls = {m.get("url") for _, m in manifests}
 
-    def file_row(f, tag=""):
+    def file_row(f):
         size_mb = f.stat().st_size / (1024 * 1024)
+        tag = (
+            '<span style="color:#18a058">[当前]</span>'
+            if f.name in current_urls
+            else ""
+        )
         return (
             f'<tr><td><a href="/agvmon/api/update/download/{f.name}">{f.name}</a> {tag}</td>'
             f"<td>{size_mb:.1f} MB</td></tr>"
         )
 
-    rows = []
-    for f in files:
-        tag = ""
-        if stable and f.name == stable.get("url"):
-            tag = '<span style="color:#18a058">[stable]</span>'
-        elif beta and f.name == beta.get("url"):
-            tag = '<span style="color:#f0a020">[beta]</span>'
-        rows.append(file_row(f, tag))
+    rows = [file_row(f) for f in files]
+
+    def manifest_card(name, m):
+        plat = f' · {m["platform"]}' if m.get("platform") else ""
+        return (
+            f'<div class="card"><h3>{name}</h3>'
+            f"<p>v{m['version']} · {m['build_time']} · git: {m['git_hash']}{plat}<br>"
+            f"<code>{m['url']}</code> ({m['size'] / 1024 / 1024:.1f} MB)</p></div>"
+        )
+
+    cards = (
+        "".join(manifest_card(n, m) for n, m in manifests)
+        or '<div class="card"><p class="empty">暂无版本</p></div>'
+    )
 
     html = f"""<!DOCTYPE html>
 <html lang="zh">
@@ -108,15 +144,7 @@ def root():
 <body>
 <h1>AGVmon Update Server</h1>
 
-<div class="card">
-  <h3>stable</h3>
-  {f"<p>v{stable['version']} · {stable['build_time']} · git: {stable['git_hash']}<br><code>{stable['url']}</code> ({stable['size'] / 1024 / 1024:.1f} MB)</p>" if stable else '<p class="empty">暂无版本</p>'}
-</div>
-
-<div class="card">
-  <h3>beta</h3>
-  {f"<p>v{beta['version']} · {beta['build_time']} · git: {beta['git_hash']}<br><code>{beta['url']}</code> ({beta['size'] / 1024 / 1024:.1f} MB)</p>" if beta else '<p class="empty">暂无 beta 版本</p>'}
-</div>
+{cards}
 
 <div class="card">
   <h3>所有文件</h3>
@@ -124,7 +152,7 @@ def root():
 </div>
 
 <p style="color:#999;font-size:12px;">
-  API: <code>GET /agvmon/api/update/latest.json</code> ·
+  API: <code>GET /agvmon/api/update/latest-&lt;platform&gt;.json</code> ·
   <code>GET /agvmon/api/update/download/&lt;file&gt;</code> ·
   <code>POST /agvmon/api/update/upload</code>
 </p>
@@ -147,7 +175,7 @@ def verify_api_key(x_api_key: str = Header(None)) -> str:
 
 @router.get("/api/update/latest.json")
 def get_latest():
-    """返回 stable 通道最新版本清单。"""
+    """返回 stable 通道最新版本清单（不分平台，旧客户端兼容）。"""
     path = UPLOAD_DIR / MANIFEST_FILE
     if not path.exists():
         return JSONResponse({"error": "暂无可用版本"}, status_code=404)
@@ -156,10 +184,29 @@ def get_latest():
 
 @router.get("/api/update/latest-beta.json")
 def get_latest_beta():
-    """返回 beta 通道最新版本清单。"""
+    """返回 beta 通道最新版本清单（不分平台，旧客户端兼容）。"""
     path = UPLOAD_DIR / BETA_MANIFEST_FILE
     if not path.exists():
         return JSONResponse({"error": "暂无 beta 版本"}, status_code=404)
+    return JSONResponse(json.loads(path.read_text(encoding="utf-8")))
+
+
+@router.get("/api/update/latest-{platform}.json")
+def get_latest_platform(platform: str):
+    """返回指定平台的 stable 通道清单（latest-win64.json / latest-linux64.json）。"""
+    if platform.endswith("-beta"):
+        channel = "beta"
+        platform = platform[: -len("-beta")]
+    else:
+        channel = "stable"
+    if platform not in PLATFORMS:
+        raise HTTPException(status_code=404, detail="未知平台")
+    name = manifest_names(platform, channel)[0]
+    path = UPLOAD_DIR / name
+    if not path.exists():
+        return JSONResponse(
+            {"error": f"暂无 {platform} {channel} 版本"}, status_code=404
+        )
     return JSONResponse(json.loads(path.read_text(encoding="utf-8")))
 
 
@@ -191,6 +238,7 @@ async def upload_update(
     build_time: str = "",
     git_hash: str = "",
     channel: str = "stable",
+    platform: str = Form(""),
     x_api_key: str = Header(None),
 ):
     """
@@ -202,6 +250,7 @@ async def upload_update(
         build_time: 构建时间
         git_hash:   Git 短哈希
         channel:    stable | beta
+        platform:   win64 | linux64（缺省时从文件名 _win64/_linux64 后缀推断）
     """
     import re
 
@@ -210,13 +259,22 @@ async def upload_update(
     if not file.filename or not file.filename.endswith(".zip"):
         raise HTTPException(status_code=400, detail="仅支持 .zip 文件")
 
-    # 从文件名自动解析版本信息: agvmon_v0.1.0.89_2265893_20260710_120000.zip
-    parsed = re.match(r"agvmon_v([\d.]+)_(\w+)_(\d{8}_\d{6})\.zip", file.filename)
+    # 从文件名自动解析版本信息: agvmon_v0.1.0.89_2265893_20260710_120000_win64.zip
+    parsed = re.match(
+        r"agvmon_v([\d.]+)_(\w+)_(\d{8}_\d{6})(?:_(win64|linux64))?\.zip",
+        file.filename,
+    )
     if parsed:
         if version == "0.0.0":
             version = parsed.group(1)
         if not git_hash:
             git_hash = parsed.group(2)
+        if not platform:
+            platform = parsed.group(4) or ""
+
+    platform = (platform or "").strip().lower()
+    if platform and platform not in PLATFORMS:
+        raise HTTPException(status_code=400, detail=f"platform 仅支持 {PLATFORMS}")
 
     safe_name = Path(file.filename).name
     dest = UPLOAD_DIR / safe_name
@@ -233,8 +291,8 @@ async def upload_update(
 
     sha256_hex = sha256_hasher.hexdigest()
 
-    # 生成/更新版本清单
-    manifest_name = MANIFEST_FILE if channel == "stable" else BETA_MANIFEST_FILE
+    # 生成/更新版本清单（按平台分文件；win64 同时更新 legacy 清单兼容旧客户端）
+    manifest_names_list = manifest_names(platform, channel)
     manifest = {
         "version": version,
         "build_time": build_time
@@ -244,12 +302,14 @@ async def upload_update(
         "size": file_size,
         "sha256": sha256_hex,
     }
+    if platform:
+        manifest["platform"] = platform
 
-    manifest_path = UPLOAD_DIR / manifest_name
-    manifest_path.write_text(
-        json.dumps(manifest, indent=2, ensure_ascii=False),
-        encoding="utf-8",
-    )
+    for name in manifest_names_list:
+        (UPLOAD_DIR / name).write_text(
+            json.dumps(manifest, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
 
     # 记录上传历史
     log_entry = {
@@ -258,13 +318,15 @@ async def upload_update(
         "file": safe_name,
         "size": file_size,
         "channel": channel,
+        "platform": platform or "legacy",
     }
     _append_upload_log(log_entry)
 
     return {
         "status": "ok",
         "manifest": manifest,
-        "manifest_file": manifest_name,
+        "manifest_file": manifest_names_list[0],
+        "manifest_files": manifest_names_list,
     }
 
 
@@ -302,13 +364,11 @@ def get_history(x_api_key: str = Header(None)):
 
 @router.get("/api/update/health")
 def health():
-    """健康检查。"""
-    stable = (UPLOAD_DIR / MANIFEST_FILE).exists()
-    beta = (UPLOAD_DIR / BETA_MANIFEST_FILE).exists()
+    """健康检查 — 列出所有已存在的版本清单。"""
+    manifests = {p.name: p.exists() for p in UPLOAD_DIR.glob("latest*.json")}
     return {
         "status": "ok",
-        "stable": stable,
-        "beta": beta,
+        "manifests": manifests,
         "time": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -347,7 +407,7 @@ if __name__ == "__main__":
     print(f"  地址: http://{args.host}:{args.port}")
     print(f"  存储: {UPLOAD_DIR.absolute()}")
     print(f"  API Key: {API_KEY}")
-    print("  检查更新: GET /agvmon/api/update/latest.json")
+    print("  检查更新: GET /agvmon/api/update/latest-<win64|linux64>.json")
     print("  下载文件: GET /agvmon/api/update/download/<filename>")
     print("  上传更新: POST /agvmon/api/update/upload")
 

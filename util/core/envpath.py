@@ -22,17 +22,26 @@ def _is_frozen() -> bool:
 
 
 def resolve_target_dir() -> Path:
-    """返回应写入 PATH 的目录：打包后是 exe 所在目录，开发模式是 dist 构建目录。"""
+    """返回应写入 PATH 的目录：打包后是 exe 所在目录，开发模式是 dist 构建目录。
+
+    构建脚本把输出按平台分到 dist/windows|linux/main.dist（两平台互不覆盖），
+    旧布局 dist/main.dist 作为回退保留——PATH 里已登记的旧目录仍能被 remove 清理。
+    """
     if _is_frozen():
         return Path(sys.executable).parent
 
     from util.core.paths import PROJECT_ROOT
 
-    dist = Path(PROJECT_ROOT) / "dist" / "main.dist"
-    if (dist / "agvmon.exe").is_file():
+    exe_name = "agvmon.exe" if os.name == "nt" else "agvmon"
+    sub = "windows" if os.name == "nt" else "linux"
+    dist = Path(PROJECT_ROOT) / "dist" / sub / "main.dist"
+    if (dist / exe_name).is_file():
         return dist
+    legacy = Path(PROJECT_ROOT) / "dist" / "main.dist"  # 旧布局
+    if (legacy / "agvmon.exe").is_file():
+        return legacy
     raise RuntimeError(
-        f"未找到打包产物 agvmon.exe（预期位置: {dist}），请先运行 python build_nuitka.py"
+        f"未找到打包产物 agvmon（预期位置: {dist}），请先运行 python build_nuitka.py"
     )
 
 

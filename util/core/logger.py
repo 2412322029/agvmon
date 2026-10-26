@@ -53,13 +53,25 @@ def _setup_logger(file_name: str = "main.log") -> None:
     )
 
     # 文件 — 每天轮转，保留 5 天
-    logger.add(
-        log_path / file_name,
-        level=cfg.get("log_level"),
-        rotation="1 day",
-        retention=5,
-        encoding="utf-8",
-    )
+    # 文件可能被其他进程占用或被安全软件拦截（Windows 表现为 Errno 13），
+    # 此时降级为仅控制台输出，不能让 env show 这类 CLI 子命令启动失败。
+    try:
+        logger.add(
+            log_path / file_name,
+            level=cfg.get("log_level"),
+            rotation="1 day",
+            retention=5,
+            encoding="utf-8",
+        )
+    except OSError as e:
+        # 文件 sink 建失败时走已就绪的控制台 sink，黄色醒目提示，不影响 CLI 启动
+        logger.opt(colors=True).warning(
+            "⚠ 警告：日志文件无法写入，本次仅输出到控制台\n"
+            f"<yellow>    文件: {log_path / file_name}</yellow>\n"
+            f"<yellow>    原因: {e}</yellow>\n"
+            f"<yellow>    排查: 是否有其他 agvmon/python 进程（含 WSL 内）占用该文件，"
+            f"或安全软件是否拦截该目录</yellow>"
+        )
 
     # 将标准 logging 全部重定向到 Loguru
     logging.root.handlers = [InterceptHandler()]
