@@ -1,0 +1,37 @@
+# AGVmon systemd 服务（源码 + venv 部署于 /opt/agvmon，服务用户 agvmon）
+# 安装: sudo cp agvmon.service /etc/systemd/system/ && sudo systemctl daemon-reload
+#       sudo systemctl enable --now agvmon
+# 日志: journalctl -u agvmon -f；tail -f /opt/agvmon/log/main.log
+# 路径/用户不同时改 WorkingDirectory、ExecStart、User/Group；WorkingDirectory 必须是应用根
+# （config.toml 按当前目录读取，日志写 <应用根>/log，用户脚本在 <应用根>/lua_script）。
+
+[Unit]
+Description=AGVmon - AGV 机器人监控管理 Web 服务
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=agvmon
+Group=agvmon
+WorkingDirectory=/opt/agvmon
+
+Environment=PYTHONUNBUFFERED=1
+Environment=TZ=Asia/Shanghai
+EnvironmentFile=-/opt/agvmon/.env
+
+# 源码 + venv 部署；若用 Linux 版 Nuitka 产物改为 /opt/agvmon/main.dist/main
+ExecStart=/opt/agvmon/.venv/bin/python -u /opt/agvmon/main.py run web
+
+# 网页「应用更新」后进程 os._exit(0)，Restart=always 才能把新版本拉起来
+Restart=always
+RestartSec=5
+# uvicorn 自己处理 SIGTERM（5s 优雅退出）；mixed 让超时后的 SIGKILL 波及 Lua worker/PTY 子进程
+KillMode=mixed
+TimeoutStopSec=30
+
+# 大量 WebSocket / SSH 连接需要更多文件句柄
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

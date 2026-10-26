@@ -18,7 +18,7 @@ dependencies = [
     "pika>=1.3.2",
     "pillow>=12.1.0",
     "python-multipart>=0.0.22",
-    "pywinpty>=3.0.5",
+    "pywinpty>=3.0.5; sys_platform == 'win32'",
     "pyzmq>=27.1.0",
     "redis",
     "setuptools>=82.0.1",
@@ -45,7 +45,6 @@ include-package = [
     "util.logs",
     "util.codec",
     "util.lua",
-    # 用户脚本沙箱的原生 Lua 运行时（lupa 的 Lua VM 静态链在 .pyd 里）
     "lupa",
 ]
 include-data-files = [

@@ -36,3 +36,4 @@ util/data/wcs_device_local.jsonc
 util/data/wcs_protocol_message.jsonc
 util/data/1.csv
 script/version_result.csv
+.vscode/settings.json

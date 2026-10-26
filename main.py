@@ -175,6 +175,36 @@ def main():
         "--files", nargs="+", help="指定要下载的文件名列表，指定后count参数无效"
     )
 
+    # ===== env 子命令组 =====
+    env_parser = subparsers.add_parser(
+        "env", help="环境变量相关操作（Windows 用户 PATH）"
+    )
+    env_subparsers = env_parser.add_subparsers(dest="env_command", help="env子命令")
+
+    # env add
+    env_subparsers.add_parser("add", help="把 agvmon.exe 所在目录加入用户 PATH")
+    # env remove
+    env_subparsers.add_parser("remove", help="把 agvmon.exe 所在目录从用户 PATH 移除")
+    # env show
+    env_subparsers.add_parser("show", help="查看 agvmon.exe 目录与当前用户 PATH")
+
+    # ===== autostart 子命令组 =====
+    autostart_parser = subparsers.add_parser(
+        "autostart", help="开机自启相关操作（shell:startup）"
+    )
+    autostart_subparsers = autostart_parser.add_subparsers(
+        dest="autostart_command", help="autostart子命令"
+    )
+
+    # autostart add
+    autostart_subparsers.add_parser(
+        "add", help="把 start_agvmon.ps1 写入启动目录（依赖 agvmon env add）"
+    )
+    # autostart remove
+    autostart_subparsers.add_parser("remove", help="从启动目录移除自启脚本")
+    # autostart show
+    autostart_subparsers.add_parser("show", help="查看自启状态与脚本内容")
+
     args = parser.parse_args()
 
     if args.test:
@@ -185,6 +215,8 @@ def main():
         "build": getattr(args, "build_command", None),
         "run": getattr(args, "run_command", None),
         "tools": getattr(args, "tools_command", None),
+        "env": getattr(args, "env_command", None),
+        "autostart": getattr(args, "autostart_command", None),
     }.get(args.command)
 
     match (args.command, subcmd):
@@ -430,6 +462,58 @@ def main():
             else:
                 print("请指定--pio选项等操作 明确要解析的类型")
 
+        # -- env add / remove / show --
+        case ("env", "add"):
+            from util.core.envpath import add as env_add
+
+            try:
+                print(env_add())
+            except RuntimeError as e:
+                print(f"错误: {e}")
+
+        case ("env", "remove"):
+            from util.core.envpath import remove as env_remove
+
+            try:
+                print(env_remove())
+            except RuntimeError as e:
+                print(f"错误: {e}")
+
+        case ("env", "show"):
+            from util.core.envpath import show as env_show
+
+            try:
+                print(env_show())
+            except RuntimeError as e:
+                print(f"错误: {e}")
+
+        # -- autostart add / remove / show --
+        case ("autostart", "add"):
+            from util.core.autostart import add as autostart_add
+            from util.core.envpath import add as env_add
+
+            try:
+                print(env_add())
+                print(autostart_add())
+            except RuntimeError as e:
+                print(f"错误: {e}")
+
+        case ("autostart", "remove"):
+            from util.core.autostart import remove as autostart_remove
+
+            try:
+                print(autostart_remove())
+            except RuntimeError as e:
+                print(f"错误: {e}")
+
+        case ("autostart", "show"):
+            from util.core.autostart import show as autostart_show
+
+            try:
+                print(autostart_show())
+            except RuntimeError as e:
+                print(f"错误: {e}")
+
         # -- unknown subcommand: print group help --
         case ("build", _):
             build_parser.print_help()
@@ -437,6 +521,10 @@ def main():
             run_parser.print_help()
         case ("tools", _):
             tools_parser.print_help()
+        case ("env", _):
+            env_parser.print_help()
+        case ("autostart", _):
+            autostart_parser.print_help()
 
         # -- unknown command: start default server --
         case _:

@@ -5,6 +5,9 @@ Web Shell 终端 — xterm.js (canvas) + FastAPI WebSocket + Windows ConPTY
 - 每个终端会话 = 独立 PTY 进程
 - 左侧会话列表，新建/切换/关闭
 - 方向键历史、光标移动、Ctrl+C、Tab补全 全部原生支持
+
+pywinpty 只有 Windows 轮子，Linux 上会导入失败。因此这里把导入做成可选的：
+非 Windows 平台只关闭 WebShell 功能，不影响应用其余部分启动。
 """
 
 from __future__ import annotations
@@ -19,9 +22,18 @@ from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 
 from fastapi import APIRouter, HTTPException, Request, WebSocket, WebSocketDisconnect
-from winpty import PtyProcess
 
 from util.core.config import cfg
+
+# pywinpty 仅提供 Windows 轮子（ConPTY），Linux/macOS 上 import winpty 会抛
+# ModuleNotFoundError。允许导入失败，平台不支持时禁用 WebShell 功能即可。
+try:
+    from winpty import PtyProcess
+
+    _PTY_AVAILABLE = True
+except ImportError:  # pragma: no cover - 平台相关分支
+    PtyProcess = None  # type: ignore[assignment]
+    _PTY_AVAILABLE = False
 
 # ---------------------------------------------------------------------------
 # PTY 读写线程池 — 避免占用 FastAPI 默认线程池
@@ -35,7 +47,9 @@ _pty_executor = ThreadPoolExecutor(max_workers=16, thread_name_prefix="pty-")
 
 
 def is_webshell_enabled() -> bool:
-    """全局启用/禁用，默认禁用"""
+    """全局启用/禁用，默认禁用；平台不支持 PTY 时（Linux）恒为禁用"""
+    if not _PTY_AVAILABLE:
+        return False
     v = cfg.get("webshell.enabled")
     return v if v is not None else False
 
@@ -187,17 +201,18 @@ def _new_sid() -> str:
 
 
 def _spawn_shell() -> PtyProcess:
-    """创建带伪终端的 PowerShell 进程"""
-    if sys.platform == "win32":
-        env = os.environ.copy()
-        env["TERM"] = "xterm-256color"
-        cmd = (
-            'powershell.exe -NoLogo -NoProfile -NoExit -Command '
-            '"$OutputEncoding = [Console]::OutputEncoding = [System.Text.Encoding]::UTF8"'
+    """创建带伪终端的 PowerShell 进程（仅 Windows 可用）"""
+    if not _PTY_AVAILABLE or sys.platform != "win32":
+        raise HTTPException(
+            status_code=503, detail="WebShell 仅在 Windows 上可用（缺少 pywinpty）"
         )
-        return PtyProcess.spawn(cmd, dimensions=(_cfg_rows(), _cfg_cols()), env=env)
-    else:
-        raise NotImplementedError("Unix PTY 暂未实现")
+    env = os.environ.copy()
+    env["TERM"] = "xterm-256color"
+    cmd = (
+        'powershell.exe -NoLogo -NoProfile -NoExit -Command '
+        '"$OutputEncoding = [Console]::OutputEncoding = [System.Text.Encoding]::UTF8"'
+    )
+    return PtyProcess.spawn(cmd, dimensions=(_cfg_rows(), _cfg_cols()), env=env)
 
 
 async def _cleanup_proc(proc: PtyProcess) -> None:
@@ -316,6 +331,10 @@ shell_router = APIRouter(prefix="/api/shell", tags=["shell"])
 
 
 def _require_enabled() -> None:
+    if not _PTY_AVAILABLE:
+        raise HTTPException(
+            status_code=503, detail="WebShell 仅在 Windows 上可用（缺少 pywinpty）"
+        )
     if not is_webshell_enabled():
         raise HTTPException(status_code=403, detail="WebShell 功能已禁用")
 
@@ -323,7 +342,7 @@ def _require_enabled() -> None:
 @shell_router.get("/status")
 async def api_status():
     """前端查询是否启用"""
-    return {"enabled": is_webshell_enabled()}
+    return {"enabled": is_webshell_enabled(), "available": _PTY_AVAILABLE}
 
 
 @shell_router.post("/sessions")
@@ -357,7 +376,15 @@ async def api_delete_session(session_id: str):
 async def websocket_shell_endpoint(websocket: WebSocket, session_id: str) -> None:
     """WebSocket shell 端点 — 接入已有 PTY 会话"""
 
-    # ---------- 全局禁用检查 ----------
+    # ---------- 平台 / 全局禁用检查 ----------
+    if not _PTY_AVAILABLE:
+        await websocket.accept()
+        await websocket.send_json({
+            "type": "forbidden",
+            "message": "WebShell 仅在 Windows 上可用（缺少 pywinpty）",
+        })
+        await websocket.close(code=4403, reason="WebShell 仅支持 Windows")
+        return
     if not is_webshell_enabled():
         await websocket.accept()
         await websocket.send_json({"type": "forbidden", "message": "WebShell 功能已禁用"})
